@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useLanguage } from "@/lib/i18n/context"
+import { useI18n } from "@/lib/i18n/context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -40,95 +40,128 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 
-// Mock data for demonstration
 const mockLoans = [
   {
-    id: "LN-2024-001",
+    id: "LA-2026-0847",
     borrowerName: "Tajik Agricultural LLC",
     borrowerTin: "123456789",
-    bankName: "Amonatbonk",
+    bankName: "Agroinvestbank",
     branch: "Dushanbe Main",
     amount: 500000,
     currency: "TJS",
-    disbursementDate: "2024-01-15",
-    maturityDate: "2027-01-15",
+    disbursementDate: "2025-01-15",
+    maturityDate: "2028-01-15",
     status: "active",
     guaranteeCoverage: 50,
     outstandingPrincipal: 425000,
     sector: "Agriculture",
   },
   {
-    id: "LN-2024-002",
+    id: "LA-2026-0846",
     borrowerName: "Silk Road Trading Co",
     borrowerTin: "987654321",
-    bankName: "Eskhata Bank",
+    bankName: "Bank Eskhata",
     branch: "Khujand",
     amount: 250000,
     currency: "USD",
-    disbursementDate: "2024-02-01",
-    maturityDate: "2026-02-01",
+    disbursementDate: "2025-02-01",
+    maturityDate: "2027-02-01",
     status: "active",
     guaranteeCoverage: 60,
     outstandingPrincipal: 225000,
     sector: "Trade",
   },
   {
-    id: "LN-2024-003",
+    id: "LA-2026-0843",
     borrowerName: "Mountain Textiles",
     borrowerTin: "456789123",
-    bankName: "Bank Arvand",
+    bankName: "Spitamen Bank",
     branch: "Kulyab",
     amount: 150000,
     currency: "TJS",
-    disbursementDate: "2023-11-20",
-    maturityDate: "2025-11-20",
-    status: "delinquent",
+    disbursementDate: "2024-11-20",
+    maturityDate: "2026-11-20",
+    status: "defaulted",
     guaranteeCoverage: 50,
     outstandingPrincipal: 98000,
     sector: "Manufacturing",
   },
   {
-    id: "LN-2024-004",
+    id: "LA-2026-0842",
     borrowerName: "Green Valley Farms",
     borrowerTin: "789123456",
-    bankName: "Spitamen Bank",
+    bankName: "IMON International",
     branch: "Dushanbe",
     amount: 300000,
     currency: "TJS",
-    disbursementDate: "2023-08-10",
-    maturityDate: "2025-08-10",
+    disbursementDate: "2024-08-10",
+    maturityDate: "2026-08-10",
     status: "closed",
     guaranteeCoverage: 50,
     outstandingPrincipal: 0,
     sector: "Agriculture",
   },
   {
-    id: "LN-2024-005",
+    id: "LA-2026-0841",
     borrowerName: "Tech Solutions TJ",
     borrowerTin: "321654987",
-    bankName: "First MicroFinance",
+    bankName: "Amonatbonk",
     branch: "Dushanbe",
     amount: 75000,
     currency: "USD",
-    disbursementDate: "2024-03-01",
-    maturityDate: "2026-03-01",
-    status: "pending",
+    disbursementDate: "2025-03-01",
+    maturityDate: "2027-03-01",
+    status: "submitted",
     guaranteeCoverage: 70,
     outstandingPrincipal: 75000,
     sector: "Services",
   },
+  {
+    id: "LA-2026-0840",
+    borrowerName: "Pamir Construction",
+    borrowerTin: "654987321",
+    bankName: "Agroinvestbank",
+    branch: "Khorog",
+    amount: 620000,
+    currency: "TJS",
+    disbursementDate: "2025-04-15",
+    maturityDate: "2028-04-15",
+    status: "disbursed",
+    guaranteeCoverage: 50,
+    outstandingPrincipal: 580000,
+    sector: "Construction",
+  },
+  {
+    id: "LA-2025-0712",
+    borrowerName: "Dushanbe Logistics",
+    borrowerTin: "147258369",
+    bankName: "Bank Eskhata",
+    branch: "Dushanbe",
+    amount: 180000,
+    currency: "TJS",
+    disbursementDate: "2024-06-01",
+    maturityDate: "2026-06-01",
+    status: "claim_pending",
+    guaranteeCoverage: 60,
+    outstandingPrincipal: 95000,
+    sector: "Transport",
+  },
 ]
 
-const statusColors: Record<string, string> = {
-  active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  delinquent: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  closed: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
-  claimed: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+const statusStyles: Record<string, string> = {
+  active: "bg-emerald-100 text-emerald-800",
+  submitted: "bg-amber-100 text-amber-800",
+  under_review: "bg-blue-100 text-blue-800",
+  approved: "bg-sky-100 text-sky-800",
+  disbursed: "bg-indigo-100 text-indigo-800",
+  defaulted: "bg-red-100 text-red-800",
+  closed: "bg-gray-100 text-gray-800",
+  claim_pending: "bg-orange-100 text-orange-800",
+  rejected: "bg-rose-100 text-rose-800",
 }
 
 export default function LoansPage() {
-  const { t } = useLanguage()
+  const { t } = useI18n()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [bankFilter, setBankFilter] = useState<string>("all")
@@ -154,34 +187,51 @@ export default function LoansPage() {
     }).format(amount)
   }
 
+  const getStatusLabel = (status: string) => {
+    const statusMap: Record<string, string> = {
+      active: t.loans.statusActive,
+      submitted: t.loans.statusSubmitted,
+      under_review: t.loans.statusUnderReview,
+      approved: t.loans.statusApproved,
+      disbursed: t.loans.statusDisbursed,
+      defaulted: t.loans.statusDefaulted,
+      closed: t.loans.statusClosed,
+      claim_pending: t.loans.statusClaimPending,
+      rejected: t.loans.statusRejected,
+    }
+    return statusMap[status] || status
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="p-6 lg:p-8">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            {t("loans.title")}
+          <h1 className="text-2xl font-bold text-foreground">
+            {t.loans.title}
           </h1>
-          <p className="text-muted-foreground">{t("loans.subtitle")}</p>
+          <p className="mt-1 text-muted-foreground">
+            Manage and track all loan guarantee applications
+          </p>
         </div>
-        <Link href="/dashboard/loans/new">
-          <Button className="gap-2">
+        <Button asChild className="gap-2">
+          <Link href="/dashboard/loans/new">
             <Plus className="h-4 w-4" />
-            {t("loans.newApplication")}
-          </Button>
-        </Link>
+            {t.loans.newApplication}
+          </Link>
+        </Button>
       </div>
 
-      <Card>
+      {/* Filters */}
+      <Card className="mb-6">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg">{t("loans.filterLoans")}</CardTitle>
-          <CardDescription>{t("loans.filterDescription")}</CardDescription>
+          <CardTitle className="text-base">{t.common.filter}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder={t("loans.searchPlaceholder")}
+                placeholder="Search by loan number, borrower name, or TIN..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
@@ -190,27 +240,28 @@ export default function LoansPage() {
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder={t("loans.status")} />
+                <SelectValue placeholder={t.common.status} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t("common.all")}</SelectItem>
-                <SelectItem value="pending">{t("status.pending")}</SelectItem>
-                <SelectItem value="active">{t("status.active")}</SelectItem>
-                <SelectItem value="delinquent">{t("status.delinquent")}</SelectItem>
-                <SelectItem value="closed">{t("status.closed")}</SelectItem>
-                <SelectItem value="claimed">{t("status.claimed")}</SelectItem>
+                <SelectItem value="all">{t.common.all}</SelectItem>
+                <SelectItem value="submitted">{t.loans.statusSubmitted}</SelectItem>
+                <SelectItem value="under_review">{t.loans.statusUnderReview}</SelectItem>
+                <SelectItem value="approved">{t.loans.statusApproved}</SelectItem>
+                <SelectItem value="disbursed">{t.loans.statusDisbursed}</SelectItem>
+                <SelectItem value="active">{t.loans.statusActive}</SelectItem>
+                <SelectItem value="defaulted">{t.loans.statusDefaulted}</SelectItem>
+                <SelectItem value="closed">{t.loans.statusClosed}</SelectItem>
+                <SelectItem value="claim_pending">{t.loans.statusClaimPending}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={bankFilter} onValueChange={setBankFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder={t("loans.selectBank")} />
+                <SelectValue placeholder={t.loans.bank} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t("common.allBanks")}</SelectItem>
+                <SelectItem value="all">{t.common.all}</SelectItem>
                 {uniqueBanks.map((bank) => (
-                  <SelectItem key={bank} value={bank}>
-                    {bank}
-                  </SelectItem>
+                  <SelectItem key={bank} value={bank}>{bank}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -218,21 +269,22 @@ export default function LoansPage() {
         </CardContent>
       </Card>
 
+      {/* Loans Table */}
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">{t("loans.loanNumber")}</TableHead>
-                  <TableHead className="font-semibold">{t("loans.borrower")}</TableHead>
-                  <TableHead className="font-semibold">{t("loans.bank")}</TableHead>
-                  <TableHead className="font-semibold">{t("loans.sector")}</TableHead>
-                  <TableHead className="text-right font-semibold">{t("loans.amount")}</TableHead>
-                  <TableHead className="font-semibold">{t("loans.disbursementDate")}</TableHead>
-                  <TableHead className="text-right font-semibold">{t("loans.outstanding")}</TableHead>
-                  <TableHead className="font-semibold">{t("loans.status")}</TableHead>
-                  <TableHead className="text-right font-semibold">{t("common.actions")}</TableHead>
+                  <TableHead className="font-semibold">{t.loans.applicationNumber}</TableHead>
+                  <TableHead className="font-semibold">{t.loans.borrower}</TableHead>
+                  <TableHead className="font-semibold">{t.loans.bank}</TableHead>
+                  <TableHead className="font-semibold">Sector</TableHead>
+                  <TableHead className="text-right font-semibold">{t.common.amount}</TableHead>
+                  <TableHead className="font-semibold">{t.loans.disbursementDate}</TableHead>
+                  <TableHead className="text-right font-semibold">Outstanding</TableHead>
+                  <TableHead className="font-semibold">{t.common.status}</TableHead>
+                  <TableHead className="text-right font-semibold">{t.common.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -241,33 +293,37 @@ export default function LoansPage() {
                     <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <FileText className="h-8 w-8" />
-                        <p>{t("loans.noLoansFound")}</p>
+                        <p>{t.common.noData}</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLoans.map((loan) => (
                     <TableRow key={loan.id} className="hover:bg-muted/50">
-                      <TableCell className="font-medium">{loan.id}</TableCell>
+                      <TableCell>
+                        <Link href={`/dashboard/loans/${loan.id}`} className="font-medium text-primary hover:underline">
+                          {loan.id}
+                        </Link>
+                      </TableCell>
                       <TableCell>
                         <div>
                           <p className="font-medium">{loan.borrowerName}</p>
-                          <p className="text-sm text-muted-foreground">TIN: {loan.borrowerTin}</p>
+                          <p className="text-xs text-muted-foreground">TIN: {loan.borrowerTin}</p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p>{loan.bankName}</p>
-                          <p className="text-sm text-muted-foreground">{loan.branch}</p>
+                          <p className="text-sm">{loan.bankName}</p>
+                          <p className="text-xs text-muted-foreground">{loan.branch}</p>
                         </div>
                       </TableCell>
-                      <TableCell>{loan.sector}</TableCell>
+                      <TableCell className="text-sm">{loan.sector}</TableCell>
                       <TableCell className="text-right font-medium">
                         {formatCurrency(loan.amount, loan.currency)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                           {new Date(loan.disbursementDate).toLocaleDateString()}
                         </div>
                       </TableCell>
@@ -275,8 +331,8 @@ export default function LoansPage() {
                         {formatCurrency(loan.outstandingPrincipal, loan.currency)}
                       </TableCell>
                       <TableCell>
-                        <Badge className={statusColors[loan.status]} variant="secondary">
-                          {t(`status.${loan.status}`)}
+                        <Badge className={statusStyles[loan.status] || "bg-gray-100 text-gray-800"} variant="secondary">
+                          {getStatusLabel(loan.status)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -284,31 +340,25 @@ export default function LoansPage() {
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
                               <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
+                              <span className="sr-only">{t.common.actions}</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/loans/${loan.id}`} className="flex items-center">
                                 <Eye className="mr-2 h-4 w-4" />
-                                {t("common.view")}
+                                {t.common.view}
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/loans/${loan.id}/edit`} className="flex items-center">
                                 <Edit className="mr-2 h-4 w-4" />
-                                {t("common.edit")}
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/loans/${loan.id}/schedule`} className="flex items-center">
-                                <FileText className="mr-2 h-4 w-4" />
-                                {t("loans.paymentSchedule")}
+                                {t.common.edit}
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem>
                               <Download className="mr-2 h-4 w-4" />
-                              {t("common.export")}
+                              {t.common.export}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -322,17 +372,13 @@ export default function LoansPage() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
         <p>
-          {t("common.showing")} {filteredLoans.length} {t("common.of")} {mockLoans.length} {t("loans.loans")}
+          Showing {filteredLoans.length} of {mockLoans.length} applications
         </p>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled>
-            {t("common.previous")}
-          </Button>
-          <Button variant="outline" size="sm" disabled>
-            {t("common.next")}
-          </Button>
+          <Button variant="outline" size="sm" disabled>{t.common.previous}</Button>
+          <Button variant="outline" size="sm" disabled>{t.common.next}</Button>
         </div>
       </div>
     </div>

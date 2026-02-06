@@ -1,46 +1,22 @@
 "use client"
 
 import { use } from "react"
-import { useLanguage } from "@/lib/i18n/context"
+import { useI18n } from "@/lib/i18n/context"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import {
-  ArrowLeft,
-  Edit,
-  Download,
-  Calendar,
-  Building2,
-  User,
-  DollarSign,
-  FileText,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  TrendingUp,
-  Shield,
+  ArrowLeft, Edit, Download, Calendar, Building2, User,
+  DollarSign, FileText, AlertTriangle, CheckCircle, Clock,
+  TrendingUp, Shield,
 } from "lucide-react"
 import Link from "next/link"
 
-// Mock data for a single loan
 const mockLoan = {
-  id: "LN-2024-001",
+  id: "LA-2026-0847",
   borrower: {
     name: "Tajik Agricultural LLC",
     tin: "123456789",
@@ -59,110 +35,85 @@ const mockLoan = {
       tin: "987654321",
     },
   },
-  bank: {
-    name: "Amonatbonk",
-    branch: "Dushanbe Main",
-    officer: "Alisher Saidov",
-  },
+  bank: { name: "Agroinvestbank", branch: "Dushanbe Main", officer: "Alisher Saidov" },
   product: "Standard MSME Loan",
   status: "active",
   dates: {
-    application: "2023-12-01",
-    approval: "2023-12-15",
-    disbursement: "2024-01-15",
-    maturity: "2027-01-15",
-    lastPayment: "2024-06-15",
+    application: "2024-12-01",
+    approval: "2024-12-15",
+    disbursement: "2025-01-15",
+    maturity: "2028-01-15",
+    lastPayment: "2026-01-15",
   },
   amounts: {
-    approved: 500000,
-    disbursed: 500000,
-    currency: "TJS",
-    outstandingPrincipal: 425000,
-    outstandingInterest: 2300,
-    totalOutstanding: 427300,
-    totalRepaid: 75000,
+    approved: 500000, disbursed: 500000, currency: "TJS",
+    outstandingPrincipal: 425000, outstandingInterest: 2300,
+    totalOutstanding: 427300, totalRepaid: 75000,
   },
   terms: {
-    durationMonths: 36,
-    gracePeriodMonths: 6,
-    frequency: "Monthly",
-    interestRate: 18.5,
-    guaranteeCoverage: 50,
+    durationMonths: 36, gracePeriodMonths: 6,
+    frequency: "Monthly", interestRate: 18.5, guaranteeCoverage: 50,
   },
-  delinquency: {
-    days: 0,
-    principalOverdue: 0,
-    interestOverdue: 0,
-  },
-  fees: {
-    upfrontFee: 2500,
-    annualFee: 1250,
-  },
+  delinquency: { days: 0, principalOverdue: 0, interestOverdue: 0 },
+  fees: { upfrontFee: 2500, annualFee: 1250 },
 }
 
-// Mock payment schedule
 const mockPaymentSchedule = [
-  { number: 1, date: "2024-01-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
-  { number: 2, date: "2024-02-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
-  { number: 3, date: "2024-03-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
-  { number: 4, date: "2024-04-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
-  { number: 5, date: "2024-05-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
-  { number: 6, date: "2024-06-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
-  { number: 7, date: "2024-07-15", principal: 16666.67, interest: 7708.33, total: 24375, outstanding: 483333.33, status: "upcoming" },
-  { number: 8, date: "2024-08-15", principal: 16666.67, interest: 7451.39, total: 24118.06, outstanding: 466666.66, status: "upcoming" },
-  { number: 9, date: "2024-09-15", principal: 16666.67, interest: 7194.44, total: 23861.11, outstanding: 449999.99, status: "upcoming" },
-  { number: 10, date: "2024-10-15", principal: 16666.67, interest: 6937.50, total: 23604.17, outstanding: 433333.32, status: "upcoming" },
-  { number: 11, date: "2024-11-15", principal: 16666.67, interest: 6680.56, total: 23347.23, outstanding: 416666.65, status: "upcoming" },
-  { number: 12, date: "2024-12-15", principal: 16666.67, interest: 6423.61, total: 23090.28, outstanding: 399999.98, status: "upcoming" },
+  { number: 1, date: "2025-01-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
+  { number: 2, date: "2025-02-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
+  { number: 3, date: "2025-03-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
+  { number: 4, date: "2025-04-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
+  { number: 5, date: "2025-05-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
+  { number: 6, date: "2025-06-15", principal: 0, interest: 7708.33, total: 7708.33, outstanding: 500000, status: "paid" },
+  { number: 7, date: "2025-07-15", principal: 16666.67, interest: 7708.33, total: 24375, outstanding: 483333.33, status: "paid" },
+  { number: 8, date: "2025-08-15", principal: 16666.67, interest: 7451.39, total: 24118.06, outstanding: 466666.66, status: "paid" },
+  { number: 9, date: "2025-09-15", principal: 16666.67, interest: 7194.44, total: 23861.11, outstanding: 449999.99, status: "paid" },
+  { number: 10, date: "2025-10-15", principal: 16666.67, interest: 6937.50, total: 23604.17, outstanding: 433333.32, status: "paid" },
+  { number: 11, date: "2025-11-15", principal: 16666.67, interest: 6680.56, total: 23347.23, outstanding: 416666.65, status: "upcoming" },
+  { number: 12, date: "2025-12-15", principal: 16666.67, interest: 6423.61, total: 23090.28, outstanding: 399999.98, status: "upcoming" },
+  { number: 13, date: "2026-01-15", principal: 16666.67, interest: 6166.67, total: 22833.34, outstanding: 383333.31, status: "upcoming" },
+  { number: 14, date: "2026-02-15", principal: 16666.67, interest: 5909.72, total: 22576.39, outstanding: 366666.64, status: "upcoming" },
 ]
 
-const statusColors: Record<string, string> = {
-  active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  delinquent: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  closed: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
-  claimed: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-}
-
-const paymentStatusColors: Record<string, string> = {
-  paid: "bg-green-100 text-green-800",
+const statusStyles: Record<string, string> = {
+  active: "bg-emerald-100 text-emerald-800",
+  submitted: "bg-amber-100 text-amber-800",
+  disbursed: "bg-indigo-100 text-indigo-800",
+  defaulted: "bg-red-100 text-red-800",
+  closed: "bg-gray-100 text-gray-800",
+  claim_pending: "bg-orange-100 text-orange-800",
+  paid: "bg-emerald-100 text-emerald-800",
   upcoming: "bg-blue-100 text-blue-800",
   overdue: "bg-red-100 text-red-800",
 }
 
 export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
-  const { t } = useLanguage()
+  const { t } = useI18n()
   const loan = mockLoan
 
   const formatCurrency = (amount: number, currency: string = "TJS") => {
     return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      style: "currency", currency,
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
     }).format(amount)
   }
 
   const repaymentProgress = ((loan.amounts.disbursed - loan.amounts.outstandingPrincipal) / loan.amounts.disbursed) * 100
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 lg:p-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/loans">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Button asChild variant="ghost" size="icon">
+            <Link href="/dashboard/loans"><ArrowLeft className="h-5 w-5" /></Link>
+          </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                {resolvedParams.id}
-              </h1>
-              <Badge className={statusColors[loan.status]} variant="secondary">
-                {t(`status.${loan.status}`)}
+              <h1 className="text-2xl font-bold text-foreground">{resolvedParams.id}</h1>
+              <Badge className={statusStyles[loan.status]} variant="secondary">
+                {t.loans.statusActive}
               </Badge>
             </div>
             <p className="text-muted-foreground">{loan.borrower.name}</p>
@@ -170,30 +121,24 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2 bg-transparent">
-            <Download className="h-4 w-4" />
-            {t("common.export")}
+            <Download className="h-4 w-4" />{t.common.export}
           </Button>
-          <Link href={`/dashboard/loans/${resolvedParams.id}/edit`}>
-            <Button className="gap-2">
-              <Edit className="h-4 w-4" />
-              {t("common.edit")}
-            </Button>
-          </Link>
+          <Button className="gap-2">
+            <Edit className="h-4 w-4" />{t.common.edit}
+          </Button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t("loans.disbursedAmount")}</p>
+                <p className="text-sm text-muted-foreground">{t.loans.disbursedAmount}</p>
                 <p className="text-2xl font-bold">{formatCurrency(loan.amounts.disbursed, loan.amounts.currency)}</p>
               </div>
-              <div className="rounded-full bg-primary/10 p-3">
-                <DollarSign className="h-5 w-5 text-primary" />
-              </div>
+              <div className="rounded-full bg-primary/10 p-3"><DollarSign className="h-5 w-5 text-primary" /></div>
             </div>
           </CardContent>
         </Card>
@@ -201,12 +146,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t("loans.outstanding")}</p>
+                <p className="text-sm text-muted-foreground">Outstanding</p>
                 <p className="text-2xl font-bold">{formatCurrency(loan.amounts.totalOutstanding, loan.amounts.currency)}</p>
               </div>
-              <div className="rounded-full bg-orange-500/10 p-3">
-                <TrendingUp className="h-5 w-5 text-orange-500" />
-              </div>
+              <div className="rounded-full bg-orange-500/10 p-3"><TrendingUp className="h-5 w-5 text-orange-500" /></div>
             </div>
           </CardContent>
         </Card>
@@ -214,12 +157,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t("loans.guaranteeCoverage")}</p>
+                <p className="text-sm text-muted-foreground">{t.loans.guaranteeCoverage}</p>
                 <p className="text-2xl font-bold">{loan.terms.guaranteeCoverage}%</p>
               </div>
-              <div className="rounded-full bg-blue-500/10 p-3">
-                <Shield className="h-5 w-5 text-blue-500" />
-              </div>
+              <div className="rounded-full bg-blue-500/10 p-3"><Shield className="h-5 w-5 text-blue-500" /></div>
             </div>
           </CardContent>
         </Card>
@@ -227,15 +168,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t("loans.delinquencyDays")}</p>
+                <p className="text-sm text-muted-foreground">Delinquency Days</p>
                 <p className="text-2xl font-bold">{loan.delinquency.days}</p>
               </div>
-              <div className={`rounded-full p-3 ${loan.delinquency.days > 0 ? "bg-red-500/10" : "bg-green-500/10"}`}>
-                {loan.delinquency.days > 0 ? (
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                ) : (
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                )}
+              <div className={`rounded-full p-3 ${loan.delinquency.days > 0 ? "bg-red-500/10" : "bg-emerald-500/10"}`}>
+                {loan.delinquency.days > 0
+                  ? <AlertTriangle className="h-5 w-5 text-red-500" />
+                  : <CheckCircle className="h-5 w-5 text-emerald-500" />}
               </div>
             </div>
           </CardContent>
@@ -243,35 +182,26 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Repayment Progress */}
-      <Card>
+      <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">{t("loans.repaymentProgress")}</span>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-medium">Repayment Progress</span>
             <span className="text-sm text-muted-foreground">{repaymentProgress.toFixed(1)}%</span>
           </div>
           <Progress value={repaymentProgress} className="h-3" />
-          <div className="flex justify-between mt-2 text-sm text-muted-foreground">
-            <span>{t("loans.repaid")}: {formatCurrency(loan.amounts.totalRepaid, loan.amounts.currency)}</span>
-            <span>{t("loans.remaining")}: {formatCurrency(loan.amounts.outstandingPrincipal, loan.amounts.currency)}</span>
+          <div className="mt-2 flex justify-between text-sm text-muted-foreground">
+            <span>Repaid: {formatCurrency(loan.amounts.totalRepaid, loan.amounts.currency)}</span>
+            <span>Remaining: {formatCurrency(loan.amounts.outstandingPrincipal, loan.amounts.currency)}</span>
           </div>
         </CardContent>
       </Card>
 
-      {/* Detailed Information Tabs */}
+      {/* Tabs */}
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="details" className="gap-2">
-            <FileText className="h-4 w-4" />
-            {t("loans.details")}
-          </TabsTrigger>
-          <TabsTrigger value="schedule" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            {t("loans.paymentSchedule")}
-          </TabsTrigger>
-          <TabsTrigger value="borrower" className="gap-2">
-            <User className="h-4 w-4" />
-            {t("loans.borrower")}
-          </TabsTrigger>
+          <TabsTrigger value="details" className="gap-2"><FileText className="h-4 w-4" />{t.loans.tabBasicInfo}</TabsTrigger>
+          <TabsTrigger value="schedule" className="gap-2"><Calendar className="h-4 w-4" />{t.loans.tabPaymentSchedule}</TabsTrigger>
+          <TabsTrigger value="borrower" className="gap-2"><User className="h-4 w-4" />{t.loans.tabBorrowerInfo}</TabsTrigger>
         </TabsList>
 
         {/* Loan Details Tab */}
@@ -280,34 +210,33 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <DollarSign className="h-5 w-5" />
-                  {t("loans.loanTerms")}
+                  <DollarSign className="h-5 w-5" />Loan Terms
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.product")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.product}</p>
                     <p className="font-medium">{loan.product}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.interestRate")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.interestRate}</p>
                     <p className="font-medium">{loan.terms.interestRate}% p.a.</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.durationMonths")}</p>
-                    <p className="font-medium">{loan.terms.durationMonths} {t("common.months")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.loanTerm}</p>
+                    <p className="font-medium">{loan.terms.durationMonths} months</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.gracePeriod")}</p>
-                    <p className="font-medium">{loan.terms.gracePeriodMonths} {t("common.months")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.gracePeriod}</p>
+                    <p className="font-medium">{loan.terms.gracePeriodMonths} months</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.frequency")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.repaymentFrequency}</p>
                     <p className="font-medium">{loan.terms.frequency}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.guaranteeCoverage")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.guaranteeCoverage}</p>
                     <p className="font-medium">{loan.terms.guaranteeCoverage}%</p>
                   </div>
                 </div>
@@ -317,30 +246,29 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Calendar className="h-5 w-5" />
-                  {t("loans.keyDates")}
+                  <Calendar className="h-5 w-5" />Key Dates
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.applicationDate")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.applicationDate}</p>
                     <p className="font-medium">{new Date(loan.dates.application).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.approvalDate")}</p>
+                    <p className="text-sm text-muted-foreground">Approval Date</p>
                     <p className="font-medium">{new Date(loan.dates.approval).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.disbursementDate")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.disbursementDate}</p>
                     <p className="font-medium">{new Date(loan.dates.disbursement).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.maturityDate")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.maturityDate}</p>
                     <p className="font-medium">{new Date(loan.dates.maturity).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.lastPaymentDate")}</p>
+                    <p className="text-sm text-muted-foreground">Last Payment</p>
                     <p className="font-medium">{new Date(loan.dates.lastPayment).toLocaleDateString()}</p>
                   </div>
                 </div>
@@ -350,22 +278,21 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Building2 className="h-5 w-5" />
-                  {t("loans.bankInfo")}
+                  <Building2 className="h-5 w-5" />Bank Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.bank")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.bank}</p>
                     <p className="font-medium">{loan.bank.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.branch")}</p>
+                    <p className="text-sm text-muted-foreground">{t.loans.branch}</p>
                     <p className="font-medium">{loan.bank.branch}</p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">{t("loans.loanOfficer")}</p>
+                    <p className="text-sm text-muted-foreground">Loan Officer</p>
                     <p className="font-medium">{loan.bank.officer}</p>
                   </div>
                 </div>
@@ -375,18 +302,17 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <FileText className="h-5 w-5" />
-                  {t("loans.fees")}
+                  <FileText className="h-5 w-5" />{t.fees.title}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.upfrontFee")}</p>
+                    <p className="text-sm text-muted-foreground">{t.fees.upfrontFee}</p>
                     <p className="font-medium">{formatCurrency(loan.fees.upfrontFee, loan.amounts.currency)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.annualFee")}</p>
+                    <p className="text-sm text-muted-foreground">Annual Fee</p>
                     <p className="font-medium">{formatCurrency(loan.fees.annualFee, loan.amounts.currency)}</p>
                   </div>
                 </div>
@@ -399,8 +325,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <TabsContent value="schedule">
           <Card>
             <CardHeader>
-              <CardTitle>{t("loans.paymentSchedule")}</CardTitle>
-              <CardDescription>{t("loans.paymentScheduleDescription")}</CardDescription>
+              <CardTitle>{t.paymentSchedule.title}</CardTitle>
+              <CardDescription>Amortization schedule with payment tracking</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -408,36 +334,29 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead className="w-16">#</TableHead>
-                      <TableHead>{t("loans.paymentDate")}</TableHead>
-                      <TableHead className="text-right">{t("loans.principalInstallment")}</TableHead>
-                      <TableHead className="text-right">{t("loans.interestInstallment")}</TableHead>
-                      <TableHead className="text-right">{t("loans.totalInstallment")}</TableHead>
-                      <TableHead className="text-right">{t("loans.outstandingPrincipal")}</TableHead>
-                      <TableHead>{t("loans.status")}</TableHead>
+                      <TableHead>{t.paymentSchedule.dueDate}</TableHead>
+                      <TableHead className="text-right">{t.paymentSchedule.principalAmount}</TableHead>
+                      <TableHead className="text-right">{t.paymentSchedule.interestAmount}</TableHead>
+                      <TableHead className="text-right">{t.paymentSchedule.totalAmount}</TableHead>
+                      <TableHead className="text-right">{t.paymentSchedule.outstandingPrincipal}</TableHead>
+                      <TableHead>{t.common.status}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {mockPaymentSchedule.map((payment) => (
-                      <TableRow key={payment.number}>
+                      <TableRow key={payment.number} className={payment.status === "overdue" ? "bg-red-50" : ""}>
                         <TableCell className="font-medium">{payment.number}</TableCell>
                         <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(payment.principal, loan.amounts.currency)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(payment.interest, loan.amounts.currency)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(payment.total, loan.amounts.currency)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(payment.outstanding, loan.amounts.currency)}
-                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(payment.principal, loan.amounts.currency)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(payment.interest, loan.amounts.currency)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(payment.total, loan.amounts.currency)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(payment.outstanding, loan.amounts.currency)}</TableCell>
                         <TableCell>
-                          <Badge className={paymentStatusColors[payment.status]} variant="secondary">
+                          <Badge className={statusStyles[payment.status] || ""} variant="secondary">
                             {payment.status === "paid" && <CheckCircle className="mr-1 h-3 w-3" />}
                             {payment.status === "upcoming" && <Clock className="mr-1 h-3 w-3" />}
-                            {t(`status.${payment.status}`)}
+                            {payment.status === "overdue" && <AlertTriangle className="mr-1 h-3 w-3" />}
+                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -455,35 +374,34 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Building2 className="h-5 w-5" />
-                  {t("loans.companyInfo")}
+                  <Building2 className="h-5 w-5" />Company Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">{t("loans.companyName")}</p>
+                    <p className="text-sm text-muted-foreground">Company Name</p>
                     <p className="font-medium">{loan.borrower.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.clientTin")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.tinNumber}</p>
                     <p className="font-medium">{loan.borrower.tin}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.registrationNumber")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.registrationNumber}</p>
                     <p className="font-medium">{loan.borrower.registrationNumber}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.legalEntityType")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.legalType}</p>
                     <p className="font-medium">{loan.borrower.legalEntityType}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.sector")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.sector}</p>
                     <p className="font-medium">{loan.borrower.sector}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.workforce")}</p>
-                    <p className="font-medium">{loan.borrower.workforce} {t("common.employees")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.employeeCount}</p>
+                    <p className="font-medium">{loan.borrower.workforce}</p>
                   </div>
                 </div>
               </CardContent>
@@ -492,26 +410,25 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <User className="h-5 w-5" />
-                  {t("loans.legalRepInfo")}
+                  <User className="h-5 w-5" />Legal Representative
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">{t("loans.fullName")}</p>
+                    <p className="text-sm text-muted-foreground">Full Name</p>
                     <p className="font-medium">{loan.borrower.representative.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.gender")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.gender}</p>
                     <p className="font-medium">{loan.borrower.representative.gender}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.birthdate")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.dateOfBirth}</p>
                     <p className="font-medium">{new Date(loan.borrower.representative.birthdate).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.representativeTin")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.tinNumber}</p>
                     <p className="font-medium">{loan.borrower.representative.tin}</p>
                   </div>
                 </div>
@@ -520,24 +437,24 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle className="text-lg">{t("loans.address")}</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg">Address</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 sm:grid-cols-4">
-                  <div className="sm:col-span-2">
-                    <p className="text-sm text-muted-foreground">{t("loans.street")}</p>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div className="col-span-2">
+                    <p className="text-sm text-muted-foreground">Street Address</p>
                     <p className="font-medium">{loan.borrower.address}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.district")}</p>
-                    <p className="font-medium">{loan.borrower.district}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.city")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.city}</p>
                     <p className="font-medium">{loan.borrower.city}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{t("loans.zipCode")}</p>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.district}</p>
+                    <p className="font-medium">{loan.borrower.district}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t.borrowers.zipCode}</p>
                     <p className="font-medium">{loan.borrower.zipCode}</p>
                   </div>
                 </div>
