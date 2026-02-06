@@ -427,9 +427,9 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 
 -- Profiles policies
-CREATE POLICY "Users can view their own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update their own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Authenticated users can view all profiles" ON profiles FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Users can update their own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Banks policies (all authenticated users can view)
 CREATE POLICY "Authenticated users can view banks" ON banks FOR SELECT USING (auth.role() = 'authenticated');
