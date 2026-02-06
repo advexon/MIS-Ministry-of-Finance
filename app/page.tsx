@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { ShieldCheck, BarChart3, FileText, Users, ArrowRight, Building2, Globe, Lock } from "lucide-react"
+import Image from "next/image"
+import { BarChart3, FileText, Users, ArrowRight, Building2, Globe, Lock, Shield } from "lucide-react"
 
 export default function LandingPage() {
   return (
@@ -8,9 +9,7 @@ export default function LandingPage() {
       <header className="border-b bg-[hsl(0,0%,100%)]">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(217,91%,40%)]">
-              <ShieldCheck className="h-6 w-6 text-[hsl(0,0%,100%)]" />
-            </div>
+            <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="h-10 w-10 object-contain" />
             <div>
               <span className="text-lg font-bold text-[hsl(222,47%,11%)]">PRSF MIS</span>
               <p className="text-[10px] text-[hsl(215,16%,47%)]">Loan Tracking System</p>
@@ -125,7 +124,7 @@ export default function LandingPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               {[
                 { icon: Lock, text: "Role-based access control" },
-                { icon: ShieldCheck, text: "Row-level security" },
+                { icon: Shield, text: "Row-level security" },
                 { icon: Globe, text: "Trilingual support (EN/RU/TJ)" },
                 { icon: BarChart3, text: "Full audit trail" },
               ].map((item) => (
@@ -144,7 +143,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-4">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="h-5 w-5 text-[hsl(217,91%,60%)]" />
+              <Image src="/logo.png" alt="Emblem of Tajikistan" width={24} height={24} className="h-6 w-6 object-contain" />
               <span className="text-sm font-medium text-[hsl(210,40%,98%)]">PRSF Loan Tracking MIS</span>
             </div>
             <p className="text-xs text-[hsl(215,20%,65%)]">

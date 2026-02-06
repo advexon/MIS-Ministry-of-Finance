@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import Image from 'next/image'
 import {
   LayoutDashboard,
   FileText,
@@ -34,7 +35,6 @@ import {
   Menu,
   ChevronDown,
   Globe,
-  ShieldCheck,
   PlusCircle,
   HelpCircle,
 } from 'lucide-react'
@@ -119,9 +119,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-          <ShieldCheck className="h-5 w-5 text-sidebar-primary-foreground" />
-        </div>
+        <Image src="/logo.png" alt="PRSF Emblem" width={36} height={36} className="h-9 w-9 object-contain" />
         <div className="flex flex-col">
           <span className="text-sm font-semibold text-sidebar-foreground">PRSF MIS</span>
           <span className="text-[10px] text-sidebar-foreground/70">Loan Tracking System</span>

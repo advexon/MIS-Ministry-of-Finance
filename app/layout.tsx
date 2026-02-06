@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   description: 'Partial Risk Sharing Facility - Loan Tracking and Management Information System for the Ministry of Finance of Tajikistan',
   generator: 'v0.app',
   keywords: ['PRSF', 'Loan', 'Guarantee', 'Tajikistan', 'MSME', 'Finance'],
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export const viewport: Viewport = {

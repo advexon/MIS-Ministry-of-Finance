@@ -6,7 +6,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CheckCircle2, ShieldCheck, Mail } from 'lucide-react'
+import { CheckCircle2, Mail } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
 
 export default function SignUpSuccessPage() {
@@ -15,9 +16,7 @@ export default function SignUpSuccessPage() {
       {/* Header */}
       <header className="flex items-center justify-between border-b bg-card px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-            <ShieldCheck className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="rounded-lg" />
           <div>
             <h1 className="text-lg font-semibold text-foreground">PRSF MIS</h1>
             <p className="text-xs text-muted-foreground">Partial Risk Sharing Facility</p>

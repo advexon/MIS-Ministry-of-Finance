@@ -23,7 +23,8 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Building2, Globe, Loader2, ShieldCheck } from 'lucide-react'
+import Image from 'next/image'
+import { Building2, Globe, Loader2 } from 'lucide-react'
 
 const languages = [
   { code: 'en', label: 'English', flag: 'EN' },
@@ -139,9 +140,7 @@ export default function SignUpPage() {
       {/* Header */}
       <header className="flex items-center justify-between border-b bg-card px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-            <ShieldCheck className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="rounded-lg" />
           <div>
             <h1 className="text-lg font-semibold text-foreground">PRSF MIS</h1>
             <p className="text-xs text-muted-foreground">{t.prsfTitle}</p>
