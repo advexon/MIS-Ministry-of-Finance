@@ -1,19 +1,21 @@
 import { type NextRequest } from 'next/server'
-import { updateSession } from '@/lib/supabase/proxy'
 
 export async function middleware(request: NextRequest) {
+  // Dynamically import to avoid loading @supabase/ssr for excluded routes
+  const { updateSession } = await import('@/lib/supabase/proxy')
   return await updateSession(request)
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * Only run middleware on /dashboard routes (protected) and /auth routes
+     * (for redirect-if-logged-in logic). This excludes:
+     * - / (landing page)
+     * - /api routes
+     * - _next/static, _next/image, favicon.ico, and static assets
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/dashboard/:path*',
+    '/auth/:path*',
   ],
 }
