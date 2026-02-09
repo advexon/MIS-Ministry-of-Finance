@@ -37,6 +37,8 @@ import {
   Globe,
   PlusCircle,
   HelpCircle,
+  User as UserIcon,
+  Search,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
 
@@ -118,17 +120,18 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const NavContent = () => (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
-        <Image src="/logo.png" alt="PRSF Emblem" width={36} height={36} className="h-9 w-9 object-contain" />
+      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
+        <Image src="/logo.png" alt="PRSF Emblem" width={32} height={32} className="h-8 w-8 object-contain" />
         <div className="flex flex-col">
-          <span className="text-sm font-semibold text-sidebar-foreground">PRSF MIS</span>
-          <span className="text-[10px] text-sidebar-foreground/70">Loan Tracking System</span>
+          <span className="text-sm font-bold text-sidebar-foreground">PRSF MIS</span>
+          <span className="text-[10px] leading-tight text-sidebar-foreground/50">Loan Tracking System</span>
         </div>
       </div>
 
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-4">
-        <nav className="flex flex-col gap-1">
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">Navigation</p>
+        <nav className="flex flex-col gap-0.5">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -139,13 +142,13 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors',
                   isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                    ? 'bg-sidebar-accent text-sidebar-primary'
+                    : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 flex-shrink-0" />
                 {t.nav[item.titleKey]}
               </Link>
             )
@@ -157,11 +160,12 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       <div className="border-t border-sidebar-border p-3">
         <Button 
           asChild 
-          className="w-full justify-start gap-2 bg-sidebar-primary hover:bg-sidebar-primary/90"
+          size="sm"
+          className="w-full justify-start gap-2 bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
         >
           <Link href="/dashboard/loans/new">
             <PlusCircle className="h-4 w-4" />
-            {t.loans.newApplication}
+            <span className="text-[13px]">{t.loans.newApplication}</span>
           </Link>
         </Button>
       </div>
@@ -171,13 +175,13 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-64 flex-shrink-0 border-r bg-sidebar-background lg:block">
+      <aside className="hidden w-60 flex-shrink-0 bg-sidebar-background lg:block">
         <NavContent />
       </aside>
 
       {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-64 bg-sidebar-background p-0">
+        <SheetContent side="left" className="w-60 bg-sidebar-background p-0">
           <NavContent />
         </SheetContent>
       </Sheet>
@@ -185,29 +189,33 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       {/* Main Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
+        <header className="flex h-14 items-center justify-between border-b bg-card px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden">
-                  <Menu className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden">
+                  <Menu className="h-4 w-4" />
                   <span className="sr-only">Toggle menu</span>
                 </Button>
               </SheetTrigger>
             </Sheet>
-            <div className="hidden text-sm text-muted-foreground md:block">
-              {t.common.appDescription}
+            {/* Search */}
+            <div className="hidden items-center gap-2 rounded-lg border bg-background px-3 py-1.5 md:flex">
+              <Search className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Search...</span>
+              <kbd className="ml-8 rounded border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {'/'} 
+              </kbd>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {/* Language Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Globe className="h-4 w-4" />
-                  <span className="hidden sm:inline">{languages.find(l => l.code === locale)?.flag}</span>
-                  <ChevronDown className="h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span className="hidden font-medium sm:inline">{languages.find(l => l.code === locale)?.flag}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -215,9 +223,9 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                   <DropdownMenuItem
                     key={lang.code}
                     onClick={() => setLocale(lang.code)}
-                    className={cn(locale === lang.code && 'bg-accent')}
+                    className={cn('text-xs', locale === lang.code && 'bg-accent/10 text-accent')}
                   >
-                    <span className="mr-2 font-medium">{lang.flag}</span>
+                    <span className="mr-2 font-semibold">{lang.flag}</span>
                     {lang.label}
                   </DropdownMenuItem>
                 ))}
@@ -225,54 +233,51 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
             </DropdownMenu>
 
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
+            <Button variant="ghost" size="icon" className="relative h-8 w-8">
+              <Bell className="h-4 w-4" />
+              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
               <span className="sr-only">{t.nav.notifications}</span>
             </Button>
 
-            {/* Help */}
-            <Button variant="ghost" size="icon" className="hidden sm:flex">
-              <HelpCircle className="h-5 w-5" />
-              <span className="sr-only">{t.nav.help}</span>
-            </Button>
+            {/* Divider */}
+            <div className="mx-1 h-6 w-px bg-border" />
 
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2 pl-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                <Button variant="ghost" className="h-8 gap-2 pl-1.5 pr-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
                     {user.email?.charAt(0).toUpperCase()}
                   </div>
                   <div className="hidden flex-col items-start md:flex">
-                    <span className="text-sm font-medium">
+                    <span className="text-xs font-semibold leading-tight text-foreground">
                       {user.user_metadata?.first_name || user.email?.split('@')[0]}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] leading-tight text-muted-foreground">
                       {user.email}
                     </span>
                   </div>
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>{t.nav.profile}</DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-xs">{t.nav.profile}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="text-xs">
                   <Link href="/dashboard/profile">
-                    <HelpCircle className="mr-2 h-4 w-4" />
+                    <UserIcon className="mr-2 h-3.5 w-3.5" />
                     {t.nav.profile}
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="text-xs">
                   <Link href="/dashboard/settings">
-                    <Settings className="mr-2 h-4 w-4" />
+                    <Settings className="mr-2 h-3.5 w-3.5" />
                     {t.nav.settings}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
+                <DropdownMenuItem onClick={handleLogout} className="text-xs text-destructive">
+                  <LogOut className="mr-2 h-3.5 w-3.5" />
                   {t.auth.logout}
                 </DropdownMenuItem>
               </DropdownMenuContent>

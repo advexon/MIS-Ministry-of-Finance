@@ -1,16 +1,8 @@
 'use client'
 
 import React from "react"
-
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -24,7 +16,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Image from 'next/image'
-import { Building2, Globe, Loader2 } from 'lucide-react'
+import { Globe, Loader2 } from 'lucide-react'
 
 const languages = [
   { code: 'en', label: 'English', flag: 'EN' },
@@ -46,13 +38,12 @@ const translations = {
     hasAccount: 'Already have an account?',
     login: 'Sign in',
     passwordMismatch: 'Passwords do not match',
-    prsfTitle: 'Partial Risk Sharing Facility',
-    ministryName: 'Ministry of Finance of the Republic of Tajikistan',
     preferredLanguage: 'Preferred Language',
+    ministry: 'Ministry of Finance of the Republic of Tajikistan',
   },
   ru: {
     title: 'Запросить доступ',
-    description: 'Создайте аккаунт для доступа к системе отслеживания кредитов ФРЧР',
+    description: 'Создайте аккаунт для доступа к системе ФРЧР',
     firstName: 'Имя',
     lastName: 'Фамилия',
     email: 'Электронная почта',
@@ -63,13 +54,12 @@ const translations = {
     hasAccount: 'Уже есть аккаунт?',
     login: 'Войти',
     passwordMismatch: 'Пароли не совпадают',
-    prsfTitle: 'Фонд разделения частичных рисков',
-    ministryName: 'Министерство финансов Республики Таджикистан',
     preferredLanguage: 'Предпочитаемый язык',
+    ministry: 'Министерство финансов Республики Таджикистан',
   },
   tj: {
     title: 'Дархости дастрасӣ',
-    description: 'Барои дастрасӣ ба системаи пайгирии қарзи ФТСК аккаунт созед',
+    description: 'Барои дастрасӣ ба системаи ФТСК аккаунт созед',
     firstName: 'Ном',
     lastName: 'Насаб',
     email: 'Почтаи электронӣ',
@@ -80,9 +70,8 @@ const translations = {
     hasAccount: 'Аллакай аккаунт доред?',
     login: 'Воридшавӣ',
     passwordMismatch: 'Рамзҳо мувофиқат намекунанд',
-    prsfTitle: 'Фонди тақсимоти хатарҳои қисман',
-    ministryName: 'Вазорати молияи Ҷумҳурии Тоҷикистон',
     preferredLanguage: 'Забони интихобшуда',
+    ministry: 'Вазорати молияи Ҷумҳурии Тоҷикистон',
   },
 }
 
@@ -136,160 +125,163 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b bg-card px-6 py-4">
+    <div className="flex min-h-svh">
+      {/* Left panel - branding */}
+      <div className="hidden flex-col justify-between bg-primary p-10 lg:flex lg:w-[480px]">
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="rounded-lg" />
+          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="h-10 w-10 object-contain" />
           <div>
-            <h1 className="text-lg font-semibold text-foreground">PRSF MIS</h1>
-            <p className="text-xs text-muted-foreground">{t.prsfTitle}</p>
+            <span className="text-base font-bold text-primary-foreground">PRSF MIS</span>
+            <p className="text-[11px] text-primary-foreground/60">Loan Tracking System</p>
           </div>
         </div>
-        <Select value={language} onValueChange={(v) => setLanguage(v as 'en' | 'ru' | 'tj')}>
-          <SelectTrigger className="w-32">
-            <Globe className="mr-2 h-4 w-4" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {languages.map((lang) => (
-              <SelectItem key={lang.code} value={lang.code}>
-                <span className="font-medium">{lang.flag}</span> {lang.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex flex-1 items-center justify-center bg-muted/30 p-6">
-        <div className="w-full max-w-md">
-          {/* Ministry Badge */}
-          <div className="mb-6 flex items-center justify-center gap-2 text-center">
-            <Building2 className="h-5 w-5 text-primary" />
-            <span className="text-sm font-medium text-muted-foreground">
-              {t.ministryName}
-            </span>
-          </div>
-
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="space-y-1 pb-4 text-center">
-              <CardTitle className="text-2xl font-bold">{t.title}</CardTitle>
-              <CardDescription className="text-balance">
-                {t.description}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSignUp}>
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="grid gap-2">
-                      <Label htmlFor="firstName">{t.firstName}</Label>
-                      <Input
-                        id="firstName"
-                        type="text"
-                        required
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        className="h-11"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="lastName">{t.lastName}</Label>
-                      <Input
-                        id="lastName"
-                        type="text"
-                        required
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="h-11"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">{t.email}</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="name@bank.tj"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">{t.password}</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="confirmPassword">{t.confirmPassword}</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="preferredLanguage">{t.preferredLanguage}</Label>
-                    <Select value={language} onValueChange={(v) => setLanguage(v as 'en' | 'ru' | 'tj')}>
-                      <SelectTrigger className="h-11">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {languages.map((lang) => (
-                          <SelectItem key={lang.code} value={lang.code}>
-                            {lang.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {error && (
-                    <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                      {error}
-                    </div>
-                  )}
-                  <Button type="submit" className="h-11 w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {t.signingUp}
-                      </>
-                    ) : (
-                      t.signUp
-                    )}
-                  </Button>
-                </div>
-                <div className="mt-6 text-center text-sm text-muted-foreground">
-                  {t.hasAccount}{' '}
-                  <Link
-                    href="/auth/login"
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {t.login}
-                  </Link>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Footer */}
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            World Bank FPSDP Project - Financial and Private Sector Development
+        <div>
+          <h2 className="text-balance text-3xl font-bold leading-tight text-primary-foreground">
+            Partial Risk Sharing Facility
+          </h2>
+          <p className="mt-4 text-pretty text-sm leading-relaxed text-primary-foreground/60">
+            Join the platform that connects partner banks with MSME borrowers 
+            through guaranteed loan facilities across Tajikistan.
           </p>
         </div>
-      </main>
+        <p className="text-xs text-primary-foreground/40">
+          {t.ministry}
+        </p>
+      </div>
+
+      {/* Right panel - form */}
+      <div className="flex flex-1 flex-col">
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3 lg:hidden">
+            <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" />
+            <span className="text-sm font-bold text-foreground">PRSF MIS</span>
+          </div>
+          <div className="ml-auto">
+            <Select value={language} onValueChange={(v) => setLanguage(v as 'en' | 'ru' | 'tj')}>
+              <SelectTrigger className="h-9 w-28 border-border bg-card text-xs">
+                <Globe className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {languages.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    <span className="font-medium">{lang.flag}</span> {lang.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Form area */}
+        <div className="flex flex-1 items-center justify-center px-6 pb-10">
+          <div className="w-full max-w-sm">
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.title}</h1>
+              <p className="mt-1.5 text-sm text-muted-foreground">{t.description}</p>
+            </div>
+
+            <form onSubmit={handleSignUp} className="flex flex-col gap-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="firstName" className="text-sm font-medium">{t.firstName}</Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="h-11 bg-card"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="lastName" className="text-sm font-medium">{t.lastName}</Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="h-11 bg-card"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email" className="text-sm font-medium">{t.email}</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@bank.tj"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 bg-card"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="password" className="text-sm font-medium">{t.password}</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-11 bg-card"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="confirmPassword" className="text-sm font-medium">{t.confirmPassword}</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="h-11 bg-card"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="preferredLanguage" className="text-sm font-medium">{t.preferredLanguage}</Label>
+                <Select value={language} onValueChange={(v) => setLanguage(v as 'en' | 'ru' | 'tj')}>
+                  <SelectTrigger className="h-11 bg-card">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {languages.map((lang) => (
+                      <SelectItem key={lang.code} value={lang.code}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {error && (
+                <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+              <Button type="submit" className="h-11 w-full text-sm font-semibold" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t.signingUp}
+                  </>
+                ) : (
+                  t.signUp
+                )}
+              </Button>
+            </form>
+
+            <p className="mt-8 text-center text-sm text-muted-foreground">
+              {t.hasAccount}{' '}
+              <Link href="/auth/login" className="font-semibold text-accent hover:underline">
+                {t.login}
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

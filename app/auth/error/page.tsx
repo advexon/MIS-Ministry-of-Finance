@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import Image from 'next/image'
@@ -12,44 +12,41 @@ export default async function AuthErrorPage({
   const params = await searchParams
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="flex min-h-svh flex-col bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between border-b bg-card px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="rounded-lg" />
+      <header className="border-b bg-card px-6 py-4">
+        <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" />
           <div>
-            <h1 className="text-lg font-semibold text-foreground">PRSF MIS</h1>
-            <p className="text-xs text-muted-foreground">Partial Risk Sharing Facility</p>
+            <span className="text-sm font-bold text-foreground">PRSF MIS</span>
+            <p className="text-[10px] text-muted-foreground">Partial Risk Sharing Facility</p>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex flex-1 items-center justify-center bg-muted/30 p-6">
+      {/* Main */}
+      <main className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="space-y-4 pb-4 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-                <AlertCircle className="h-8 w-8 text-destructive" />
+          <Card className="shadow-sm">
+            <CardContent className="px-8 py-10 text-center">
+              <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+                <AlertCircle className="h-7 w-7 text-destructive" />
               </div>
-              <CardTitle className="text-2xl font-bold">
-                Authentication Error
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="rounded-lg bg-destructive/10 p-4 text-center">
+              <h1 className="text-xl font-bold text-foreground">Authentication Error</h1>
+
+              <div className="mt-6 rounded-lg bg-destructive/10 px-4 py-3">
                 <p className="text-sm text-destructive">
                   {params?.error
                     ? `Error: ${params.error}`
                     : 'An unexpected authentication error occurred.'}
                 </p>
               </div>
-              
-              <div className="space-y-3">
-                <Button asChild className="w-full">
+
+              <div className="mt-8 flex flex-col gap-3">
+                <Button asChild className="h-11 w-full text-sm font-semibold">
                   <Link href="/auth/login">Try Again</Link>
                 </Button>
-                <Button asChild variant="outline" className="w-full bg-transparent">
+                <Button asChild variant="outline" className="h-11 w-full bg-transparent text-sm font-semibold">
                   <Link href="/">Return to Home</Link>
                 </Button>
               </div>
