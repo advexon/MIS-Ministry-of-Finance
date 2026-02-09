@@ -1,24 +1,79 @@
 import Link from "next/link"
 import Image from "next/image"
-import { BarChart3, FileText, Users, ArrowRight, Building2, Globe, Lock, Shield, CheckCircle2 } from "lucide-react"
+import {
+  BarChart3,
+  FileText,
+  Users,
+  ArrowRight,
+  Building2,
+  Globe,
+  Lock,
+  Shield,
+  CheckCircle2,
+} from "lucide-react"
+
+const stats = [
+  { value: "847+", label: "Loans Guaranteed" },
+  { value: "TJS 125M+", label: "Total Disbursed" },
+  { value: "6", label: "Partner Banks" },
+  { value: "50+", label: "Bank Branches" },
+]
+
+const features = [
+  {
+    Icon: FileText,
+    title: "Loan Applications",
+    desc: "Submit, review, and approve loan guarantee applications with multi-step workflows.",
+  },
+  {
+    Icon: BarChart3,
+    title: "Portfolio Analytics",
+    desc: "Real-time dashboards on disbursements, delinquency, and portfolio performance.",
+  },
+  {
+    Icon: Building2,
+    title: "Bank Management",
+    desc: "Manage partner banks, branches, and their loan portfolios across the facility.",
+  },
+  {
+    Icon: Users,
+    title: "Borrower Tracking",
+    desc: "Complete borrower profiles with loan history, payments, and risk assessment.",
+  },
+]
+
+const securityItems = [
+  { Icon: Lock, text: "Role-based access control" },
+  { Icon: Shield, text: "Row-level data security" },
+  { Icon: Globe, text: "Trilingual support (EN/RU/TJ)" },
+  { Icon: CheckCircle2, text: "Full audit trail logging" },
+]
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Emblem of Tajikistan" width={36} height={36} className="h-9 w-9 object-contain" />
+            <Image
+              src="/logo.png"
+              alt="Emblem of Tajikistan"
+              width={36}
+              height={36}
+              className="h-9 w-9 object-contain"
+            />
             <div className="flex flex-col">
-              <span className="text-base font-bold tracking-tight text-foreground">PRSF MIS</span>
-              <span className="hidden text-[10px] leading-tight text-muted-foreground sm:block">Loan Tracking System</span>
+              <span className="text-base font-bold tracking-tight">PRSF MIS</span>
+              <span className="hidden text-[10px] leading-tight text-muted-foreground sm:block">
+                Loan Tracking System
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Link
               href="/auth/login"
-              className="rounded-lg px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+              className="rounded-lg px-4 py-2 text-sm font-medium transition-colors hover:bg-secondary"
             >
               Sign In
             </Link>
@@ -41,12 +96,12 @@ export default function LandingPage() {
               <Globe className="h-3.5 w-3.5 text-accent" />
               <span>Ministry of Finance of the Republic of Tajikistan</span>
             </div>
-            <h1 className="text-balance text-4xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+            <h1 className="text-balance text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
               Partial Risk Sharing Facility
             </h1>
             <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-              A comprehensive Management Information System for tracking and managing 
-              loan guarantees to MSME borrowers across Tajikistan.
+              A comprehensive Management Information System for tracking and managing loan
+              guarantees to MSME borrowers across Tajikistan.
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
@@ -58,7 +113,7 @@ export default function LandingPage() {
               </Link>
               <Link
                 href="/auth/sign-up"
-                className="inline-flex h-12 items-center gap-2 rounded-lg border bg-card px-8 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-secondary"
+                className="inline-flex h-12 items-center gap-2 rounded-lg border bg-card px-8 text-sm font-semibold shadow-sm transition-all hover:bg-secondary"
               >
                 Request Access
               </Link>
@@ -67,14 +122,9 @@ export default function LandingPage() {
 
           {/* Stats strip */}
           <div className="mx-auto mt-20 grid max-w-4xl grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border shadow-sm lg:grid-cols-4">
-            {[
-              { value: "847+", label: "Loans Guaranteed" },
-              { value: "TJS 125M+", label: "Total Disbursed" },
-              { value: "6", label: "Partner Banks" },
-              { value: "50+", label: "Bank Branches" },
-            ].map((stat) => (
+            {stats.map((stat) => (
               <div key={stat.label} className="bg-card px-6 py-5 text-center">
-                <p className="text-2xl font-bold tracking-tight text-foreground">{stat.value}</p>
+                <p className="text-2xl font-bold tracking-tight">{stat.value}</p>
                 <p className="mt-0.5 text-xs font-medium text-muted-foreground">{stat.label}</p>
               </div>
             ))}
@@ -86,23 +136,20 @@ export default function LandingPage() {
       <section className="border-t bg-card py-24">
         <div className="mx-auto max-w-6xl px-6">
           <div className="mb-16 max-w-lg">
-            <p className="text-sm font-semibold uppercase tracking-widest text-accent">Capabilities</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground">
+            <p className="text-sm font-semibold uppercase tracking-widest text-accent">
+              Capabilities
+            </p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight">
               Designed for comprehensive loan guarantee management
             </h2>
           </div>
           <div className="grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { icon: FileText, title: "Loan Applications", desc: "Submit, review, and approve loan guarantee applications with multi-step workflows." },
-              { icon: BarChart3, title: "Portfolio Analytics", desc: "Real-time dashboards on disbursements, delinquency, and portfolio performance." },
-              { icon: Building2, title: "Bank Management", desc: "Manage partner banks, branches, and their loan portfolios across the facility." },
-              { icon: Users, title: "Borrower Tracking", desc: "Complete borrower profiles with loan history, payments, and risk assessment." },
-            ].map((feature) => (
+            {features.map((feature) => (
               <div key={feature.title} className="bg-card p-8">
                 <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <feature.icon className="h-5 w-5 text-primary" />
+                  <feature.Icon className="h-5 w-5 text-primary" />
                 </div>
-                <h3 className="mb-2 text-base font-semibold text-foreground">{feature.title}</h3>
+                <h3 className="mb-2 text-base font-semibold">{feature.title}</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">{feature.desc}</p>
               </div>
             ))}
@@ -115,28 +162,26 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="flex flex-col gap-12 lg:flex-row lg:items-center lg:gap-20">
             <div className="flex-1">
-              <p className="text-sm font-semibold uppercase tracking-widest text-accent">Security</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground">
+              <p className="text-sm font-semibold uppercase tracking-widest text-accent">
+                Security
+              </p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight">
                 Enterprise-grade protection
               </h2>
               <p className="mt-4 leading-relaxed text-muted-foreground">
-                Built with robust security measures including role-based access control, 
-                audit trails, data encryption, and multi-language support for Tajikistan&apos;s 
-                diverse financial ecosystem.
+                {"Built with robust security measures including role-based access control, audit trails, data encryption, and multi-language support for Tajikistan's diverse financial ecosystem."}
               </p>
             </div>
             <div className="grid flex-1 gap-3 sm:grid-cols-2">
-              {[
-                { icon: Lock, text: "Role-based access control" },
-                { icon: Shield, text: "Row-level data security" },
-                { icon: Globe, text: "Trilingual support (EN/RU/TJ)" },
-                { icon: CheckCircle2, text: "Full audit trail logging" },
-              ].map((item) => (
-                <div key={item.text} className="flex items-center gap-3 rounded-xl border bg-card p-5 shadow-sm">
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                    <item.icon className="h-4 w-4 text-primary" />
+              {securityItems.map((item) => (
+                <div
+                  key={item.text}
+                  className="flex items-center gap-3 rounded-xl border bg-card p-5 shadow-sm"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <item.Icon className="h-4 w-4 text-primary" />
                   </div>
-                  <span className="text-sm font-medium text-foreground">{item.text}</span>
+                  <span className="text-sm font-medium">{item.text}</span>
                 </div>
               ))}
             </div>
@@ -176,7 +221,13 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-3">
-              <Image src="/logo.png" alt="Emblem of Tajikistan" width={24} height={24} className="h-6 w-6 object-contain" />
+              <Image
+                src="/logo.png"
+                alt="Emblem of Tajikistan"
+                width={24}
+                height={24}
+                className="h-6 w-6 object-contain"
+              />
               <span className="text-sm font-medium text-background/90">PRSF Loan Tracking MIS</span>
             </div>
             <p className="text-xs text-background/50">
