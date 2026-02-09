@@ -20,6 +20,7 @@ const stats = [
 ]
 
 export default function LandingPage() {
+  console.log("[v0] LandingPage component rendering")
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
