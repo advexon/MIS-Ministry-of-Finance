@@ -39,6 +39,7 @@ import {
   HelpCircle,
   User as UserIcon,
   Search,
+  ShieldCheck,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
 
@@ -76,6 +77,11 @@ const navItems = [
     titleKey: 'fees' as const,
     href: '/dashboard/fees',
     icon: DollarSign,
+  },
+  {
+    titleKey: 'guaranteeReports' as const,
+    href: '/dashboard/guarantee-reports',
+    icon: ShieldCheck,
   },
   {
     titleKey: 'reports' as const,
