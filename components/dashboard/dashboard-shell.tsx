@@ -120,17 +120,17 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const NavContent = () => (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
+      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <Image src="/logo.png" alt="PRSF Emblem" width={32} height={32} className="h-8 w-8 object-contain" />
         <div className="flex flex-col">
-          <span className="text-sm font-bold text-sidebar-foreground">PRSF MIS</span>
-          <span className="text-[10px] leading-tight text-sidebar-foreground/50">Loan Tracking System</span>
+          <span className="text-sm font-bold text-white">PRSF MIS</span>
+          <span className="text-[10px] leading-tight text-white/50">Loan Tracking System</span>
         </div>
       </div>
 
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-4">
-        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">Navigation</p>
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/40">Navigation</p>
         <nav className="flex flex-col gap-0.5">
           {navItems.map((item) => {
             const Icon = item.icon
@@ -144,8 +144,8 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors',
                   isActive
-                    ? 'bg-sidebar-accent text-sidebar-primary'
-                    : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                    ? 'bg-white/10 text-white'
+                    : 'text-white/60 hover:bg-white/5 hover:text-white'
                 )}
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
@@ -157,11 +157,11 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       </ScrollArea>
 
       {/* Quick Action */}
-      <div className="border-t border-sidebar-border p-3">
+      <div className="border-t border-white/10 p-3">
         <Button 
           asChild 
           size="sm"
-          className="w-full justify-start gap-2 bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
+          className="w-full justify-start gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
         >
           <Link href="/dashboard/loans/new">
             <PlusCircle className="h-4 w-4" />
@@ -175,13 +175,13 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-60 flex-shrink-0 bg-sidebar-background lg:block">
+      <aside className="hidden w-60 flex-shrink-0 bg-sidebar lg:block">
         <NavContent />
       </aside>
 
       {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-60 bg-sidebar-background p-0">
+          <SheetContent side="left" className="w-60 bg-sidebar p-0">
           <NavContent />
         </SheetContent>
       </Sheet>
