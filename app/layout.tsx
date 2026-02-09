@@ -1,4 +1,3 @@
-import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 
@@ -12,16 +11,13 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'PRSF Loan Tracking MIS',
   description: 'Partial Risk Sharing Facility - Loan Tracking and Management Information System for the Ministry of Finance of Tajikistan',
-  generator: 'v0.app',
-  keywords: ['PRSF', 'Loan', 'Guarantee', 'Tajikistan', 'MSME', 'Finance'],
   icons: {
     icon: '/logo.png',
-    apple: '/logo.png',
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1d4ed8',
+  themeColor: '#1d3a6b',
   width: 'device-width',
   initialScale: 1,
 }
