@@ -364,3 +364,80 @@ async function recalculateReportTotals(reportId: string) {
     })
     .eq('id', reportId)
 }
+
+export async function autoPopulateFromLoanApplications(
+  reportId: string,
+  bankId: string,
+  reportMonth: string
+) {
+  const supabase = await createClient()
+
+  // Parse report month to get start/end dates
+  const monthDate = new Date(reportMonth)
+  const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
+
+  // Fetch loan applications for this bank that are active/disbursed
+  const { data: loanApplications, error: loansError } = await supabase
+    .from('loan_applications')
+    .select(`
+      *,
+      borrower:borrowers(*)
+    `)
+    .eq('bank_id', bankId)
+    .in('status', ['approved', 'disbursed', 'active'])
+    .lte('approval_date', monthEnd.toISOString())
+
+  if (loansError) {
+    console.error('[v0] Error fetching loan applications:', loansError)
+    throw new Error('Failed to fetch loan applications')
+  }
+
+  if (!loanApplications || loanApplications.length === 0) {
+    return { imported: 0 }
+  }
+
+  // Transform loan applications to guarantee report loans format
+  const reportLoans = loanApplications.map((loan, index) => ({
+    report_id: reportId,
+    loan_application_id: loan.id,
+    row_number: index + 1,
+    loan_request_number: loan.application_number || `LOAN-${loan.id.slice(0, 8)}`,
+    customer_name: loan.borrower?.name || 'Unknown',
+    customer_code: loan.borrower?.code,
+    tin_number: loan.borrower?.tin_number,
+    sector: loan.sector,
+    loan_purpose: loan.purpose,
+    currency: loan.currency || 'TJS',
+    approved_amount: loan.approved_amount,
+    approval_date: loan.approval_date,
+    disbursed_amount: loan.disbursed_amount,
+    outstanding_principal: loan.outstanding_balance || loan.disbursed_amount,
+    interest_rate: loan.interest_rate,
+    loan_term_months: loan.term_months,
+    grace_period_months: loan.grace_period_months,
+    repayment_frequency: loan.repayment_frequency,
+    disbursement_date: loan.disbursement_date,
+    maturity_date: loan.maturity_date,
+    guarantee_coverage: loan.guarantee_coverage || 50,
+    guarantee_amount: (loan.outstanding_balance || loan.disbursed_amount || 0) * ((loan.guarantee_coverage || 50) / 100),
+    loan_status: loan.status,
+    days_overdue: 0,
+  }))
+
+  // Insert loans
+  const { error: insertError } = await supabase
+    .from('guarantee_report_loans')
+    .insert(reportLoans)
+
+  if (insertError) {
+    console.error('[v0] Error inserting auto-populated loans:', insertError)
+    throw new Error('Failed to auto-populate loans')
+  }
+
+  // Recalculate totals
+  await recalculateReportTotals(reportId)
+
+  revalidatePath(`/dashboard/guarantee-reports/${reportId}`)
+  return { imported: reportLoans.length }
+}

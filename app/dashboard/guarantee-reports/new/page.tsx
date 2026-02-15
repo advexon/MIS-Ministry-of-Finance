@@ -9,15 +9,18 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Save, Send, Plus, Trash2, Upload } from 'lucide-react'
+import { ArrowLeft, Save, Send, Plus, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react'
 import Link from 'next/link'
 import { useI18n } from '@/lib/i18n/client'
 import { createClient } from '@/lib/supabase/client'
+import { parseExcelFile, generateExcelTemplate } from '@/lib/utils/excel-parser'
+import { useToast } from '@/hooks/use-toast'
 
 export default function NewGuaranteeReportPage() {
   const router = useRouter()
   const { t } = useI18n()
   const supabase = createClient()
+  const { toast } = useToast()
   
   const [reportType, setReportType] = useState<'blank_guarantee' | 'disbursements'>('disbursements')
   const [reportMonth, setReportMonth] = useState('')
@@ -25,6 +28,7 @@ export default function NewGuaranteeReportPage() {
   const [loans, setLoans] = useState<any[]>([])
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const addLoan = () => {
     setLoans([...loans, {
@@ -68,6 +72,56 @@ export default function NewGuaranteeReportPage() {
 
   const updatePayment = (id: string, field: string, value: any) => {
     setPayments(payments.map(p => p.id === id ? { ...p, [field]: value } : p))
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    try {
+      const { loans: parsedLoans, payments: parsedPayments, errors } = await parseExcelFile(file)
+
+      if (errors.length > 0) {
+        toast({
+          title: 'Import Warnings',
+          description: `Imported ${parsedLoans.length} loans and ${parsedPayments.length} payments with ${errors.length} warnings`,
+          variant: 'default',
+        })
+        console.log('[v0] Import warnings:', errors)
+      } else {
+        toast({
+          title: 'Import Successful',
+          description: `Imported ${parsedLoans.length} loans and ${parsedPayments.length} payments`,
+        })
+      }
+
+      // Add imported loans with unique IDs
+      const loansWithIds = parsedLoans.map(loan => ({ ...loan, id: crypto.randomUUID() }))
+      setLoans(prev => [...prev, ...loansWithIds])
+
+      // Add imported payments with unique IDs
+      const paymentsWithIds = parsedPayments.map(payment => ({ ...payment, id: crypto.randomUUID() }))
+      setPayments(prev => [...prev, ...paymentsWithIds])
+    } catch (error) {
+      console.error('[v0] Error uploading file:', error)
+      toast({
+        title: 'Upload Failed',
+        description: 'Failed to parse Excel file. Please check the file format.',
+        variant: 'destructive',
+      })
+    } finally {
+      setUploading(false)
+      event.target.value = '' // Reset input
+    }
+  }
+
+  const handleDownloadTemplate = () => {
+    generateExcelTemplate(reportType)
+    toast({
+      title: 'Template Downloaded',
+      description: 'Excel template has been downloaded',
+    })
   }
 
   const handleSubmit = async (status: 'draft' | 'submitted') => {
@@ -147,7 +201,32 @@ export default function NewGuaranteeReportPage() {
       {/* Report Info */}
       <Card>
         <CardHeader>
-          <CardTitle>{t.guaranteeReports.reportType}</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>{t.guaranteeReports.reportType}</CardTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                <Download className="mr-2 h-4 w-4" />
+                Download Template
+              </Button>
+              <input
+                type="file"
+                id="file-upload"
+                accept=".xlsx,.xls"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById('file-upload')?.click()}
+                disabled={uploading}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {uploading ? 'Uploading...' : 'Import Excel'}
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">

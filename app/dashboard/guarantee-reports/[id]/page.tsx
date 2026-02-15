@@ -17,10 +17,13 @@ import {
   ArrowLeft,
   Download,
   Send,
+  FileSpreadsheet,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
+import { exportToExcel, exportToPDF } from '@/lib/utils/export'
+import { useToast } from '@/hooks/use-toast'
 
 // Mock data - replace with real data from Supabase
 const mockReport = {
@@ -122,9 +125,32 @@ const mockPayments = [
 ]
 
 export default function GuaranteeReportDetailPage() {
-  const { t } = useI18n()
   const params = useParams()
+  const { t } = useI18n()
+  const { toast } = useToast()
   const [reviewNotes, setReviewNotes] = useState('')
+
+  const handleExportExcel = () => {
+    exportToExcel(
+      { report: mockReport, loans: mockLoans, payments: mockPayments },
+      mockReport.reportMonth
+    )
+    toast({
+      title: 'Export Successful',
+      description: 'Report exported to Excel',
+    })
+  }
+
+  const handleExportPDF = () => {
+    exportToPDF(
+      { report: mockReport, loans: mockLoans, payments: mockPayments },
+      mockReport.reportMonth
+    )
+    toast({
+      title: 'Export Successful',
+      description: 'Report exported to HTML/PDF',
+    })
+  }
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const formatCurrency = (value: number) => {
@@ -237,10 +263,26 @@ export default function GuaranteeReportDetailPage() {
               {formatDate(mockReport.reportMonth)} • {mockReport.reportType.charAt(0).toUpperCase() + mockReport.reportType.slice(1)} Report
             </p>
           </div>
-          <Button variant="outline" size="sm" className="w-fit gap-2 bg-transparent">
-            <Download className="h-4 w-4" />
-            Export Report
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 bg-transparent"
+              onClick={handleExportExcel}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 bg-transparent"
+              onClick={handleExportPDF}
+            >
+              <Download className="h-4 w-4" />
+              Export PDF
+            </Button>
+          </div>
         </div>
       </div>
 
