@@ -441,3 +441,42 @@ export async function autoPopulateFromLoanApplications(
   revalidatePath(`/dashboard/guarantee-reports/${reportId}`)
   return { imported: reportLoans.length }
 }
+
+export async function batchUpdateReportStatus(
+  reportIds: string[],
+  action: 'approve' | 'reject',
+  reviewNotes?: string
+) {
+  const supabase = await createClient()
+
+  // Get current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    throw new Error('Not authenticated')
+  }
+
+  const status = action === 'approve' ? 'approved' : 'rejected'
+  const now = new Date().toISOString()
+
+  // Update all reports
+  const { error } = await supabase
+    .from('guarantee_reports')
+    .update({
+      status,
+      reviewed_by: user.id,
+      review_date: now,
+      review_notes: reviewNotes || null,
+      updated_at: now,
+    })
+    .in('id', reportIds)
+
+  if (error) {
+    console.error('[v0] Error in batch update:', error)
+    throw new Error(`Failed to ${action} reports`)
+  }
+
+  revalidatePath('/dashboard/guarantee-reports')
+  return { updated: reportIds.length, status }
+}

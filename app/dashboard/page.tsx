@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   XCircle,
   Hourglass,
+  ShieldCheck,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -28,6 +29,12 @@ const stats = {
   pendingClaims: 8,
   delinquencyRate: 4.2,
   avgProcessingDays: 5.3,
+  guaranteeReports: {
+    total: 24,
+    submitted: 5,
+    approved: 18,
+    pendingReview: 1,
+  },
 }
 
 const recentActivity = [
@@ -185,7 +192,23 @@ export default function DashboardPage() {
       </div>
 
       {/* Action Cards */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-4">
+        <Card className="border-accent/20 shadow-sm">
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">
+                Guarantee Reports
+              </p>
+              <p className="mt-1 text-2xl font-bold text-foreground">
+                {stats.guaranteeReports.pendingReview}
+              </p>
+            </div>
+            <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Link href="/dashboard/guarantee-reports?status=under_review">{t.common.view}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="border-warning/20 shadow-sm">
           <CardContent className="flex items-center justify-between p-4">
             <div>
