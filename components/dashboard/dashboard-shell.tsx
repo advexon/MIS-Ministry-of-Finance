@@ -30,7 +30,6 @@ import {
   AlertTriangle,
   DollarSign,
   Settings,
-  Bell,
   LogOut,
   Menu,
   ChevronDown,
@@ -42,6 +41,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
+import { NotificationsBell } from '@/components/dashboard/notifications-bell'
 
 interface DashboardShellProps {
   children: React.ReactNode
@@ -239,11 +239,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
             </DropdownMenu>
 
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative h-8 w-8">
-              <Bell className="h-4 w-4" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
-              <span className="sr-only">{t.nav.notifications}</span>
-            </Button>
+            <NotificationsBell />
 
             {/* Divider */}
             <div className="mx-1 h-6 w-px bg-border" />
