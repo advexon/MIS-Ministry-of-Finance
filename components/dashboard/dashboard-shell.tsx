@@ -39,6 +39,7 @@ import {
   User as UserIcon,
   Search,
   ShieldCheck,
+  FolderDown,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
 import { NotificationsBell } from '@/components/dashboard/notifications-bell'
@@ -87,6 +88,11 @@ const navItems = [
     titleKey: 'reports' as const,
     href: '/dashboard/reports',
     icon: BarChart3,
+  },
+  {
+    titleKey: 'documents' as const,
+    href: '/dashboard/documents',
+    icon: FolderDown,
   },
   {
     titleKey: 'banks' as const,
