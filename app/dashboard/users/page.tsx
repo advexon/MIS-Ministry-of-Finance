@@ -113,29 +113,20 @@ export default function UsersPage() {
   const [editIsActive, setEditIsActive] = useState(true)
 
   const fetchData = useCallback(async () => {
-    const supabase = createClient()
     try {
-      const [usersRes, rolesRes, banksRes, branchesRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select(`*, role:roles(*), bank:banks(*)`)
-          .order("created_at", { ascending: false }),
-        supabase.from("roles").select("*").order("name_en"),
-        supabase.from("banks").select("*").eq("is_active", true).order("name_en"),
-        supabase.from("bank_branches").select("*").order("name_en"),
-      ])
-
-      if (usersRes.error) console.error("[v0] profiles fetch error:", usersRes.error)
-      if (rolesRes.error) console.error("[v0] roles fetch error:", rolesRes.error)
-      if (banksRes.error) console.error("[v0] banks fetch error:", banksRes.error)
-      if (branchesRes.error) console.error("[v0] branches fetch error:", branchesRes.error)
-
-      if (usersRes.data) setUsers(usersRes.data)
-      if (rolesRes.data) setRoles(rolesRes.data)
-      if (banksRes.data) setBanks(banksRes.data)
-      if (branchesRes.data) setBranches(branchesRes.data)
+      const res = await fetch("/api/users", { credentials: "include" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[users] API error:", res.status, body)
+        return
+      }
+      const data = await res.json()
+      setUsers(data.users ?? [])
+      setRoles(data.roles ?? [])
+      setBanks(data.banks ?? [])
+      setBranches(data.branches ?? [])
     } catch (err) {
-      console.error("Error fetching data:", err)
+      console.error("[users] fetch error:", err)
     } finally {
       setLoading(false)
     }
