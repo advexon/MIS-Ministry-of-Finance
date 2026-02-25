@@ -1,15 +1,54 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
+
+// Admin read: uses service role key to bypass RLS so the superadmin
+// can always see all users regardless of their own profile's RLS policies.
+function createServiceClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll: () => [],
+        setAll: () => {},
+      },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  )
+}
+
+// Session client — used only to verify the caller is authenticated
+async function createSessionClient() {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: () => {},
+      },
+    }
+  )
+}
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    // 1. Verify caller is authenticated
+    const sessionClient = await createSessionClient()
+    const { data: { user }, error: authError } = await sessionClient.auth.getUser()
 
-    // Verify caller is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
+      console.error("[users API] auth check failed:", authError?.message)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+
+    // 2. Use service role client to fetch all data (bypasses RLS)
+    const supabase = createServiceClient()
 
     const [usersRes, rolesRes, banksRes, branchesRes] = await Promise.all([
       supabase
