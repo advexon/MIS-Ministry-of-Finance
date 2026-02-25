@@ -61,7 +61,6 @@ import type { Profile, Role, Bank, BankBranch } from "@/lib/types/database"
 interface UserWithRelations extends Profile {
   role?: Role
   bank?: Bank
-  branch?: BankBranch
 }
 
 const roleColors: Record<string, string> = {
@@ -119,12 +118,17 @@ export default function UsersPage() {
       const [usersRes, rolesRes, banksRes, branchesRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select(`*, role:roles(*), bank:banks(*), branch:bank_branches(*)`)
+          .select(`*, role:roles(*), bank:banks(*)`)
           .order("created_at", { ascending: false }),
         supabase.from("roles").select("*").order("name_en"),
         supabase.from("banks").select("*").eq("is_active", true).order("name_en"),
         supabase.from("bank_branches").select("*").order("name_en"),
       ])
+
+      if (usersRes.error) console.error("[v0] profiles fetch error:", usersRes.error)
+      if (rolesRes.error) console.error("[v0] roles fetch error:", rolesRes.error)
+      if (banksRes.error) console.error("[v0] banks fetch error:", banksRes.error)
+      if (branchesRes.error) console.error("[v0] branches fetch error:", branchesRes.error)
 
       if (usersRes.data) setUsers(usersRes.data)
       if (rolesRes.data) setRoles(rolesRes.data)
