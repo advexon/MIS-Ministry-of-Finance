@@ -81,7 +81,7 @@ interface Report {
   total_outstanding_principal: number
   total_guarantee_amount: number
   created_at: string
-  banks: { id: string; name: string; code: string | null } | null
+  banks: { id: string; name_en: string; code: string | null } | null
   profiles: { first_name: string | null; last_name: string | null; email: string } | null
 }
 
@@ -114,7 +114,7 @@ export default function GuaranteeReportDetailPage() {
     const [{ data: reportData }, { data: loansData }, { data: paymentsData }] = await Promise.all([
       supabase
         .from('guarantee_reports')
-        .select('*, banks(id, name, code), profiles(first_name, last_name, email)')
+        .select('*, banks(id, name_en, code), profiles(first_name, last_name, email)')
         .eq('id', id)
         .single(),
       supabase
@@ -188,7 +188,7 @@ export default function GuaranteeReportDetailPage() {
         ]
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(payRows), 'Payments')
       }
-      const bankName = report.banks?.name || 'report'
+      const bankName = report.banks?.name_en || 'report'
       const month = new Date(report.report_month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).replace(' ', '-')
       XLSX.writeFile(wb, `guarantee-report-${bankName}-${month}.xlsx`)
       toast({ title: 'Exported to Excel' })
@@ -249,7 +249,7 @@ export default function GuaranteeReportDetailPage() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight text-foreground lg:text-2xl">
-                {report.banks?.name || '—'}
+                {report.banks?.name_en || '—'}
               </h1>
               <Badge variant="outline" className={cn('gap-1 text-xs', cfg.className)}>
                 {cfg.icon}
@@ -294,7 +294,7 @@ export default function GuaranteeReportDetailPage() {
             </div>
             <div className="overflow-hidden">
               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bank</p>
-              <p className="truncate text-sm font-semibold text-foreground">{report.banks?.name || '—'}</p>
+              <p className="truncate text-sm font-semibold text-foreground">{report.banks?.name_en || '—'}</p>
             </div>
           </CardContent>
         </Card>

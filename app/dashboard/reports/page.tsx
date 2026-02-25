@@ -48,7 +48,7 @@ export default function ReportsPage() {
     try {
       let loanQuery = supabase
         .from('loan_applications')
-        .select('id, status, approved_amount, outstanding_balance, sector, disbursement_date, bank_id, banks(name, code)')
+        .select('id, status, approved_amount, outstanding_balance, sector, disbursement_date, bank_id, banks(name_en, code)')
         .gte('created_at', dateFrom)
         .lte('created_at', dateTo + 'T23:59:59')
 
@@ -87,7 +87,7 @@ export default function ReportsPage() {
       const bankMap: Record<string, { name: string; count: number; amount: number; outstanding: number }> = {}
       for (const l of allLoans) {
         const bk = (l.banks as any)?.code || 'Unknown'
-        const bkName = (l.banks as any)?.name || 'Unknown'
+        const bkName = (l.banks as any)?.name_en || 'Unknown'
         if (!bankMap[bk]) bankMap[bk] = { name: bkName, count: 0, amount: 0, outstanding: 0 }
         bankMap[bk].count++
         bankMap[bk].amount += l.approved_amount || 0
@@ -120,7 +120,7 @@ export default function ReportsPage() {
   }, [bankFilter, dateFrom, dateTo])
 
   useEffect(() => {
-    supabase.from('banks').select('id, name, code').order('name').then(({ data }) => setBanks(data || []))
+    supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
   }, [])
 
   useEffect(() => { fetchReports() }, [fetchReports])
@@ -180,7 +180,7 @@ export default function ReportsPage() {
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t.common.all} Banks</SelectItem>
-                  {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

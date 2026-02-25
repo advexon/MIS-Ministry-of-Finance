@@ -51,7 +51,7 @@ export default function ReconciliationPage() {
   const [banks, setBanks] = useState<any[]>([])
 
   useEffect(() => {
-    supabase.from('banks').select('id, name, code').order('name').then(({ data }) => setBanks(data || []))
+    supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
   }, [])
 
   const runReconciliation = useCallback(async () => {
@@ -61,7 +61,7 @@ export default function ReconciliationPage() {
     periodEnd.setMonth(periodEnd.getMonth() + 1)
     const periodEndStr = periodEnd.toISOString().slice(0, 10)
 
-    const { data: banksData } = await supabase.from('banks').select('id, name, code').eq('is_active', true).order('name')
+    const { data: banksData } = await supabase.from('banks').select('id, name_en, code').eq('is_active', true).order('name_en')
     const allBanks = bankFilter === 'all' ? (banksData || []) : (banksData || []).filter(b => b.id === bankFilter)
 
     const results: ReconciliationRow[] = []
@@ -106,7 +106,7 @@ export default function ReconciliationPage() {
 
       results.push({
         bank_id: bank.id,
-        bank_name: bank.name,
+        bank_name: bank.name_en,
         bank_code: bank.code,
         prsf_loan_count: prsfLoans,
         bank_loan_count: bankLoans,
@@ -177,7 +177,7 @@ export default function ReconciliationPage() {
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Banks</SelectItem>
-                  {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

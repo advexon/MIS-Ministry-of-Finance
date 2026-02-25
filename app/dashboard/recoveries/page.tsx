@@ -27,7 +27,7 @@ interface Recovery {
   claims?: {
     claim_number: string
     claim_amount: number
-    banks?: { name: string; code: string }
+    banks?: { name_en: string; code: string }
     loan_applications?: { application_number: string }
   }
 }
@@ -72,7 +72,7 @@ export default function RecoveriesPage() {
       .from('recoveries')
       .select(`
         *,
-        claims(claim_number, claim_amount, banks(name, code), loan_applications(application_number))
+        claims(claim_number, claim_amount, banks(name_en, code), loan_applications(application_number))
       `)
       .order('recovery_date', { ascending: false })
     setRecoveries(data || [])
@@ -81,8 +81,8 @@ export default function RecoveriesPage() {
 
   useEffect(() => {
     fetchRecoveries()
-    supabase.from('banks').select('id, name, code').order('name').then(({ data }) => setBanks(data || []))
-    supabase.from('claims').select('id, claim_number, bank_id, banks(name)').eq('status', 'paid').order('claim_number').then(({ data }) => setClaims(data || []))
+    supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
+    supabase.from('claims').select('id, claim_number, bank_id, banks(name_en)').eq('status', 'paid').order('claim_number').then(({ data }) => setClaims(data || []))
   }, [fetchRecoveries])
 
   const handleCreate = async () => {
@@ -114,7 +114,7 @@ export default function RecoveriesPage() {
     const matchSearch = !search ||
       r.claims?.claim_number?.toLowerCase().includes(search.toLowerCase()) ||
       r.claims?.loan_applications?.application_number?.toLowerCase().includes(search.toLowerCase()) ||
-      r.claims?.banks?.name?.toLowerCase().includes(search.toLowerCase())
+      r.claims?.banks?.name_en?.toLowerCase().includes(search.toLowerCase())
     const matchBank = bankFilter === 'all' || (r.claims?.banks as any)?.id === bankFilter
     const matchMethod = methodFilter === 'all' || r.recovery_method === methodFilter
     return matchSearch && matchBank && matchMethod
@@ -129,7 +129,7 @@ export default function RecoveriesPage() {
       r.recovery_date,
       r.claims?.claim_number || '',
       r.claims?.loan_applications?.application_number || '',
-      r.claims?.banks?.name || '',
+      r.claims?.banks?.name_en || '',
       r.recovery_amount,
       r.prsf_share,
       METHOD_LABELS[r.recovery_method] || r.recovery_method,
@@ -175,7 +175,7 @@ export default function RecoveriesPage() {
                       {claims.length === 0 && <SelectItem value="_none" disabled>No paid claims found</SelectItem>}
                       {claims.map(c => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.claim_number} — {(c.banks as any)?.name}
+                          {c.claim_number} — {(c.banks as any)?.name_en}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -265,7 +265,7 @@ export default function RecoveriesPage() {
           <SelectTrigger className="h-9 w-48 text-sm"><SelectValue placeholder="All Banks" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Banks</SelectItem>
-            {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+            {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={methodFilter} onValueChange={setMethodFilter}>
@@ -328,7 +328,7 @@ export default function RecoveriesPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-semibold text-primary">{rec.claims?.banks?.code}</span>
-                          <span>{rec.claims?.banks?.name}</span>
+                          <span>{rec.claims?.banks?.name_en}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-semibold text-emerald-700">{fmt(rec.recovery_amount)}</TableCell>
