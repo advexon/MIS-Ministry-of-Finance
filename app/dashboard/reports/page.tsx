@@ -1,148 +1,199 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useI18n } from "@/lib/i18n/context"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+import { useEffect, useState, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useI18n } from '@/lib/i18n/context'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
-  BarChart3, Download, FileSpreadsheet, FileText, PieChart,
-  TrendingUp, Calendar, Building2, Briefcase, AlertTriangle
-} from "lucide-react"
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area
+} from 'recharts'
+import { BarChart3, Download, FileSpreadsheet, TrendingUp, RefreshCw } from 'lucide-react'
 
-const reportTypes = [
-  { id: "disbursement", icon: TrendingUp, color: "text-emerald-600 bg-emerald-100" },
-  { id: "balance", icon: BarChart3, color: "text-blue-600 bg-blue-100" },
-  { id: "delinquency", icon: AlertTriangle, color: "text-red-600 bg-red-100" },
-  { id: "claims", icon: FileText, color: "text-orange-600 bg-orange-100" },
-  { id: "recoveries", icon: TrendingUp, color: "text-indigo-600 bg-indigo-100" },
-  { id: "fee", icon: Briefcase, color: "text-amber-600 bg-amber-100" },
-  { id: "portfolio", icon: PieChart, color: "text-primary bg-primary/10" },
-  { id: "bank", icon: Building2, color: "text-sky-600 bg-sky-100" },
-  { id: "sector", icon: BarChart3, color: "text-teal-600 bg-teal-100" },
-]
+const COLORS = ['#1e3a8a', '#2d8c7e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16']
 
-// Mock monthly disbursement data
-const monthlyDisbursements = [
-  { month: "Jul 2025", count: 18, amount: 8500000, cumulative: 98500000 },
-  { month: "Aug 2025", count: 22, amount: 10200000, cumulative: 108700000 },
-  { month: "Sep 2025", count: 15, amount: 6800000, cumulative: 115500000 },
-  { month: "Oct 2025", count: 20, amount: 9100000, cumulative: 124600000 },
-  { month: "Nov 2025", count: 17, amount: 7800000, cumulative: 132400000 },
-  { month: "Dec 2025", count: 12, amount: 5400000, cumulative: 137800000 },
-  { month: "Jan 2026", count: 24, amount: 11200000, cumulative: 149000000 },
-]
+const fmt = (v: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 }).format(v || 0)
 
-// Mock portfolio by sector
-const sectorData = [
-  { sector: "Agriculture", count: 245, amount: 42500000, percentage: 33.8 },
-  { sector: "Trade", count: 187, amount: 28750000, percentage: 22.9 },
-  { sector: "Manufacturing", count: 134, amount: 22100000, percentage: 17.6 },
-  { sector: "Services", count: 112, amount: 15800000, percentage: 12.6 },
-  { sector: "Construction", count: 78, amount: 9200000, percentage: 7.3 },
-  { sector: "Transport", count: 52, amount: 4500000, percentage: 3.6 },
-  { sector: "Tourism", count: 39, amount: 2900000, percentage: 2.3 },
-]
+const fmtK = (v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : String(v)
 
 export default function ReportsPage() {
   const { t } = useI18n()
-  const [selectedReport, setSelectedReport] = useState("disbursement")
-  const [periodFrom, setPeriodFrom] = useState("2025-07-01")
-  const [periodTo, setPeriodTo] = useState("2026-01-31")
-  const [bankFilter, setBankFilter] = useState("all")
+  const supabase = createClient()
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "TJS", minimumFractionDigits: 0 }).format(val)
+  const [loading, setLoading] = useState(true)
+  const [banks, setBanks] = useState<any[]>([])
+  const [bankFilter, setBankFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 6); return d.toISOString().slice(0, 10)
+  })
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
 
-  const getReportTitle = (id: string) => {
-    const map: Record<string, string> = {
-      disbursement: t.reports.disbursementReport,
-      balance: t.reports.balanceReport,
-      delinquency: t.reports.delinquencyReport,
-      claims: t.reports.claimsReport,
-      recoveries: t.reports.recoveriesReport,
-      fee: t.reports.feeReport,
-      portfolio: t.reports.portfolioReport,
-      bank: t.reports.bankReport,
-      sector: t.reports.sectorReport,
+  // Report data states
+  const [sectorData, setSectorData] = useState<any[]>([])
+  const [bankData, setBankData] = useState<any[]>([])
+  const [monthlyData, setMonthlyData] = useState<any[]>([])
+  const [statusData, setStatusData] = useState<any[]>([])
+  const [summaryStats, setSummaryStats] = useState({ totalLoans: 0, totalAmount: 0, totalClaims: 0, totalFees: 0, totalOutstanding: 0 })
+
+  const fetchReports = useCallback(async () => {
+    setLoading(true)
+    try {
+      let loanQuery = supabase
+        .from('loan_applications')
+        .select('id, status, approved_amount, outstanding_balance, sector, disbursement_date, bank_id, banks(name, code)')
+        .gte('created_at', dateFrom)
+        .lte('created_at', dateTo + 'T23:59:59')
+
+      if (bankFilter !== 'all') loanQuery = loanQuery.eq('bank_id', bankFilter)
+
+      const [{ data: loans }, { data: claims }, { data: fees }] = await Promise.all([
+        loanQuery,
+        supabase.from('claims').select('id, claim_amount, status').gte('created_at', dateFrom).lte('created_at', dateTo + 'T23:59:59'),
+        supabase.from('fees').select('id, amount, status').gte('created_at', dateFrom).lte('created_at', dateTo + 'T23:59:59'),
+      ])
+
+      const allLoans = loans || []
+      const allClaims = claims || []
+      const allFees = fees || []
+
+      // Summary
+      setSummaryStats({
+        totalLoans: allLoans.length,
+        totalAmount: allLoans.reduce((s, l) => s + (l.approved_amount || 0), 0),
+        totalOutstanding: allLoans.reduce((s, l) => s + (l.outstanding_balance || 0), 0),
+        totalClaims: allClaims.reduce((s, c) => s + (c.claim_amount || 0), 0),
+        totalFees: allFees.reduce((s, f) => s + (f.amount || 0), 0),
+      })
+
+      // Sector breakdown
+      const sectorMap: Record<string, { count: number; amount: number }> = {}
+      for (const l of allLoans) {
+        const sec = l.sector || 'Other'
+        if (!sectorMap[sec]) sectorMap[sec] = { count: 0, amount: 0 }
+        sectorMap[sec].count++
+        sectorMap[sec].amount += l.approved_amount || 0
+      }
+      setSectorData(Object.entries(sectorMap).map(([sector, d]) => ({ sector, ...d })).sort((a, b) => b.amount - a.amount))
+
+      // Bank breakdown
+      const bankMap: Record<string, { name: string; count: number; amount: number; outstanding: number }> = {}
+      for (const l of allLoans) {
+        const bk = (l.banks as any)?.code || 'Unknown'
+        const bkName = (l.banks as any)?.name || 'Unknown'
+        if (!bankMap[bk]) bankMap[bk] = { name: bkName, count: 0, amount: 0, outstanding: 0 }
+        bankMap[bk].count++
+        bankMap[bk].amount += l.approved_amount || 0
+        bankMap[bk].outstanding += l.outstanding_balance || 0
+      }
+      setBankData(Object.entries(bankMap).map(([code, d]) => ({ code, ...d })).sort((a, b) => b.amount - a.amount))
+
+      // Monthly trend
+      const monthMap: Record<string, { month: string; count: number; amount: number }> = {}
+      for (const l of allLoans) {
+        if (!l.disbursement_date) continue
+        const m = l.disbursement_date.slice(0, 7)
+        if (!monthMap[m]) monthMap[m] = { month: m, count: 0, amount: 0 }
+        monthMap[m].count++
+        monthMap[m].amount += l.approved_amount || 0
+      }
+      setMonthlyData(Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month)))
+
+      // Status distribution
+      const statusMap: Record<string, number> = {}
+      for (const l of allLoans) {
+        const s = l.status || 'unknown'
+        statusMap[s] = (statusMap[s] || 0) + 1
+      }
+      setStatusData(Object.entries(statusMap).map(([name, value]) => ({ name: name.replace('_', ' '), value })))
+
+    } finally {
+      setLoading(false)
     }
-    return map[id] || id
+  }, [bankFilter, dateFrom, dateTo])
+
+  useEffect(() => {
+    supabase.from('banks').select('id, name, code').order('name').then(({ data }) => setBanks(data || []))
+  }, [])
+
+  useEffect(() => { fetchReports() }, [fetchReports])
+
+  const exportCSV = (data: any[], filename: string) => {
+    if (!data.length) return
+    const keys = Object.keys(data[0])
+    const csv = [keys.join(','), ...data.map(row => keys.map(k => `"${row[k]}"`).join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = filename
+    a.click()
   }
+
+  const ChartCard = ({ title, description, children, onExport }: any) => (
+    <Card className="shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div>
+          <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+          {description && <CardDescription className="text-xs">{description}</CardDescription>}
+        </div>
+        {onExport && (
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onExport}>
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
 
   return (
     <div className="p-6 lg:p-8">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t.reports.title}</h1>
-          <p className="mt-1 text-muted-foreground">Generate and export portfolio reports and analytics</p>
+          <p className="mt-1 text-sm text-muted-foreground">Portfolio analytics and performance reports</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2 bg-transparent">
-            <FileSpreadsheet className="h-4 w-4" />{t.reports.exportExcel}
+          <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={fetchReports}>
+            <RefreshCw className="h-3.5 w-3.5" />Refresh
           </Button>
-          <Button variant="outline" className="gap-2 bg-transparent">
-            <Download className="h-4 w-4" />{t.reports.exportCsv}
+          <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={() => exportCSV(bankData, 'bank-report.csv')}>
+            <FileSpreadsheet className="h-3.5 w-3.5" />{t.reports.exportExcel}
           </Button>
         </div>
       </div>
 
-      {/* Report Type Selection */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {reportTypes.map((rt) => {
-          const Icon = rt.icon
-          const isActive = selectedReport === rt.id
-          return (
-            <button
-              key={rt.id}
-              onClick={() => setSelectedReport(rt.id)}
-              className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-                isActive ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/50"
-              }`}
-            >
-              <div className={`rounded-lg p-2 ${rt.color}`}>
-                <Icon className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-medium">{getReportTitle(rt.id)}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Report Filters */}
-      <Card className="mb-6">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base">Report Parameters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-2">
-              <Label>{t.reports.periodFrom}</Label>
-              <Input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t.reports.periodTo}</Label>
-              <Input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>{t.reports.selectBank}</Label>
+      {/* Filters */}
+      <Card className="mb-6 shadow-sm">
+        <CardContent className="pt-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t.reports.selectBank}</Label>
               <Select value={bankFilter} onValueChange={setBankFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t.common.all}</SelectItem>
-                  <SelectItem value="aib">Agroinvestbank</SelectItem>
-                  <SelectItem value="esk">Bank Eskhata</SelectItem>
-                  <SelectItem value="spt">Spitamen Bank</SelectItem>
-                  <SelectItem value="imn">IMON International</SelectItem>
-                  <SelectItem value="amn">Amonatbonk</SelectItem>
+                  <SelectItem value="all">{t.common.all} Banks</SelectItem>
+                  {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t.reports.periodFrom}</Label>
+              <Input type="date" className="h-9 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t.reports.periodTo}</Label>
+              <Input type="date" className="h-9 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            </div>
             <div className="flex items-end">
-              <Button className="w-full gap-2">
+              <Button className="h-9 w-full gap-2 text-sm" onClick={fetchReports}>
                 <BarChart3 className="h-4 w-4" />{t.reports.generate}
               </Button>
             </div>
@@ -150,161 +201,235 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      {/* Report Content */}
-      <Tabs defaultValue="table" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="table">Table View</TabsTrigger>
-          <TabsTrigger value="summary">Summary</TabsTrigger>
+      {/* KPI Summary */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {[
+          { label: 'Total Loans', value: loading ? '...' : summaryStats.totalLoans.toLocaleString(), sub: 'in period' },
+          { label: 'Approved Amount', value: loading ? '...' : fmt(summaryStats.totalAmount), sub: 'total approved' },
+          { label: 'Outstanding', value: loading ? '...' : fmt(summaryStats.totalOutstanding), sub: 'principal balance' },
+          { label: 'Claims Paid', value: loading ? '...' : fmt(summaryStats.totalClaims), sub: 'total paid out' },
+          { label: 'Fee Income', value: loading ? '...' : fmt(summaryStats.totalFees), sub: 'collected' },
+        ].map(stat => (
+          <Card key={stat.label} className="shadow-sm">
+            <CardContent className="pt-5">
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <p className="mt-1 text-xl font-bold">{stat.value}</p>
+              <p className="text-xs text-muted-foreground">{stat.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Tabs defaultValue="charts" className="space-y-4">
+        <TabsList className="h-9">
+          <TabsTrigger value="charts" className="text-xs">Charts</TabsTrigger>
+          <TabsTrigger value="by-bank" className="text-xs">By Bank</TabsTrigger>
+          <TabsTrigger value="by-sector" className="text-xs">By Sector</TabsTrigger>
+          <TabsTrigger value="trend" className="text-xs">Monthly Trend</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="table">
-          {selectedReport === "disbursement" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t.reports.disbursementReport}</CardTitle>
-                <CardDescription>Monthly loan disbursement breakdown for the selected period</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold">Month</TableHead>
-                        <TableHead className="text-right font-semibold">Loans Disbursed</TableHead>
-                        <TableHead className="text-right font-semibold">Amount</TableHead>
-                        <TableHead className="text-right font-semibold">Cumulative</TableHead>
+        {/* Charts overview */}
+        <TabsContent value="charts" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ChartCard title="Portfolio by Bank" description="Outstanding balance per partner bank" onExport={() => exportCSV(bankData, 'portfolio-by-bank.csv')}>
+              {loading ? <Skeleton className="h-56" /> : bankData.length === 0 ? (
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No data for selected period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={bankData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="code" tick={{ fontSize: 11 }} />
+                    <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(v: number) => fmt(v)} />
+                    <Bar dataKey="amount" name="Approved" fill="#1e3a8a" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="outstanding" name="Outstanding" fill="#2d8c7e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Loan Status Distribution" description="Current status of all loans in portfolio">
+              {loading ? <Skeleton className="h-56" /> : statusData.length === 0 ? (
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No data for selected period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                      {statusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend iconSize={10} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Disbursements by Sector" description="Loan amounts distributed across economic sectors" onExport={() => exportCSV(sectorData, 'sector-report.csv')}>
+              {loading ? <Skeleton className="h-56" /> : sectorData.length === 0 ? (
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No data for selected period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={sectorData.slice(0, 8)} layout="vertical" margin={{ top: 0, right: 20, left: 60, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                    <XAxis type="number" tickFormatter={fmtK} tick={{ fontSize: 11 }} />
+                    <YAxis type="category" dataKey="sector" tick={{ fontSize: 11 }} width={60} />
+                    <Tooltip formatter={(v: number) => fmt(v)} />
+                    <Bar dataKey="amount" name="Amount" fill="#1e3a8a" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+
+            <ChartCard title="Monthly Disbursement Trend" description="Number of loans and amounts disbursed each month" onExport={() => exportCSV(monthlyData, 'monthly-trend.csv')}>
+              {loading ? <Skeleton className="h-56" /> : monthlyData.length === 0 ? (
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No disbursement data for selected period</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={monthlyData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1e3a8a" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#1e3a8a" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tickFormatter={fmtK} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(v: number) => fmt(v)} />
+                    <Area type="monotone" dataKey="amount" name="Amount" stroke="#1e3a8a" strokeWidth={2} fill="url(#colorAmount)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </ChartCard>
+          </div>
+        </TabsContent>
+
+        {/* By Bank table */}
+        <TabsContent value="by-bank">
+          <Card className="shadow-sm">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="font-semibold">Bank</TableHead>
+                    <TableHead className="text-right font-semibold">Loans</TableHead>
+                    <TableHead className="text-right font-semibold">Approved</TableHead>
+                    <TableHead className="text-right font-semibold">Outstanding</TableHead>
+                    <TableHead className="text-right font-semibold">Coverage %</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4" /></TableCell>)}</TableRow>
+                  )) : bankData.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">No data for selected filters</TableCell></TableRow>
+                  ) : bankData.map(bank => {
+                    const coverage = bank.amount > 0 ? (bank.outstanding / bank.amount * 100).toFixed(1) : '0.0'
+                    return (
+                      <TableRow key={bank.code}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-semibold text-primary">{bank.code}</span>
+                            <span className="text-sm">{bank.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{bank.count}</TableCell>
+                        <TableCell className="text-right font-medium">{fmt(bank.amount)}</TableCell>
+                        <TableCell className="text-right">{fmt(bank.outstanding)}</TableCell>
+                        <TableCell className="text-right">
+                          <span className={Number(coverage) > 80 ? 'text-red-600' : Number(coverage) > 60 ? 'text-amber-600' : 'text-emerald-600'}>
+                            {coverage}%
+                          </span>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {monthlyDisbursements.map((row) => (
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* By Sector table */}
+        <TabsContent value="by-sector">
+          <Card className="shadow-sm">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="font-semibold">Sector</TableHead>
+                    <TableHead className="text-right font-semibold">Loans</TableHead>
+                    <TableHead className="text-right font-semibold">Amount</TableHead>
+                    <TableHead className="font-semibold">Share</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>{Array.from({ length: 4 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4" /></TableCell>)}</TableRow>
+                  )) : sectorData.length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">No data for selected filters</TableCell></TableRow>
+                  ) : (() => {
+                    const totalAmt = sectorData.reduce((s, r) => s + r.amount, 0)
+                    return sectorData.map(row => {
+                      const pct = totalAmt > 0 ? (row.amount / totalAmt * 100) : 0
+                      return (
+                        <TableRow key={row.sector}>
+                          <TableCell className="font-medium">{row.sector}</TableCell>
+                          <TableCell className="text-right">{row.count}</TableCell>
+                          <TableCell className="text-right font-medium">{fmt(row.amount)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-24 overflow-hidden rounded-full bg-secondary">
+                                <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-sm">{pct.toFixed(1)}%</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  })()}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Monthly Trend table */}
+        <TabsContent value="trend">
+          <Card className="shadow-sm">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="font-semibold">Month</TableHead>
+                    <TableHead className="text-right font-semibold">Loans Disbursed</TableHead>
+                    <TableHead className="text-right font-semibold">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? Array.from({ length: 6 }).map((_, i) => (
+                    <TableRow key={i}>{Array.from({ length: 3 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4" /></TableCell>)}</TableRow>
+                  )) : monthlyData.length === 0 ? (
+                    <TableRow><TableCell colSpan={3} className="py-10 text-center text-muted-foreground">No disbursement data for selected period</TableCell></TableRow>
+                  ) : (
+                    <>
+                      {monthlyData.map(row => (
                         <TableRow key={row.month}>
                           <TableCell className="font-medium">{row.month}</TableCell>
                           <TableCell className="text-right">{row.count}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(row.amount)}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{formatCurrency(row.cumulative)}</TableCell>
+                          <TableCell className="text-right font-medium">{fmt(row.amount)}</TableCell>
                         </TableRow>
                       ))}
                       <TableRow className="bg-muted/30 font-bold">
                         <TableCell>Total</TableCell>
-                        <TableCell className="text-right">{monthlyDisbursements.reduce((s, r) => s + r.count, 0)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(monthlyDisbursements.reduce((s, r) => s + r.amount, 0))}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(monthlyDisbursements[monthlyDisbursements.length - 1].cumulative)}</TableCell>
+                        <TableCell className="text-right">{monthlyData.reduce((s, r) => s + r.count, 0)}</TableCell>
+                        <TableCell className="text-right">{fmt(monthlyData.reduce((s, r) => s + r.amount, 0))}</TableCell>
                       </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedReport === "sector" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t.reports.sectorReport}</CardTitle>
-                <CardDescription>Portfolio distribution by economic sector</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold">Sector</TableHead>
-                        <TableHead className="text-right font-semibold">Loans</TableHead>
-                        <TableHead className="text-right font-semibold">Amount</TableHead>
-                        <TableHead className="text-right font-semibold">Share</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sectorData.map((row) => (
-                        <TableRow key={row.sector}>
-                          <TableCell className="font-medium">{row.sector}</TableCell>
-                          <TableCell className="text-right">{row.count}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(row.amount)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <div className="h-2 w-16 overflow-hidden rounded-full bg-muted">
-                                <div className="h-full bg-primary" style={{ width: `${row.percentage}%` }} />
-                              </div>
-                              <span className="text-sm">{row.percentage}%</span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {selectedReport !== "disbursement" && selectedReport !== "sector" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{getReportTitle(selectedReport)}</CardTitle>
-                <CardDescription>Select report parameters and click Generate to view data</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col items-center justify-center gap-4 py-12 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12" />
-                  <p className="text-center">Click the Generate button above to generate this report with the selected parameters.</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="summary">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Total Portfolio</p>
-                <p className="text-2xl font-bold">{formatCurrency(149000000)}</p>
-                <p className="mt-1 text-xs text-emerald-600">+8.1% vs previous period</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Active Guarantees</p>
-                <p className="text-2xl font-bold">523</p>
-                <p className="mt-1 text-xs text-emerald-600">+12 new this period</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Claims Paid</p>
-                <p className="text-2xl font-bold">{formatCurrency(4850000)}</p>
-                <p className="mt-1 text-xs text-red-600">3.25% of portfolio</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-sm text-muted-foreground">Fee Income</p>
-                <p className="text-2xl font-bold">{formatCurrency(2340000)}</p>
-                <p className="mt-1 text-xs text-emerald-600">On track with targets</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sector Summary */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Portfolio by Sector</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {sectorData.map((row) => (
-                  <div key={row.sector} className="flex items-center gap-4">
-                    <div className="w-28 text-sm font-medium">{row.sector}</div>
-                    <div className="flex-1">
-                      <div className="h-4 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${row.percentage}%` }} />
-                      </div>
-                    </div>
-                    <div className="w-20 text-right text-sm font-medium">{row.percentage}%</div>
-                    <div className="w-32 text-right text-sm text-muted-foreground">{formatCurrency(row.amount)}</div>
-                  </div>
-                ))}
-              </div>
+                    </>
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>

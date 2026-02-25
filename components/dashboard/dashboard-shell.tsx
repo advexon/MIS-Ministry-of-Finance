@@ -35,11 +35,13 @@ import {
   ChevronDown,
   Globe,
   PlusCircle,
-  HelpCircle,
   User as UserIcon,
   Search,
   ShieldCheck,
   FolderDown,
+  GitCompare,
+  TrendingUp,
+  Shield,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
 import { NotificationsBell } from '@/components/dashboard/notifications-bell'
@@ -102,12 +104,27 @@ const navItems = [
   {
     titleKey: 'users' as const,
     href: '/dashboard/users',
-    icon: HelpCircle,
+    icon: Users,
   },
   {
     titleKey: 'settings' as const,
     href: '/dashboard/settings',
     icon: Settings,
+  },
+  {
+    titleKey: 'reconciliation' as const,
+    href: '/dashboard/reconciliation',
+    icon: GitCompare,
+  },
+  {
+    titleKey: 'recoveries' as const,
+    href: '/dashboard/recoveries',
+    icon: TrendingUp,
+  },
+  {
+    titleKey: 'auditTrail' as const,
+    href: '/dashboard/audit',
+    icon: Shield,
   },
 ]
 

@@ -83,6 +83,9 @@ export const translations = {
       notifications: 'Notifications',
       profile: 'Profile',
       help: 'Help',
+      reconciliation: 'Reconciliation',
+      recoveries: 'Recovery Tracking',
+      auditTrail: 'Audit Trail',
     },
     
     // Guarantee Reports
@@ -512,6 +515,9 @@ export const translations = {
       notifications: 'Уведомления',
       profile: 'Профиль',
       help: 'Помощь',
+      reconciliation: 'Сверка',
+      recoveries: 'Возврат задолженности',
+      auditTrail: 'Журнал аудита',
     },
     
     // Guarantee Reports
@@ -941,6 +947,9 @@ export const translations = {
       notifications: 'Огоҳиномаҳо',
       profile: 'Профил',
       help: 'Кӯмак',
+      reconciliation: 'Мутобиқсозӣ',
+      recoveries: 'Пайгирии барқарорсозӣ',
+      auditTrail: 'Журнали аудит',
     },
     
     // Guarantee Reports
@@ -1212,7 +1221,7 @@ export const translations = {
     fees: {
       title: 'Комиссияҳо',
       upfrontFee: 'Комиссияи якдафъа',
-      quarterlyFee: 'Комиссияи семоҳа',
+      quarterlyFee: 'Комиссияи ��емоҳа',
       feeAmount: 'Маблағи комиссия',
       feeRate: 'Нархи комиссия',
       baseAmount: 'Маблағ�� асосӣ',
