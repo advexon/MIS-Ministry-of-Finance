@@ -104,7 +104,6 @@ export default function UsersPage() {
   const [newRoleId, setNewRoleId] = useState("")
   const [newBankId, setNewBankId] = useState("")
   const [newBranchId, setNewBranchId] = useState("")
-  const [newLanguage, setNewLanguage] = useState("en")
   const [creating, setCreating] = useState(false)
 
   // Edit form state
@@ -113,9 +112,7 @@ export default function UsersPage() {
   const [editPhone, setEditPhone] = useState("")
   const [editRoleId, setEditRoleId] = useState("")
   const [editBankId, setEditBankId] = useState("")
-  const [editBranchId, setEditBranchId] = useState("")
   const [editIsActive, setEditIsActive] = useState(true)
-  const [editLanguage, setEditLanguage] = useState("en")
 
   const fetchData = useCallback(async () => {
     try {
@@ -126,7 +123,7 @@ export default function UsersPage() {
           .order("created_at", { ascending: false }),
         supabase.from("roles").select("*").order("name_en"),
         supabase.from("banks").select("*").eq("is_active", true).order("name_en"),
-        supabase.from("bank_branches").select("*").eq("is_active", true).order("name_en"),
+        supabase.from("bank_branches").select("*").order("name_en"),
       ])
 
       if (usersRes.data) setUsers(usersRes.data)
@@ -182,9 +179,7 @@ export default function UsersPage() {
     setEditPhone(user.phone || "")
     setEditRoleId(user.role_id || "")
     setEditBankId(user.bank_id || "")
-    setEditBranchId(user.branch_id || "")
     setEditIsActive(user.is_active)
-    setEditLanguage(user.preferred_language || "en")
     setEditDialogOpen(true)
   }
 
@@ -205,9 +200,7 @@ export default function UsersPage() {
           phone: editPhone || null,
           role_id: editRoleId || null,
           bank_id: editBankId || null,
-          branch_id: editBranchId || null,
           is_active: editIsActive,
-          preferred_language: editLanguage,
         })
         .eq("id", selectedUser.id)
 
@@ -237,8 +230,6 @@ export default function UsersPage() {
           phone: newPhone || undefined,
           roleId: newRoleId || undefined,
           bankId: newBankId && newBankId !== 'none' ? newBankId : undefined,
-          branchId: newBranchId && newBranchId !== 'none' ? newBranchId : undefined,
-          preferredLanguage: newLanguage,
         }),
       })
       const data = await res.json()
@@ -247,7 +238,7 @@ export default function UsersPage() {
       setCreateDialogOpen(false)
       // Reset form
       setNewEmail(""); setNewPassword(""); setNewFirstName(""); setNewLastName("")
-      setNewPhone(""); setNewRoleId(""); setNewBankId(""); setNewBranchId(""); setNewLanguage("en")
+      setNewPhone(""); setNewRoleId(""); setNewBankId(""); setNewBranchId("")
       fetchData()
     } catch (err) {
       showMessage('error', err instanceof Error ? err.message : 'Failed to create user')
@@ -293,10 +284,6 @@ export default function UsersPage() {
   const totalUsers = users.length
   const activeUsers = users.filter((u) => u.is_active).length
   const adminUsers = users.filter((u) => u.role?.code === "prsf_admin").length
-
-  const filteredBranches = branches.filter(
-    (b) => !editBankId || b.bank_id === editBankId
-  )
 
   if (loading) {
     return (
@@ -467,9 +454,7 @@ export default function UsersPage() {
                         {user.bank ? getName(user.bank) : "PRSF"}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {user.last_login_at
-                          ? new Date(user.last_login_at).toLocaleDateString()
-                          : "Never"}
+                    {new Date(user.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -586,29 +571,6 @@ export default function UsersPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>{t.loans.branch}</Label>
-                <Select value={newBranchId} onValueChange={setNewBranchId} disabled={!newBankId || newBankId === "none"}>
-                  <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {branches.filter((b) => !newBankId || b.bank_id === newBankId).map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>{getName(branch)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>{t.users.preferredLanguage}</Label>
-              <Select value={newLanguage} onValueChange={setNewLanguage}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="ru">Русский (Russian)</SelectItem>
-                  <SelectItem value="tj">Тоҷикӣ (Tajik)</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -672,30 +634,12 @@ export default function UsersPage() {
                   <span className="font-medium">{selectedUser.phone || "Not set"}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Language</span>
-                  <span className="font-medium">
-                    {selectedUser.preferred_language === "en"
-                      ? "English"
-                      : selectedUser.preferred_language === "ru"
-                        ? "Russian"
-                        : "Tajik"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Status</span>
                   <Badge
                     variant={selectedUser.is_active ? "default" : "destructive"}
                   >
                     {selectedUser.is_active ? "Active" : "Inactive"}
                   </Badge>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Last Login</span>
-                  <span className="font-medium">
-                    {selectedUser.last_login_at
-                      ? new Date(selectedUser.last_login_at).toLocaleString()
-                      : "Never"}
-                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Created</span>
@@ -794,61 +738,22 @@ export default function UsersPage() {
                 </Select>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>{t.loans.bank}</Label>
-                  <Select
-                    value={editBankId}
-                    onValueChange={(v) => {
-                      setEditBankId(v)
-                      setEditBranchId("") // Reset branch when bank changes
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select bank (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None (PRSF Staff)</SelectItem>
-                      {banks.map((bank) => (
-                        <SelectItem key={bank.id} value={bank.id}>
-                          {getName(bank)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>{t.loans.branch}</Label>
-                  <Select
-                    value={editBranchId}
-                    onValueChange={setEditBranchId}
-                    disabled={!editBankId || editBankId === "none"}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {filteredBranches.map((branch) => (
-                        <SelectItem key={branch.id} value={branch.id}>
-                          {getName(branch)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label>{t.users.preferredLanguage}</Label>
-                <Select value={editLanguage} onValueChange={setEditLanguage}>
+                <Label>{t.loans.bank}</Label>
+                <Select
+                  value={editBankId}
+                  onValueChange={setEditBankId}
+                >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select bank (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="ru">Русский (Russian)</SelectItem>
-                    <SelectItem value="tj">Тоҷикӣ (Tajik)</SelectItem>
+                    <SelectItem value="none">None (PRSF Staff)</SelectItem>
+                    {banks.map((bank) => (
+                      <SelectItem key={bank.id} value={bank.id}>
+                        {getName(bank)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
