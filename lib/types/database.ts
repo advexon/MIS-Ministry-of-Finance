@@ -4,8 +4,12 @@ export type LoanStatus =
   | 'under_review'
   | 'approved'
   | 'rejected'
+  | 'guarantee_issued'
+  | 'cancelled'
   | 'disbursed'
   | 'active'
+  | 'settled'
+  | 'rescheduled'
   | 'closed'
   | 'defaulted'
   | 'claim_pending'
@@ -178,6 +182,14 @@ export interface LoanApplication {
   covenants_bank: string | null
   covenants_prsf: string | null
   notes: string | null
+  guarantee_issued_date: string | null
+  cancellation_reason: string | null
+  settlement_date: string | null
+  settlement_amount: number | null
+  reschedule_reason: string | null
+  reschedule_date: string | null
+  new_maturity_date: string | null
+  reschedule_approved_by: string | null
   created_by: string | null
   created_at: string
   updated_at: string
