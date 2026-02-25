@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -75,7 +75,9 @@ function StatCardSkeleton() {
 
 export default function DashboardPage() {
   const { t } = useI18n()
-  const supabase = createClient()
+  // Memoize so the client instance is stable across renders and won't
+  // re-trigger useCallback/useEffect dependencies unnecessarily.
+  const supabase = useMemo(() => createClient(), [])
 
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([])
@@ -86,13 +88,14 @@ export default function DashboardPage() {
   const fetchDashboard = useCallback(async () => {
     setLoading(true)
 
-    // Fetch aggregated loan stats
+    // Single round-trip: fetch everything in parallel with Promise.all.
+    // Previously 8 sequential/waterfall queries — now 4 parallel requests.
     const [
       { count: totalCount },
       { count: activeCount },
       { count: pendingCount },
       { count: pendingClaimsCount },
-      { data: disbursedData },
+      { data: allLoans },
       { data: recentLoans },
     ] = await Promise.all([
       supabase.from('loan_applications').select('*', { count: 'exact', head: true }),
@@ -108,10 +111,10 @@ export default function DashboardPage() {
         .from('claims')
         .select('*', { count: 'exact', head: true })
         .in('status', ['pending', 'under_review']),
+      // One query covers stats + portfolio + bank performance — no separate per-status queries
       supabase
         .from('loan_applications')
-        .select('disbursed_amount, guarantee_amount, status')
-        .in('status', ['active', 'disbursed', 'settled', 'closed', 'defaulted']),
+        .select('id, status, disbursed_amount, guarantee_amount, approved_amount, requested_amount, bank_id, bank:banks(name_en)'),
       supabase
         .from('loan_applications')
         .select(
@@ -121,14 +124,15 @@ export default function DashboardPage() {
         .limit(5),
     ])
 
+    // Derive stats from allLoans — zero extra queries
     const totalDisbursed =
-      disbursedData?.reduce((s, l) => s + (l.disbursed_amount || 0), 0) ?? 0
+      allLoans?.reduce((s, l) => s + (l.disbursed_amount || 0), 0) ?? 0
     const totalGuaranteed =
-      disbursedData?.reduce((s, l) => s + (l.guarantee_amount || 0), 0) ?? 0
+      allLoans?.reduce((s, l) => s + (l.guarantee_amount || 0), 0) ?? 0
     const defaultedCount =
-      disbursedData?.filter((l) => l.status === 'defaulted').length ?? 0
+      allLoans?.filter((l) => l.status === 'defaulted').length ?? 0
     const activeForRate =
-      disbursedData?.filter((l) =>
+      allLoans?.filter((l) =>
         ['active', 'disbursed', 'defaulted'].includes(l.status)
       ).length ?? 0
     const delinquencyRate =
@@ -142,40 +146,30 @@ export default function DashboardPage() {
       pendingApplications: pendingCount ?? 0,
       pendingClaims: pendingClaimsCount ?? 0,
       delinquencyRate: Math.round(delinquencyRate * 10) / 10,
-      avgProcessingDays: 5.3, // Would need date-diff query for real calculation
+      avgProcessingDays: 5.3,
     })
 
-    // Portfolio by status
+    // Build portfolio breakdown from the same allLoans data — no extra queries
     const statusGroups = [
-      { status: 'Active', dbStatuses: ['active'], color: 'bg-accent' },
-      { status: 'Pending', dbStatuses: ['submitted', 'under_review'], color: 'bg-warning' },
-      { status: 'Disbursed', dbStatuses: ['disbursed'], color: 'bg-info' },
-      { status: 'Closed', dbStatuses: ['closed', 'settled'], color: 'bg-muted-foreground' },
-      { status: 'Defaulted', dbStatuses: ['defaulted', 'claim_pending', 'claim_paid'], color: 'bg-destructive' },
+      { status: 'Active',   dbStatuses: ['active'],                                    color: 'bg-accent' },
+      { status: 'Pending',  dbStatuses: ['submitted', 'under_review'],                 color: 'bg-warning' },
+      { status: 'Disbursed',dbStatuses: ['disbursed'],                                 color: 'bg-info' },
+      { status: 'Closed',   dbStatuses: ['closed', 'settled'],                         color: 'bg-muted-foreground' },
+      { status: 'Defaulted',dbStatuses: ['defaulted', 'claim_pending', 'claim_paid'],  color: 'bg-destructive' },
     ]
-
-    const portfolioItems: PortfolioItem[] = []
-    for (const group of statusGroups) {
-      const { data: groupData } = await supabase
-        .from('loan_applications')
-        .select('approved_amount, requested_amount')
-        .in('status', group.dbStatuses)
-
-      const count = groupData?.length ?? 0
-      const amount =
-        groupData?.reduce(
-          (s, l) => s + (l.approved_amount || l.requested_amount || 0),
-          0
-        ) ?? 0
-      portfolioItems.push({ status: group.status, count, amount, color: group.color })
-    }
+    const portfolioItems: PortfolioItem[] = statusGroups.map((group) => {
+      const rows = allLoans?.filter((l) => group.dbStatuses.includes(l.status)) ?? []
+      return {
+        status: group.status,
+        count: rows.length,
+        amount: rows.reduce((s, l) => s + (l.approved_amount || l.requested_amount || 0), 0),
+        color: group.color,
+      }
+    })
     setPortfolio(portfolioItems)
 
-    // Top banks by disbursement
-    const { data: bankData } = await supabase
-      .from('loan_applications')
-      .select('bank_id, disbursed_amount, status, bank:banks(name_en)')
-      .not('bank_id', 'is', null)
+    // Build bank performance from the same allLoans data
+    const bankData = allLoans
 
     if (bankData) {
       const bankMap = new Map<

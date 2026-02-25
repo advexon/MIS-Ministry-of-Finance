@@ -3,14 +3,25 @@ import { Inter } from 'next/font/google'
 
 import './globals.css'
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ['latin', 'cyrillic'],
   variable: '--font-inter',
+  // Only load the weights actually used in the design — avoids fetching all variants
+  weight: ['400', '500', '600', '700'],
+  // display=swap prevents invisible text during font load (FOIT)
+  display: 'swap',
+  // Preload the font so the browser fetches it before CSS parsing
+  preload: true,
 })
 
 export const metadata: Metadata = {
-  title: 'Credit Guarantee Fund',
-  description: 'Credit Guarantee Fund - Loan Tracking and Management Information System for the Ministry of Finance of Tajikistan',
+  title: {
+    default: 'Credit Guarantee Fund MIS',
+    template: '%s | CGF MIS',
+  },
+  description:
+    'Credit Guarantee Fund — Loan Tracking and Management Information System for the Ministry of Finance of Tajikistan.',
+  robots: { index: false, follow: false }, // Internal tool — keep out of search engines
 }
 
 export const viewport: Viewport = {

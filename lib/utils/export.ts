@@ -1,4 +1,6 @@
-import * as XLSX from 'xlsx'
+// Do NOT import xlsx at the top level — it is ~1 MB and would be bundled into
+// every page that imports this module. Instead we dynamically import it only
+// when exportToExcel is actually called by the user.
 
 export interface ReportData {
   report: any
@@ -6,7 +8,8 @@ export interface ReportData {
   payments: any[]
 }
 
-export function exportToExcel(data: ReportData, reportMonth: string): void {
+export async function exportToExcel(data: ReportData, reportMonth: string): Promise<void> {
+  const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
 
   // Format report info
@@ -24,7 +27,6 @@ export function exportToExcel(data: ReportData, reportMonth: string): void {
   const infoWs = XLSX.utils.aoa_to_sheet(reportInfo)
   XLSX.utils.book_append_sheet(wb, infoWs, 'Report Info')
 
-  // Format loans data
   if (data.loans && data.loans.length > 0) {
     const loansData = data.loans.map((loan, index) => ({
       'Row #': loan.row_number || index + 1,
@@ -84,7 +86,6 @@ export function exportToExcel(data: ReportData, reportMonth: string): void {
     XLSX.utils.book_append_sheet(wb, loansWs, 'Guaranteed Loans')
   }
 
-  // Format payments data
   if (data.payments && data.payments.length > 0) {
     const paymentsData = data.payments.map(payment => ({
       'Loan Number': payment.loan_number,
@@ -103,7 +104,6 @@ export function exportToExcel(data: ReportData, reportMonth: string): void {
     XLSX.utils.book_append_sheet(wb, paymentsWs, 'Payment Schedule')
   }
 
-  // Download
   const filename = `guarantee_report_${reportMonth}_${Date.now()}.xlsx`
   XLSX.writeFile(wb, filename)
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,7 @@ const PAGE_SIZE = 15
 
 export default function LoansPage() {
   const { t, locale } = useI18n()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const [loans, setLoans] = useState<LoanApplication[]>([])
   const [banks, setBanks] = useState<Bank[]>([])

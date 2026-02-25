@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area
+  PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts'
 import { BarChart3, Download, FileSpreadsheet, TrendingUp, RefreshCw } from 'lucide-react'
 
@@ -26,7 +26,7 @@ const fmtK = (v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : 
 
 export default function ReportsPage() {
   const { t } = useI18n()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const [loading, setLoading] = useState(true)
   const [banks, setBanks] = useState<any[]>([])
