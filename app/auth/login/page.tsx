@@ -80,23 +80,34 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
+    console.log("[v0] handleLogin called, email:", email)
+    
+    let supabase
+    try {
+      supabase = createClient()
+      console.log("[v0] Supabase client created, URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "set" : "MISSING")
+    } catch (clientErr) {
+      console.log("[v0] Failed to create Supabase client:", clientErr)
+      setError("Configuration error. Please contact your administrator.")
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log("[v0] Calling signInWithPassword...")
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+      console.log("[v0] signInWithPassword result - error:", error, "user:", data?.user?.email)
       if (error) throw error
-      // Hard navigation ensures the browser sends the fresh session cookie
-      // to the server on the next request, avoiding a race between the
-      // client router and the middleware redirect.
+      console.log("[v0] Login successful, redirecting to /dashboard")
       window.location.href = '/dashboard'
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An error occurred'
-      // Provide a friendlier message for the most common auth error
+      console.log("[v0] Login error:", message)
       setError(
         message.toLowerCase().includes('invalid login credentials')
           ? 'Incorrect email or password. Please try again.'
