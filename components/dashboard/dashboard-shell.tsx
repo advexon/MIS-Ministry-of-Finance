@@ -152,8 +152,8 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <Image src="/logo.png" alt="PRSF Emblem" width={32} height={32} className="h-8 w-8 object-contain" />
         <div className="flex flex-col">
-          <span className="text-sm font-bold text-white">PRSF MIS</span>
-          <span className="text-[10px] leading-tight text-white/50">Loan Tracking System</span>
+          <span className="text-sm font-bold text-white">Credit Guarantee Fund</span>
+          <span className="text-[10px] leading-tight text-white/50">Management Information System</span>
         </div>
       </div>
 

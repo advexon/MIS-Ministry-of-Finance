@@ -4,8 +4,8 @@ export const translations = {
   en: {
     // Common
     common: {
-      appName: 'PRSF Loan Tracking MIS',
-      appDescription: 'Partial Risk Sharing Facility - Management Information System',
+      appName: 'Credit Guarantee Fund',
+      appDescription: 'Credit Guarantee Fund - Management Information System',
       loading: 'Loading...',
       save: 'Save',
       cancel: 'Cancel',
@@ -436,8 +436,8 @@ export const translations = {
   ru: {
     // Common
     common: {
-      appName: 'СИУ ФРЧР по отслеживанию кредитов',
-      appDescription: 'Фонд разделения частичных рисков - Система информационного управления',
+      appName: 'Фонд кредитных гарантий',
+      appDescription: 'Фонд кредитных гарантий - Система информационного управления',
       loading: 'Загрузка...',
       save: 'Сохранить',
       cancel: 'Отмена',
@@ -868,8 +868,8 @@ export const translations = {
   tj: {
     // Common
     common: {
-      appName: 'СИИ ФТСК барои пайгирии қарз',
-      appDescription: 'Фонди тақсимоти хатарҳои қисман - Системаи идоракунии иттилоотӣ',
+      appName: 'Фонди кафолатҳои қарзӣ',
+      appDescription: 'Фонди кафолатҳои қарзӣ - Системаи идоракунии иттилоотӣ',
       loading: 'Боркунӣ...',
       save: 'Захира кардан',
       cancel: 'Бекор кардан',

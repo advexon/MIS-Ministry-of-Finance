@@ -12,8 +12,8 @@ export default function SignUpSuccessPage() {
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" />
           <div>
-            <span className="text-sm font-bold text-foreground">PRSF MIS</span>
-            <p className="text-[10px] text-muted-foreground">Partial Risk Sharing Facility</p>
+            <span className="text-sm font-bold text-foreground">Credit Guarantee Fund</span>
+            <p className="text-[10px] text-muted-foreground">Management Information System</p>
           </div>
         </div>
       </header>

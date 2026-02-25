@@ -116,7 +116,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { id: '2', column: 'status', operator: 'eq', value: 'overdue', style: 'red', enabled: true },
     ],
     headerFooter: {
-      headerLeft: 'PRSF MIS',
+      headerLeft: 'Credit Guarantee Fund',
       headerCenter: 'Loan Portfolio Report',
       headerRight: '',
       footerLeft: 'Confidential',
@@ -154,7 +154,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { id: '2', column: 'status', operator: 'eq', value: 'rejected', style: 'red', enabled: true },
     ],
     headerFooter: {
-      headerLeft: 'PRSF MIS',
+      headerLeft: 'Credit Guarantee Fund',
       headerCenter: 'Guarantee Reports',
       headerRight: '',
       footerLeft: 'Confidential',
@@ -194,7 +194,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { id: '2', column: 'days_overdue', operator: 'gt', value: '30', style: 'yellow', enabled: true },
     ],
     headerFooter: {
-      headerLeft: 'PRSF MIS',
+      headerLeft: 'Credit Guarantee Fund',
       headerCenter: 'Delinquency Report',
       headerRight: '',
       footerLeft: 'Confidential',
@@ -232,7 +232,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { id: '2', column: 'status', operator: 'eq', value: 'rejected', style: 'red', enabled: true },
     ],
     headerFooter: {
-      headerLeft: 'PRSF MIS',
+      headerLeft: 'Credit Guarantee Fund',
       headerCenter: 'Claims Report',
       headerRight: '',
       footerLeft: 'Confidential',
@@ -269,7 +269,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { id: '1', column: 'status', operator: 'eq', value: 'overdue', style: 'red', enabled: true },
     ],
     headerFooter: {
-      headerLeft: 'PRSF MIS',
+      headerLeft: 'Credit Guarantee Fund',
       headerCenter: 'Fee Income Report',
       headerRight: '',
       footerLeft: 'Confidential',

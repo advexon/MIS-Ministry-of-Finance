@@ -27,7 +27,7 @@ export default function LandingPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-3">
             <Image src="/logo.png" alt="PRSF" width={36} height={36} className="rounded" />
-            <span className="text-lg font-semibold tracking-tight">PRSF MIS</span>
+            <span className="text-lg font-semibold tracking-tight">Credit Guarantee Fund</span>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
@@ -47,8 +47,8 @@ export default function LandingPage() {
             Ministry of Finance of the Republic of Tajikistan
           </div>
           <h1 className="mb-6 text-4xl font-bold leading-tight tracking-tight text-foreground lg:text-5xl">
-            Partial Risk Sharing Facility
-            <span className="block text-primary">Loan Tracking System</span>
+            Credit Guarantee Fund
+            <span className="block text-primary">Management Information System</span>
           </h1>
           <p className="mb-10 text-lg leading-relaxed text-muted-foreground lg:text-xl">
             A comprehensive management information system for tracking MSME loan guarantees,
@@ -143,7 +143,7 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="PRSF" width={24} height={24} className="rounded" />
-            <span className="text-sm font-medium">PRSF Loan Tracking MIS</span>
+            <span className="text-sm font-medium">Credit Guarantee Fund MIS</span>
           </div>
           <p className="text-xs text-muted-foreground">
             Ministry of Finance of the Republic of Tajikistan. All rights reserved.

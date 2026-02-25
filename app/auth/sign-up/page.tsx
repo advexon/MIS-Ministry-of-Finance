@@ -27,7 +27,7 @@ const languages = [
 const translations = {
   en: {
     title: 'Request Access',
-    description: 'Create an account to access the PRSF Loan Tracking System',
+    description: 'Create an account to access the Credit Guarantee Fund MIS',
     firstName: 'First Name',
     lastName: 'Last Name',
     email: 'Email',
@@ -131,13 +131,13 @@ export default function SignUpPage() {
         <div className="flex items-center gap-3">
           <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="h-10 w-10 object-contain" />
           <div>
-            <span className="text-base font-bold text-primary-foreground">PRSF MIS</span>
-            <p className="text-[11px] text-primary-foreground/60">Loan Tracking System</p>
+            <span className="text-base font-bold text-primary-foreground">Credit Guarantee Fund</span>
+            <p className="text-[11px] text-primary-foreground/60">Management Information System</p>
           </div>
         </div>
         <div>
           <h2 className="text-balance text-3xl font-bold leading-tight text-primary-foreground">
-            Partial Risk Sharing Facility
+            Credit Guarantee Fund
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-primary-foreground/60">
             Join the platform that connects partner banks with MSME borrowers 
@@ -155,7 +155,7 @@ export default function SignUpPage() {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3 lg:hidden">
             <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" />
-            <span className="text-sm font-bold text-foreground">PRSF MIS</span>
+            <span className="text-sm font-bold text-foreground">Credit Guarantee Fund</span>
           </div>
           <div className="ml-auto">
             <Select value={language} onValueChange={(v) => setLanguage(v as 'en' | 'ru' | 'tj')}>

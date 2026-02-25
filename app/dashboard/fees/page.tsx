@@ -164,7 +164,7 @@ export default function FeesPage() {
     const html = `<!DOCTYPE html><html><head><title>Fee Invoice ${invoiceNum}</title>
 <style>body{font-family:Arial,sans-serif;font-size:12pt;margin:40px;color:#222}.header{text-align:center;margin-bottom:30px}.table{width:100%;border-collapse:collapse;margin:20px 0}.table td,.table th{border:1px solid #ccc;padding:8px 12px}.table th{background:#f0f0f0;font-weight:bold}.total-row{font-weight:bold;background:#f8f8f8}</style>
 </head><body>
-<div class="header"><h1>PRSF - GUARANTEE FEE INVOICE</h1><h2>Partial Risk Sharing Facility – Ministry of Finance</h2></div>
+<div class="header"><h1>CREDIT GUARANTEE FUND - GUARANTEE FEE INVOICE</h1><h2>Credit Guarantee Fund – Ministry of Finance</h2></div>
 <p><strong>Invoice No.:</strong> ${invoiceNum}<br><strong>Date:</strong> ${today}<br><strong>Loan Ref.:</strong> ${(fee as any).loan_application?.application_number || "—"}</p>
 <p><strong>To:</strong> ${bank}<br>Re: ${borrowerName}</p>
 <table class="table">

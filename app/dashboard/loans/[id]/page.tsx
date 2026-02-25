@@ -386,16 +386,16 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-30deg);
         font-size: 80px; color: rgba(0,0,0,0.04); font-weight: bold; pointer-events: none; z-index: -1; }
     </style></head><body>
-    <div class="watermark">PRSF</div>
+    <div class="watermark">CGF</div>
     <div class="header">
-      <div class="logo-row"><h1>Partial Risk Sharing Facility</h1></div>
+      <div class="logo-row"><h1>Credit Guarantee Fund</h1></div>
       <h2>Ministry of Finance — Republic of Tajikistan</h2>
       <p class="ref">LETTER OF GUARANTEE</p>
       <p class="ref">No. LG-${loan.application_number} &nbsp;|&nbsp; Date: ${fmtDate(loan.guarantee_issued_date || loan.prsf_approval_date)}</p>
     </div>
 
     <div class="section">
-      <p>This Letter of Guarantee is issued by the <strong>Partial Risk Sharing Facility (PRSF)</strong>, established under the Ministry of Finance of the Republic of Tajikistan, in favour of:</p>
+      <p>This Letter of Guarantee is issued by the <strong>Credit Guarantee Fund (CGF)</strong>, established under the Ministry of Finance of the Republic of Tajikistan, in favour of:</p>
       <table>
         <tr><td>Partner Bank:</td><td class="highlight">${(loan.bank as any)?.name_en ?? "—"}</td></tr>
         <tr><td>Borrower:</td><td class="highlight">${loan.borrower ? [(loan.borrower as any).company_name, (loan.borrower as any).first_name, (loan.borrower as any).last_name].filter(Boolean).join(" ") : "—"}</td></tr>
