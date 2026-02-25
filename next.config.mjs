@@ -40,7 +40,7 @@ const nextConfig = {
       },
       {
         // Cache public assets (logo, fonts) for 24 h with revalidation
-        source: '/(:path*\\.(png|jpg|jpeg|svg|ico|woff|woff2|ttf|otf))',
+        source: '/:path*\\.(:ext(png|jpg|jpeg|svg|ico|woff|woff2|ttf|otf))',
         headers: [
           {
             key: 'Cache-Control',
