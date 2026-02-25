@@ -92,9 +92,18 @@ export default function LoginPage() {
         password,
       })
       if (error) throw error
+      // router.refresh() flushes Next.js's server-side cache so the dashboard
+      // layout picks up the newly-set session cookie before we navigate.
+      router.refresh()
       router.push('/dashboard')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const message = err instanceof Error ? err.message : 'An error occurred'
+      // Provide a friendlier message for the most common auth error
+      setError(
+        message.toLowerCase().includes('invalid login credentials')
+          ? 'Incorrect email or password. Please try again.'
+          : message
+      )
     } finally {
       setIsLoading(false)
     }
@@ -105,7 +114,7 @@ export default function LoginPage() {
       {/* Left panel - branding */}
       <div className="hidden flex-col justify-between bg-primary p-10 lg:flex lg:w-[480px]">
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="h-10 w-10 object-contain" />
+          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="h-10 w-10 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           <div>
             <span className="text-base font-bold text-primary-foreground">Credit Guarantee Fund</span>
             <p className="text-[11px] text-primary-foreground/60">Management Information System</p>
@@ -130,7 +139,7 @@ export default function LoginPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3 lg:hidden">
-            <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" />
+            <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
             <span className="text-sm font-bold text-foreground">Credit Guarantee Fund</span>
           </div>
           <div className="ml-auto">
