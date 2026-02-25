@@ -51,21 +51,9 @@ const nextConfig = {
     ]
   },
 
-  // Webpack tweaks: ensure Recharts, xlsx, and jspdf are NOT bundled into the
-  // initial server bundle — they are dynamically imported on the client only.
-  webpack(config, { isServer }) {
-    if (isServer) {
-      // Keep these large client-only libraries out of the server bundle
-      config.externals = [
-        ...(Array.isArray(config.externals) ? config.externals : []),
-        'recharts',
-        'xlsx',
-        'jspdf',
-        'html2canvas',
-      ]
-    }
-    return config
-  },
+  // Next.js 16 uses Turbopack by default. Adding an empty turbopack config
+  // silences the "webpack config present but no turbopack config" build error.
+  turbopack: {},
 }
 
 export default nextConfig
