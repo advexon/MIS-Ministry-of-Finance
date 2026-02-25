@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Image from 'next/image'
 import { Globe, Loader2 } from 'lucide-react'
@@ -76,8 +75,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [language, setLanguage] = useState<'en' | 'ru' | 'tj'>('en')
-  const router = useRouter()
-  
+
   const t = translations[language]
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -92,10 +90,10 @@ export default function LoginPage() {
         password,
       })
       if (error) throw error
-      // router.refresh() flushes Next.js's server-side cache so the dashboard
-      // layout picks up the newly-set session cookie before we navigate.
-      router.refresh()
-      router.push('/dashboard')
+      // Hard navigation ensures the browser sends the fresh session cookie
+      // to the server on the next request, avoiding a race between the
+      // client router and the middleware redirect.
+      window.location.href = '/dashboard'
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An error occurred'
       // Provide a friendlier message for the most common auth error
