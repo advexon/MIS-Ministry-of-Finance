@@ -208,10 +208,7 @@ export default function LoginPage() {
             </form>
 
             <p className="mt-8 text-center text-sm text-muted-foreground">
-              {t.noAccount}{' '}
-              <Link href="/auth/sign-up" className="font-semibold text-accent hover:underline">
-                {t.signUp}
-              </Link>
+              Contact your system administrator if you need an account.
             </p>
           </div>
         </div>

@@ -42,15 +42,40 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect logged-in users away from auth pages
-  if (
-    (request.nextUrl.pathname === '/auth/login' ||
-      request.nextUrl.pathname === '/auth/sign-up') &&
-    user
-  ) {
+  // Redirect logged-in users away from the login page
+  if (request.nextUrl.pathname === '/auth/login' && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
+  }
+
+  // /auth/sign-up is admin-only. Block unauthenticated visitors entirely.
+  if (request.nextUrl.pathname === '/auth/sign-up') {
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/auth/login'
+      return NextResponse.redirect(url)
+    }
+    // Check that the authenticated user has an admin role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role:roles(code)')
+      .eq('id', user.id)
+      .single()
+    const roleCode = (profile?.role as { code?: string } | null)?.code ?? ''
+    const isAdmin = roleCode === 'prsf_admin' || roleCode === 'super_admin'
+    if (!isAdmin) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // /api/admin routes: must be authenticated admin
+  if (request.nextUrl.pathname.startsWith('/api/admin')) {
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
   }
 
   return supabaseResponse

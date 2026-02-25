@@ -26,8 +26,8 @@ const languages = [
 
 const translations = {
   en: {
-    title: 'Request Access',
-    description: 'Create an account to access the Credit Guarantee Fund MIS',
+    title: 'Create New User',
+    description: 'Admin-only: create a new user account for the Credit Guarantee Fund MIS',
     firstName: 'First Name',
     lastName: 'Last Name',
     email: 'Email',
@@ -274,10 +274,7 @@ export default function SignUpPage() {
             </form>
 
             <p className="mt-8 text-center text-sm text-muted-foreground">
-              {t.hasAccount}{' '}
-              <Link href="/auth/login" className="font-semibold text-accent hover:underline">
-                {t.login}
-              </Link>
+              This page is restricted to system administrators only.
             </p>
           </div>
         </div>

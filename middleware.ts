@@ -9,13 +9,12 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Only run middleware on /dashboard routes (protected) and /auth routes
-     * (for redirect-if-logged-in logic). This excludes:
-     * - / (landing page)
-     * - /api routes
-     * - _next/static, _next/image, favicon.ico, and static assets
+     * Run middleware on /dashboard routes (protected), /auth routes
+     * (redirect-if-logged-in logic), and /api/admin routes (admin-only).
+     * Excludes: / (landing page), _next/static, _next/image, favicon.ico.
      */
     '/dashboard/:path*',
     '/auth/:path*',
+    '/api/admin/:path*',
   ],
 }

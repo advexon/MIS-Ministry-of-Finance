@@ -30,11 +30,8 @@ export default function LandingPage() {
             <span className="text-lg font-semibold tracking-tight">Credit Guarantee Fund</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/auth/login">Sign In</Link>
-            </Button>
             <Button size="sm" asChild>
-              <Link href="/auth/sign-up">Get Started</Link>
+              <Link href="/auth/login">Sign In</Link>
             </Button>
           </div>
         </div>
@@ -60,9 +57,6 @@ export default function LandingPage() {
                 Access Dashboard
                 <ArrowRight className="h-4 w-4" />
               </Link>
-            </Button>
-            <Button variant="outline" size="lg" asChild>
-              <Link href="/auth/sign-up">Create Account</Link>
             </Button>
           </div>
         </div>
@@ -125,14 +119,11 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-6 py-16 text-center">
           <h2 className="mb-3 text-2xl font-bold text-primary-foreground">Ready to get started?</h2>
           <p className="mb-8 text-primary-foreground/80">
-            Sign in to access the dashboard or create a new account.
+            Sign in with your assigned credentials to access the dashboard.
           </p>
           <div className="flex justify-center gap-4">
             <Button size="lg" variant="secondary" asChild>
               <Link href="/auth/login">Sign In</Link>
-            </Button>
-            <Button size="lg" variant="outline" className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10" asChild>
-              <Link href="/auth/sign-up">Create Account</Link>
             </Button>
           </div>
         </div>

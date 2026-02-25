@@ -89,10 +89,23 @@ export default function UsersPage() {
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserWithRelations | null>(null)
   const [saving, setSaving] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // Create user form state
+  const [newEmail, setNewEmail] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [newFirstName, setNewFirstName] = useState("")
+  const [newLastName, setNewLastName] = useState("")
+  const [newPhone, setNewPhone] = useState("")
+  const [newRoleId, setNewRoleId] = useState("")
+  const [newBankId, setNewBankId] = useState("")
+  const [newBranchId, setNewBranchId] = useState("")
+  const [newLanguage, setNewLanguage] = useState("en")
+  const [creating, setCreating] = useState(false)
 
   // Edit form state
   const [editFirstName, setEditFirstName] = useState("")
@@ -210,6 +223,39 @@ export default function UsersPage() {
     }
   }
 
+  const handleCreateUser = async () => {
+    setCreating(true)
+    try {
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newEmail,
+          password: newPassword,
+          firstName: newFirstName,
+          lastName: newLastName,
+          phone: newPhone || undefined,
+          roleId: newRoleId || undefined,
+          bankId: newBankId && newBankId !== 'none' ? newBankId : undefined,
+          branchId: newBranchId && newBranchId !== 'none' ? newBranchId : undefined,
+          preferredLanguage: newLanguage,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to create user')
+      showMessage('success', `User ${newEmail} created successfully`)
+      setCreateDialogOpen(false)
+      // Reset form
+      setNewEmail(""); setNewPassword(""); setNewFirstName(""); setNewLastName("")
+      setNewPhone(""); setNewRoleId(""); setNewBankId(""); setNewBranchId(""); setNewLanguage("en")
+      fetchData()
+    } catch (err) {
+      showMessage('error', err instanceof Error ? err.message : 'Failed to create user')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const handleToggleActive = async (user: UserWithRelations) => {
     try {
       const { error } = await supabase
@@ -270,6 +316,10 @@ export default function UsersPage() {
             Manage system users, assign roles and bank affiliations
           </p>
         </div>
+        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2 shrink-0">
+          <Plus className="h-4 w-4" />
+          Create User
+        </Button>
       </div>
 
       {/* Status Messages */}
@@ -478,6 +528,100 @@ export default function UsersPage() {
       <p className="mt-3 text-xs text-muted-foreground">
         Showing {filteredUsers.length} of {totalUsers} users
       </p>
+
+      {/* Create User Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+            <DialogDescription>
+              Create a new account. The user can log in immediately with these credentials.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{t.auth.firstName}</Label>
+                <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="First name" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t.auth.lastName}</Label>
+                <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Last name" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{t.auth.email} <span className="text-destructive">*</span></Label>
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@bank.tj" required />
+            </div>
+            <div className="space-y-2">
+              <Label>{t.auth.password} <span className="text-destructive">*</span></Label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 characters" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+992 XX XXX XXXX" />
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Label>{t.users.role}</Label>
+              <Select value={newRoleId} onValueChange={setNewRoleId}>
+                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>{getName(role)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{t.loans.bank}</Label>
+                <Select value={newBankId} onValueChange={(v) => { setNewBankId(v); setNewBranchId("") }}>
+                  <SelectTrigger><SelectValue placeholder="Select bank (optional)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (PRSF Staff)</SelectItem>
+                    {banks.map((bank) => (
+                      <SelectItem key={bank.id} value={bank.id}>{getName(bank)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t.loans.branch}</Label>
+                <Select value={newBranchId} onValueChange={setNewBranchId} disabled={!newBankId || newBankId === "none"}>
+                  <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {branches.filter((b) => !newBankId || b.bank_id === newBankId).map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>{getName(branch)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{t.users.preferredLanguage}</Label>
+              <Select value={newLanguage} onValueChange={setNewLanguage}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="ru">Русский (Russian)</SelectItem>
+                  <SelectItem value="tj">Тоҷикӣ (Tajik)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="bg-transparent" onClick={() => setCreateDialogOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button onClick={handleCreateUser} disabled={creating || !newEmail || !newPassword} className="gap-2">
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Create User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View User Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
