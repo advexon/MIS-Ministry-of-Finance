@@ -74,7 +74,6 @@ const roleColors: Record<string, string> = {
 
 export default function UsersPage() {
   const { t, locale } = useI18n()
-  const supabase = createClient()
 
   const [users, setUsers] = useState<UserWithRelations[]>([])
   const [roles, setRoles] = useState<Role[]>([])
@@ -114,6 +113,7 @@ export default function UsersPage() {
   const [editIsActive, setEditIsActive] = useState(true)
 
   const fetchData = useCallback(async () => {
+    const supabase = createClient()
     try {
       const [usersRes, rolesRes, banksRes, branchesRes] = await Promise.all([
         supabase
@@ -139,7 +139,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchData()
@@ -195,6 +195,7 @@ export default function UsersPage() {
   const handleSaveUser = async () => {
     if (!selectedUser) return
     setSaving(true)
+    const supabase = createClient()
     try {
       const { error } = await supabase
         .from("profiles")
@@ -252,6 +253,7 @@ export default function UsersPage() {
   }
 
   const handleToggleActive = async (user: UserWithRelations) => {
+    const supabase = createClient()
     try {
       const { error } = await supabase
         .from("profiles")
