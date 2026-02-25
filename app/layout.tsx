@@ -11,9 +11,6 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Credit Guarantee Fund',
   description: 'Credit Guarantee Fund - Loan Tracking and Management Information System for the Ministry of Finance of Tajikistan',
-  icons: {
-    icon: '/logo.png',
-  },
 }
 
 export const viewport: Viewport = {

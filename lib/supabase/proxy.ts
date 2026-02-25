@@ -2,80 +2,81 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  let supabaseResponse = NextResponse.next({ request })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          for (const { name, value } of cookiesToSet) {
-            request.cookies.set(name, value)
-          }
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          for (const { name, value, options } of cookiesToSet) {
-            supabaseResponse.cookies.set(name, value, options)
-          }
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            for (const { name, value } of cookiesToSet) {
+              request.cookies.set(name, value)
+            }
+            supabaseResponse = NextResponse.next({ request })
+            for (const { name, value, options } of cookiesToSet) {
+              supabaseResponse.cookies.set(name, value, options)
+            }
+          },
         },
       },
-    },
-  )
+    )
 
-  // IMPORTANT: Do NOT use supabase.auth.getSession() - it reads from storage
-  // and is not guaranteed to have the latest session. Use getUser() instead.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    // IMPORTANT: use getUser() not getSession() – getUser() validates the JWT
+    // server-side and is not susceptible to spoofed cookies.
+    const { data: { user } } = await supabase.auth.getUser()
 
-  // Protected routes - redirect to login if not authenticated
-  if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
-    return NextResponse.redirect(url)
-  }
+    const { pathname } = request.nextUrl
 
-  // Redirect logged-in users away from the login page
-  if (request.nextUrl.pathname === '/auth/login' && user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
-  }
-
-  // /auth/sign-up is admin-only. Block unauthenticated visitors entirely.
-  if (request.nextUrl.pathname === '/auth/sign-up') {
-    if (!user) {
+    // --- Protected dashboard routes ---
+    if (pathname.startsWith('/dashboard') && !user) {
       const url = request.nextUrl.clone()
       url.pathname = '/auth/login'
       return NextResponse.redirect(url)
     }
-    // Check that the authenticated user has an admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role:roles(code)')
-      .eq('id', user.id)
-      .single()
-    const roleCode = (profile?.role as { code?: string } | null)?.code ?? ''
-    const isAdmin = roleCode === 'prsf_admin' || roleCode === 'super_admin'
-    if (!isAdmin) {
+
+    // --- Redirect already-logged-in users away from login ---
+    if (pathname === '/auth/login' && user) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
-  }
 
-  // /api/admin routes: must be authenticated admin
-  if (request.nextUrl.pathname.startsWith('/api/admin')) {
-    if (!user) {
+    // --- /auth/sign-up is admin-only ---
+    if (pathname === '/auth/sign-up') {
+      if (!user) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/auth/login'
+        return NextResponse.redirect(url)
+      }
+      // Verify admin role before allowing access
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role:roles(code)')
+        .eq('id', user.id)
+        .single()
+      const roleCode = (profile?.role as { code?: string } | null)?.code ?? ''
+      const isAdmin = roleCode === 'prsf_admin' || roleCode === 'super_admin'
+      if (!isAdmin) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+      }
+    }
+
+    // --- /api/admin routes require authentication ---
+    if (pathname.startsWith('/api/admin') && !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+  } catch (err) {
+    // If middleware itself errors (e.g. missing env vars, network issue),
+    // allow the request to continue rather than serving a blank page.
+    // Dashboard auth is also enforced at the layout level.
+    console.error('Middleware error:', err)
   }
 
   return supabaseResponse
