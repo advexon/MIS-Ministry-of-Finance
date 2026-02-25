@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 
 // Pure service-role client — no cookies, no session, no RLS
 function getAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const url = process.env.NEXT_PUBLIC_MISSUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !key) {

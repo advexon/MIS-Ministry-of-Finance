@@ -8,8 +8,8 @@ export async function POST(request: Request) {
 
   // Verify caller is authenticated
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_MISSUPABASE_URL!,
+    process.env.NEXT_PUBLIC_MISSUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() { return cookieStore.getAll() },
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
   // Use service-role client to bypass RLS and create the auth user
   const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_MISSUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
