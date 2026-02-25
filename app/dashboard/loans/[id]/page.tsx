@@ -71,10 +71,10 @@ function getActiveStep(status: string): number {
   if (["submitted"].includes(status)) return 1
   if (["under_review"].includes(status)) return 2
   if (["rejected"].includes(status)) return 3
-  if (["approved"].includes(status)) return 4
+  if (["approved", "extension_pending"].includes(status)) return 4
   if (["guarantee_issued", "cancelled"].includes(status)) return 5
-  if (["disbursed", "active"].includes(status)) return 6
-  if (["settled", "rescheduled", "claim_pending"].includes(status)) return 7
+  if (["disbursed", "active", "defaulted"].includes(status)) return 6
+  if (["settled", "rescheduled", "claim_pending", "claim_rejected"].includes(status)) return 7
   if (["claim_paid"].includes(status)) return 8
   if (["closed"].includes(status)) return 9
   return 0
@@ -82,45 +82,49 @@ function getActiveStep(status: string): number {
 
 // ─── Status badge helpers ─────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
-  draft:           "bg-gray-100 text-gray-700 border-gray-200",
-  submitted:       "bg-amber-100 text-amber-800 border-amber-200",
-  under_review:    "bg-blue-100 text-blue-800 border-blue-200",
-  approved:        "bg-sky-100 text-sky-800 border-sky-200",
-  rejected:        "bg-red-100 text-red-800 border-red-200",
-  guarantee_issued:"bg-teal-100 text-teal-800 border-teal-200",
-  cancelled:       "bg-red-100 text-red-800 border-red-200",
-  disbursed:       "bg-indigo-100 text-indigo-800 border-indigo-200",
-  active:          "bg-emerald-100 text-emerald-800 border-emerald-200",
-  settled:         "bg-emerald-100 text-emerald-800 border-emerald-200",
-  rescheduled:     "bg-orange-100 text-orange-800 border-orange-200",
-  claim_pending:   "bg-rose-100 text-rose-800 border-rose-200",
-  claim_paid:      "bg-purple-100 text-purple-800 border-purple-200",
-  closed:          "bg-gray-100 text-gray-700 border-gray-200",
-  defaulted:       "bg-red-100 text-red-800 border-red-200",
+  draft:              "bg-gray-100 text-gray-700 border-gray-200",
+  submitted:          "bg-amber-100 text-amber-800 border-amber-200",
+  under_review:       "bg-blue-100 text-blue-800 border-blue-200",
+  approved:           "bg-sky-100 text-sky-800 border-sky-200",
+  rejected:           "bg-red-100 text-red-800 border-red-200",
+  guarantee_issued:   "bg-teal-100 text-teal-800 border-teal-200",
+  extension_pending:  "bg-yellow-100 text-yellow-800 border-yellow-200",
+  cancelled:          "bg-red-100 text-red-800 border-red-200",
+  disbursed:          "bg-indigo-100 text-indigo-800 border-indigo-200",
+  active:             "bg-emerald-100 text-emerald-800 border-emerald-200",
+  defaulted:          "bg-red-100 text-red-800 border-red-200",
+  settled:            "bg-emerald-100 text-emerald-800 border-emerald-200",
+  rescheduled:        "bg-orange-100 text-orange-800 border-orange-200",
+  claim_pending:      "bg-rose-100 text-rose-800 border-rose-200",
+  claim_rejected:     "bg-red-100 text-red-800 border-red-200",
+  claim_paid:         "bg-purple-100 text-purple-800 border-purple-200",
+  closed:             "bg-gray-100 text-gray-700 border-gray-200",
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  draft:           "Draft",
-  submitted:       "Submitted",
-  under_review:    "Under Review",
-  approved:        "Approved",
-  rejected:        "Rejected",
-  guarantee_issued:"Guarantee Issued",
-  cancelled:       "Cancelled",
-  disbursed:       "Disbursed",
-  active:          "Active",
-  settled:         "Settled",
-  rescheduled:     "Rescheduled",
-  claim_pending:   "Claim Pending",
-  claim_paid:      "Claim Paid",
-  closed:          "Closed",
-  defaulted:       "Defaulted",
+  draft:              "Draft",
+  submitted:          "Submitted",
+  under_review:       "Under Review",
+  approved:           "Approved",
+  rejected:           "Rejected",
+  guarantee_issued:   "Guarantee Issued",
+  extension_pending:  "Extension Pending",
+  cancelled:          "Cancelled",
+  disbursed:          "Disbursed",
+  active:             "Active",
+  defaulted:          "Defaulted",
+  settled:            "Settled",
+  rescheduled:        "Rescheduled",
+  claim_pending:      "Claim Pending",
+  claim_rejected:     "Claim Rejected",
+  claim_paid:         "Claim Paid",
+  closed:             "Closed",
 }
 
 // ─── Workflow Stepper component ───────────────────────────────────────────────
 function WorkflowStepper({ status }: { status: string }) {
   const activeIdx = getActiveStep(status)
-  const isTerminal = ["rejected", "cancelled", "settled", "closed", "claim_paid"].includes(status)
+  const isTerminal = ["rejected", "cancelled", "settled", "closed", "claim_paid", "claim_rejected"].includes(status)
 
   const steps = [
     { num: 1, label: "Initiation",     sub: "Bank submits loan" },
@@ -181,15 +185,51 @@ function getAvailableActions(status: string, userRole: string): string[] {
   const isBank = ["bank_admin", "bank_officer"].includes(userRole)
 
   switch (status) {
-    case "draft":        return isBank ? ["submit"] : []
-    case "submitted":    return isPrsf ? ["mark_received"] : []
-    case "under_review": return isPrsf ? ["approve", "reject"] : []
-    case "approved":     return isPrsf ? ["issue_guarantee", "cancel"] : []
-    case "guarantee_issued": return isBank ? ["record_disbursement"] : []
+    // Step 1 → Step 2: bank submits
+    case "draft":
+      return isBank ? ["submit"] : []
+
+    // Step 2 → Step 3: PRSF marks received
+    case "submitted":
+      return isPrsf ? ["mark_received"] : []
+
+    // Step 3 → Step 4A (reject) or Step 4B (approve)
+    case "under_review":
+      return isPrsf ? ["approve", "reject"] : []
+
+    // Step 4B → Step 5B (implicit) → Step 6: issue guarantee or cancel
+    // Also allow bank to request an extension before guarantee issuance
+    case "approved": {
+      const prsf = isPrsf ? ["issue_guarantee", "cancel"] : []
+      const bank = isBank ? ["request_extension"] : []
+      return [...prsf, ...bank]
+    }
+
+    // Extension pending → PRSF can grant or decline (goes back to approved / cancelled)
+    case "extension_pending":
+      return isPrsf ? ["grant_extension", "decline_extension"] : []
+
+    // Step 6 → Step 7C: bank records disbursement
+    case "guarantee_issued":
+      return isBank ? ["record_disbursement"] : []
+
+    // Step 7: active/disbursed → settled | rescheduled | defaulted
     case "disbursed":
-    case "active":       return isBank ? ["mark_settled", "reschedule", "file_claim"] : []
-    case "rescheduled":  return isBank ? ["mark_settled", "file_claim"] : []
-    case "claim_pending":return isPrsf ? ["approve_claim", "reject_claim"] : []
+    case "active":
+      return isBank ? ["mark_settled", "reschedule", "mark_defaulted"] : []
+
+    // Step 7B: rescheduled → settled | defaulted
+    case "rescheduled":
+      return isBank ? ["mark_settled", "mark_defaulted"] : []
+
+    // Step 7C (defaulted) → file claim
+    case "defaulted":
+      return isBank ? ["file_claim"] : []
+
+    // Step 8: PRSF reviews claim → approve/reject
+    case "claim_pending":
+      return isPrsf ? ["approve_claim", "reject_claim"] : []
+
     default: return []
   }
 }
@@ -358,9 +398,33 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     if (!loan || !claims[0]) return
     setSaving(true)
     await supabase.from("claims").update({ status: "rejected", review_date: dateField, review_notes: reason }).eq("id", claims[0].id)
-    await transition("closed", {})
+    await transition("claim_rejected", {})
     setSaving(false)
   }
+
+  // Step 7C (new): bank marks loan as defaulted before filing claim
+  const handleMarkDefaulted = () => transition("defaulted", {
+    defaulted_date: dateField,
+    notes: reason || undefined,
+  })
+
+  // Extension: bank requests extension of guarantee validity (Step 6 pre-disbursement)
+  const handleRequestExtension = () => transition("extension_pending", {
+    extension_requested_date: dateField,
+    extension_reason: reason,
+  })
+
+  // Extension: PRSF grants extension → goes back to approved with new maturity
+  const handleGrantExtension = () => transition("approved", {
+    extension_granted_date: dateField,
+    extension_new_maturity: dateField2,
+    notes,
+  })
+
+  // Extension: PRSF declines extension → cancelled
+  const handleDeclineExtension = () => transition("cancelled", {
+    cancellation_reason: reason || "Extension request declined",
+  })
 
   // ── Print Letter of Guarantee ─────────────────────────────────────────────
   const printGuarantee = () => {
@@ -493,15 +557,19 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             </Button>
           )}
           {/* Primary action buttons */}
-          {actions.includes("submit")            && <Button size="sm" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("submit") }}>Submit to PRSF</Button>}
+          {actions.includes("submit")             && <Button size="sm" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("submit") }}>Submit to PRSF</Button>}
           {actions.includes("mark_received")     && <Button size="sm" className="gap-1.5" onClick={() => setDialog("mark_received")}>Mark as Received</Button>}
           {actions.includes("approve")           && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? "")); setCoverage(String(loan.guarantee_coverage ?? 50)); setDialog("approve") }}><CheckCircle2 className="h-3.5 w-3.5" />Approve</Button>}
           {actions.includes("reject")            && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("reject")}><XCircle className="h-3.5 w-3.5" />Reject</Button>}
+          {actions.includes("request_extension") && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent border-yellow-300 text-yellow-700 hover:bg-yellow-50" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("request_extension") }}><Clock className="h-3.5 w-3.5" />Request Extension</Button>}
+          {actions.includes("grant_extension")   && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("grant_extension") }}><CheckCircle2 className="h-3.5 w-3.5" />Grant Extension</Button>}
+          {actions.includes("decline_extension") && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("decline_extension")}><XCircle className="h-3.5 w-3.5" />Decline Extension</Button>}
           {actions.includes("issue_guarantee")   && <Button size="sm" className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setDialog("issue_guarantee")}><Shield className="h-3.5 w-3.5" />Issue Guarantee</Button>}
           {actions.includes("cancel")            && <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 bg-transparent" onClick={() => setDialog("cancel")}><XCircle className="h-3.5 w-3.5" />Cancel</Button>}
           {actions.includes("record_disbursement")&& <Button size="sm" className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? "")); setDialog("disbursement") }}><Banknote className="h-3.5 w-3.5" />Record Disbursement</Button>}
           {actions.includes("mark_settled")      && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setDialog("settle")}><CheckCircle2 className="h-3.5 w-3.5" />Mark Settled</Button>}
           {actions.includes("reschedule")        && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent" onClick={() => setDialog("reschedule")}><RefreshCw className="h-3.5 w-3.5" />Reschedule</Button>}
+          {actions.includes("mark_defaulted")    && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("defaulted") }}><TrendingDown className="h-3.5 w-3.5" />Mark Defaulted</Button>}
           {actions.includes("file_claim")        && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("claim")}><AlertTriangle className="h-3.5 w-3.5" />File Claim</Button>}
           {actions.includes("approve_claim")     && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(claims[0]?.claim_amount ?? "")); setDialog("approve_claim") }}>Approve Claim</Button>}
           {actions.includes("reject_claim")      && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("reject_claim")}>Reject Claim</Button>}
@@ -548,10 +616,28 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               <span><strong>Step 7C — Claim Filed.</strong> Awaiting PRSF review (Step 8B).</span>
             </div>
           )}
+          {loan.status === "defaulted" && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+              <TrendingDown className="h-4 w-4 flex-shrink-0" />
+              <span><strong>Step 7C — Defaulted.</strong> Borrower has defaulted on {fmtDate(loan.defaulted_date)}. File a guarantee claim to proceed.</span>
+            </div>
+          )}
+          {loan.status === "extension_pending" && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-800">
+              <Clock className="h-4 w-4 flex-shrink-0" />
+              <span><strong>Extension Requested</strong> on {fmtDate(loan.extension_requested_date)}. Reason: {loan.extension_reason ?? "—"}. Awaiting PRSF decision.</span>
+            </div>
+          )}
           {loan.status === "claim_paid" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-4 py-2.5 text-sm text-purple-700">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
               <span><strong>Step 8B2 — Claim Approved & Paid.</strong> Recovery tracking in progress (Step 9).</span>
+            </div>
+          )}
+          {loan.status === "claim_rejected" && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+              <XCircle className="h-4 w-4 flex-shrink-0" />
+              <span><strong>Step 8B1 — Claim Rejected.</strong> PRSF has rejected the guarantee claim. End of process.</span>
             </div>
           )}
         </CardContent>
@@ -598,8 +684,14 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
                 <div className="flex justify-between"><span>Loan Approval:</span><span className="text-foreground">{fmtDate(loan.loan_approval_date)}</span></div>
                 <div className="flex justify-between"><span>Guarantee Issued:</span><span className="text-foreground">{fmtDate(loan.guarantee_issued_date)}</span></div>
+                {loan.extension_granted_date && (
+                  <div className="flex justify-between"><span>Extension Granted:</span><span className="text-foreground">{fmtDate(loan.extension_granted_date)}</span></div>
+                )}
                 <div className="flex justify-between"><span>Disbursement:</span><span className="text-foreground">{fmtDate(loan.disbursement_date)}</span></div>
-                <div className="flex justify-between"><span>Maturity:</span><span className="text-foreground">{fmtDate(loan.new_maturity_date ?? loan.maturity_date)}</span></div>
+                {loan.defaulted_date && (
+                  <div className="flex justify-between"><span className="text-red-600">Defaulted:</span><span className="text-red-600 font-medium">{fmtDate(loan.defaulted_date)}</span></div>
+                )}
+                <div className="flex justify-between"><span>Maturity:</span><span className="text-foreground">{fmtDate(loan.extension_new_maturity ?? loan.new_maturity_date ?? loan.maturity_date)}</span></div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
@@ -729,14 +821,20 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <CardContent>
               <ol className="relative border-l border-border ml-3 space-y-6">
                 {[
-                  { label: "Step 1 — Loan Created",         date: loan.created_at,             done: true },
-                  { label: "Step 2 — Loan Approved",        date: loan.loan_approval_date,     done: !!loan.loan_approval_date },
-                  { label: "Step 3 — Guarantee Issued",     date: loan.guarantee_issued_date,  done: !!loan.guarantee_issued_date, extra: loan.status === "cancelled" ? `Cancelled: ${loan.cancellation_reason ?? ""}` : "" },
-                  { label: "Step 4 — Disbursed",            date: loan.disbursement_date,      done: !!loan.disbursement_date },
-                  { label: "Step 5 — Loan Settled",         date: loan.settlement_date,        done: !!loan.settlement_date },
-                  { label: "Step 6 — Rescheduled",          date: loan.reschedule_date,        done: !!loan.reschedule_date, extra: loan.reschedule_reason },
-                  { label: "Step 7 — Claim Filed",          date: claims[0]?.claim_date,       done: !!claims[0] },
-                  { label: "Step 8 — Claim Reviewed",       date: claims[0]?.review_date,      done: !!claims[0]?.review_date, extra: claims[0]?.review_notes },
+                  { label: "Step 1 — Loan Created",              date: loan.created_at,                  done: true },
+                  { label: "Step 2 — Bank Submits to PRSF",      date: loan.created_at,                  done: ["submitted","under_review","approved","rejected","extension_pending","guarantee_issued","cancelled","disbursed","active","defaulted","settled","rescheduled","claim_pending","claim_rejected","claim_paid","closed"].includes(loan.status) },
+                  { label: "Step 3 — Received by PRSF",          date: null,                             done: ["under_review","approved","rejected","extension_pending","guarantee_issued","cancelled","disbursed","active","defaulted","settled","rescheduled","claim_pending","claim_rejected","claim_paid","closed"].includes(loan.status) },
+                  { label: "Step 4 — PRSF Credit Decision",      date: loan.loan_approval_date,          done: !!loan.loan_approval_date, extra: loan.status === "rejected" ? `Rejected — ${loan.notes ?? ""}` : loan.loan_approval_date ? "Approved" : "" },
+                  { label: "Step 5 — Bank Notified",             date: loan.loan_approval_date,          done: !!loan.loan_approval_date },
+                  { label: "Extension Requested",                date: loan.extension_requested_date,    done: !!loan.extension_requested_date, extra: loan.extension_reason },
+                  { label: "Extension Granted",                  date: loan.extension_granted_date,      done: !!loan.extension_granted_date, extra: loan.extension_new_maturity ? `New maturity: ${fmtDate(loan.extension_new_maturity)}` : "" },
+                  { label: "Step 6 — Guarantee Issued",          date: loan.guarantee_issued_date,       done: !!loan.guarantee_issued_date, extra: loan.status === "cancelled" ? `Cancelled — ${loan.cancellation_reason ?? ""}` : "" },
+                  { label: "Step 7C — Loan Disbursed",           date: loan.disbursement_date,           done: !!loan.disbursement_date },
+                  { label: "Step 7C — Defaulted",                date: loan.defaulted_date,              done: !!loan.defaulted_date },
+                  { label: "Step 7A — Loan Settled",             date: loan.settlement_date,             done: !!loan.settlement_date },
+                  { label: "Step 7B — Rescheduled",              date: loan.reschedule_date,             done: !!loan.reschedule_date, extra: loan.reschedule_reason },
+                  { label: "Step 7C — Claim Filed",              date: claims[0]?.claim_date,            done: !!claims[0] },
+                  { label: "Step 8 — Claim Reviewed",            date: claims[0]?.review_date,           done: !!claims[0]?.review_date, extra: claims[0]?.status === "rejected" ? `Rejected — ${claims[0]?.review_notes ?? ""}` : claims[0]?.review_notes },
                 ].filter(e => e.done || e.date).map((e, i) => (
                   <li key={i} className="ml-6">
                     <span className={`absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full border-2
@@ -949,6 +1047,93 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleRejectClaim} disabled={saving || !reason.trim()}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reject Claim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark Defaulted — Step 7C pre-requisite */}
+      <Dialog open={dialog === "defaulted"} onOpenChange={o => !o && setDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Step 7C · Mark Loan as Defaulted</DialogTitle>
+            <DialogDescription>Record that the borrower has defaulted. After this, you can file a guarantee claim with PRSF.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div><Label className="text-xs">Default Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">Notes (optional)</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder="Reason for default, missed payments, etc." className="mt-1" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleMarkDefaulted} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Mark as Defaulted
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Extension — bank requests before disbursement */}
+      <Dialog open={dialog === "request_extension"} onOpenChange={o => !o && setDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Guarantee Validity Extension</DialogTitle>
+            <DialogDescription>Request PRSF to extend the guarantee approval validity before disbursement.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div><Label className="text-xs">Request Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">Reason for Extension *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Explain why additional time is needed before disbursement..." className="mt-1" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button className="bg-yellow-600 hover:bg-yellow-700 text-white" onClick={handleRequestExtension} disabled={saving || !reason.trim()}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit Extension Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Grant Extension — PRSF grants the request */}
+      <Dialog open={dialog === "grant_extension"} onOpenChange={o => !o && setDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Grant Extension Request</DialogTitle>
+            <DialogDescription>Approve the bank's extension request. The loan returns to Approved status with the new validity date.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg bg-secondary/50 p-3 text-sm">
+              <p className="text-xs text-muted-foreground">Extension requested on {fmtDate(loan?.extension_requested_date)}</p>
+              <p className="mt-1 font-medium">{loan?.extension_reason ?? "—"}</p>
+            </div>
+            <div><Label className="text-xs">Grant Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">New Guarantee Validity / Maturity Date *</Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">Notes (optional)</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleGrantExtension} disabled={saving || !dateField2}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Grant Extension
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Decline Extension — PRSF declines the request */}
+      <Dialog open={dialog === "decline_extension"} onOpenChange={o => !o && setDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Decline Extension Request</DialogTitle>
+            <DialogDescription>Decline the bank's extension request. The guarantee will be cancelled.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+              Declining this request will cancel the guarantee. The bank will need to reapply if they still wish to proceed.
+            </div>
+            <div><Label className="text-xs">Reason for Declining *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeclineExtension} disabled={saving || !reason.trim()}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Decline & Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

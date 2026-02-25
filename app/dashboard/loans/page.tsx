@@ -15,17 +15,43 @@ import Link from "next/link"
 import type { LoanApplication, Bank, Sector } from "@/lib/types/database"
 
 const statusStyles: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-800",
-  submitted: "bg-amber-100 text-amber-800",
-  under_review: "bg-blue-100 text-blue-800",
-  approved: "bg-sky-100 text-sky-800",
-  rejected: "bg-red-100 text-red-800",
-  disbursed: "bg-indigo-100 text-indigo-800",
-  active: "bg-emerald-100 text-emerald-800",
-  closed: "bg-gray-100 text-gray-800",
-  defaulted: "bg-red-100 text-red-800",
-  claim_pending: "bg-orange-100 text-orange-800",
-  claim_paid: "bg-purple-100 text-purple-800",
+  draft:              "bg-gray-100 text-gray-800",
+  submitted:          "bg-amber-100 text-amber-800",
+  under_review:       "bg-blue-100 text-blue-800",
+  approved:           "bg-sky-100 text-sky-800",
+  rejected:           "bg-red-100 text-red-800",
+  guarantee_issued:   "bg-teal-100 text-teal-800",
+  extension_pending:  "bg-yellow-100 text-yellow-800",
+  cancelled:          "bg-red-100 text-red-800",
+  disbursed:          "bg-indigo-100 text-indigo-800",
+  active:             "bg-emerald-100 text-emerald-800",
+  defaulted:          "bg-red-100 text-red-800",
+  settled:            "bg-emerald-100 text-emerald-800",
+  rescheduled:        "bg-orange-100 text-orange-800",
+  claim_pending:      "bg-rose-100 text-rose-800",
+  claim_rejected:     "bg-red-100 text-red-800",
+  claim_paid:         "bg-purple-100 text-purple-800",
+  closed:             "bg-gray-100 text-gray-800",
+}
+
+const statusLabels: Record<string, string> = {
+  draft:              "Draft",
+  submitted:          "Submitted",
+  under_review:       "Under Review",
+  approved:           "Approved",
+  rejected:           "Rejected",
+  guarantee_issued:   "Guarantee Issued",
+  extension_pending:  "Extension Pending",
+  cancelled:          "Cancelled",
+  disbursed:          "Disbursed",
+  active:             "Active",
+  defaulted:          "Defaulted",
+  settled:            "Settled",
+  rescheduled:        "Rescheduled",
+  claim_pending:      "Claim Pending",
+  claim_rejected:     "Claim Rejected",
+  claim_paid:         "Claim Paid",
+  closed:             "Closed",
 }
 
 const PAGE_SIZE = 15
@@ -101,7 +127,7 @@ export default function LoansPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   // Summary stats
-  const activeLoans = loans.filter((l) => l.status === "active" || l.status === "disbursed").length
+  const activeLoans = loans.filter((l) => ["active", "disbursed", "rescheduled", "defaulted"].includes(l.status)).length
   const pendingLoans = loans.filter((l) => l.status === "submitted" || l.status === "under_review").length
   const totalAmount = loans.reduce((s, l) => s + (l.approved_amount || 0), 0)
 
@@ -143,12 +169,19 @@ export default function LoansPage() {
                 <SelectItem value="submitted">Submitted</SelectItem>
                 <SelectItem value="under_review">Under Review</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="extension_pending">Extension Pending</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="guarantee_issued">Guarantee Issued</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
                 <SelectItem value="disbursed">Disbursed</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="defaulted">Defaulted</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
+                <SelectItem value="settled">Settled</SelectItem>
+                <SelectItem value="rescheduled">Rescheduled</SelectItem>
                 <SelectItem value="claim_pending">Claim Pending</SelectItem>
+                <SelectItem value="claim_rejected">Claim Rejected</SelectItem>
+                <SelectItem value="claim_paid">Claim Paid</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
               </SelectContent>
             </Select>
             <Select value={bankFilter} onValueChange={(v) => { setBankFilter(v); setPage(0) }}>
@@ -224,8 +257,8 @@ export default function LoansPage() {
                       <TableCell className="text-sm">{loan.created_at ? new Date(loan.created_at).toLocaleDateString() : "—"}</TableCell>
                       <TableCell className="text-right text-sm">{loan.guarantee_coverage ? `${loan.guarantee_coverage}%` : "—"}</TableCell>
                       <TableCell>
-                        <Badge className={statusStyles[loan.status] || "bg-gray-100 text-gray-800"} variant="secondary">
-                          {loan.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+<Badge className={statusStyles[loan.status] || "bg-gray-100 text-gray-800"} variant="secondary">
+{statusLabels[loan.status] ?? loan.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">

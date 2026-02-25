@@ -5,15 +5,17 @@ export type LoanStatus =
   | 'approved'
   | 'rejected'
   | 'guarantee_issued'
+  | 'extension_pending'   // bank has requested an extension of the guarantee/approval validity
   | 'cancelled'
   | 'disbursed'
   | 'active'
+  | 'defaulted'           // borrower has defaulted; triggers claim filing
   | 'settled'
   | 'rescheduled'
-  | 'closed'
-  | 'defaulted'
   | 'claim_pending'
+  | 'claim_rejected'      // PRSF rejected the claim; end of process
   | 'claim_paid'
+  | 'closed'
 
 export type LegalType = 'individual' | 'legal_entity' | 'individual_entrepreneur'
 
@@ -177,6 +179,13 @@ export interface LoanApplication {
   cancellation_reason: string | null
   settlement_date: string | null
   settlement_amount: number | null
+  // Extension (approval validity extension before disbursement)
+  extension_requested_date: string | null
+  extension_granted_date: string | null
+  extension_reason: string | null
+  extension_new_maturity: string | null
+  // Defaulted
+  defaulted_date: string | null
   bank?: Bank
   branch?: BankBranch
   borrower?: Borrower
