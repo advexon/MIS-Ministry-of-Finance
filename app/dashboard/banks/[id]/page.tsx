@@ -38,7 +38,7 @@ export default function BankDetailPage() {
       setLoading(true)
       const [{ data: bankData }, { data: loanData }, { data: claimData }, { data: feeData }] = await Promise.all([
         supabase.from('banks').select('*').eq('id', id).single(),
-        supabase.from('loan_applications').select('id, application_number, status, approved_amount, outstanding_balance, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('loan_applications').select('id, loan_number, status, approved_amount, outstanding_balance, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20),
         supabase.from('claims').select('id, claim_number, status, claim_amount, created_at').eq('bank_id', id).order('created_at', { ascending: false }).limit(10),
         supabase.from('fees').select('id, fee_type, amount, status, due_date').eq('bank_id', id).order('due_date', { ascending: false }).limit(10),
       ])
@@ -220,7 +220,7 @@ export default function BankDetailPage() {
                   ) : loans.map(loan => (
                     <TableRow key={loan.id} className="cursor-pointer hover:bg-muted/30">
                       <TableCell className="font-mono text-sm font-semibold">
-                        <Link href={`/dashboard/loans/${loan.id}`} className="text-primary hover:underline">{loan.application_number}</Link>
+                        <Link href={`/dashboard/loans/${loan.id}`} className="text-primary hover:underline">{loan.loan_number || loan.id.slice(0, 8)}</Link>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs capitalize">{loan.status?.replace('_', ' ')}</Badge>

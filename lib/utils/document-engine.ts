@@ -97,7 +97,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
     includeSummary: true,
     includeTotals: true,
     columns: [
-      { key: 'application_number', label: 'Loan #', type: 'text', visible: true, width: 100 },
+      { key: 'loan_number', label: 'Loan #', type: 'text', visible: true, width: 100 },
       { key: 'borrower_name', label: 'Borrower', type: 'text', visible: true, width: 180 },
       { key: 'bank_name', label: 'Bank', type: 'text', visible: true, width: 140 },
       { key: 'sector', label: 'Sector', type: 'badge', visible: true, width: 100 },
@@ -176,7 +176,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
     includeSummary: true,
     includeTotals: true,
     columns: [
-      { key: 'application_number', label: 'Loan #', type: 'text', visible: true, width: 100 },
+      { key: 'loan_number', label: 'Loan #', type: 'text', visible: true, width: 100 },
       { key: 'borrower_name', label: 'Borrower', type: 'text', visible: true, width: 180 },
       { key: 'bank_name', label: 'Bank', type: 'text', visible: true, width: 140 },
       { key: 'outstanding_balance', label: 'Outstanding', type: 'currency', visible: true, align: 'right', width: 130 },
@@ -286,12 +286,12 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
 
 export const MOCK_PREVIEW_ROWS: Record<string, Record<string, unknown>[]> = {
   'loan_applications': [
-    { application_number: 'LA-2026-0142', borrower_name: 'Rahimov Enterprises LLC', bank_name: 'Agroinvestbank', sector: 'Agriculture', approved_amount: 450000, disbursed_amount: 450000, outstanding_balance: 382500, guarantee_coverage: 50, interest_rate: 18.5, maturity_date: '2028-03-15', status: 'active' },
-    { application_number: 'LA-2026-0139', borrower_name: 'Karimov Trading Co', bank_name: 'Bank Eskhata', sector: 'Trade', approved_amount: 280000, disbursed_amount: 280000, outstanding_balance: 196000, guarantee_coverage: 60, interest_rate: 21.0, maturity_date: '2027-09-01', status: 'active' },
-    { application_number: 'LA-2025-0981', borrower_name: 'Nasimov Manufacturing', bank_name: 'Spitamen Bank', sector: 'Manufacturing', approved_amount: 870000, disbursed_amount: 870000, outstanding_balance: 522000, guarantee_coverage: 50, interest_rate: 19.5, maturity_date: '2029-01-20', status: 'overdue' },
-    { application_number: 'LA-2025-0902', borrower_name: 'Tursunova Pharmacy', bank_name: 'IMON International', sector: 'Services', approved_amount: 150000, disbursed_amount: 150000, outstanding_balance: 75000, guarantee_coverage: 70, interest_rate: 24.0, maturity_date: '2027-06-30', status: 'active' },
-    { application_number: 'LA-2025-0845', borrower_name: 'Dushanbe Builders LLC', bank_name: 'Amonatbonk', sector: 'Construction', approved_amount: 1200000, disbursed_amount: 900000, outstanding_balance: 720000, guarantee_coverage: 50, interest_rate: 17.0, maturity_date: '2030-12-31', status: 'active' },
-    { application_number: 'LA-2025-0790', borrower_name: 'Northern Transport Co', bank_name: 'Agroinvestbank', sector: 'Transport', approved_amount: 320000, disbursed_amount: 320000, outstanding_balance: 256000, guarantee_coverage: 55, interest_rate: 20.5, maturity_date: '2028-08-15', status: 'overdue' },
+    { loan_number: 'LA-2026-0142', borrower_name: 'Rahimov Enterprises LLC', bank_name: 'Agroinvestbank', sector: 'Agriculture', approved_amount: 450000, disbursed_amount: 450000, outstanding_balance: 382500, guarantee_coverage: 50, interest_rate: 18.5, maturity_date: '2028-03-15', status: 'active' },
+    { loan_number: 'LA-2026-0139', borrower_name: 'Karimov Trading Co', bank_name: 'Bank Eskhata', sector: 'Trade', approved_amount: 280000, disbursed_amount: 280000, outstanding_balance: 196000, guarantee_coverage: 60, interest_rate: 21.0, maturity_date: '2027-09-01', status: 'active' },
+    { loan_number: 'LA-2025-0981', borrower_name: 'Nasimov Manufacturing', bank_name: 'Spitamen Bank', sector: 'Manufacturing', approved_amount: 870000, disbursed_amount: 870000, outstanding_balance: 522000, guarantee_coverage: 50, interest_rate: 19.5, maturity_date: '2029-01-20', status: 'overdue' },
+    { loan_number: 'LA-2025-0902', borrower_name: 'Tursunova Pharmacy', bank_name: 'IMON International', sector: 'Services', approved_amount: 150000, disbursed_amount: 150000, outstanding_balance: 75000, guarantee_coverage: 70, interest_rate: 24.0, maturity_date: '2027-06-30', status: 'active' },
+    { loan_number: 'LA-2025-0845', borrower_name: 'Dushanbe Builders LLC', bank_name: 'Amonatbonk', sector: 'Construction', approved_amount: 1200000, disbursed_amount: 900000, outstanding_balance: 720000, guarantee_coverage: 50, interest_rate: 17.0, maturity_date: '2030-12-31', status: 'active' },
+    { loan_number: 'LA-2025-0790', borrower_name: 'Northern Transport Co', bank_name: 'Agroinvestbank', sector: 'Transport', approved_amount: 320000, disbursed_amount: 320000, outstanding_balance: 256000, guarantee_coverage: 55, interest_rate: 20.5, maturity_date: '2028-08-15', status: 'overdue' },
   ],
   'guarantee_reports': [
     { report_month: '2026-01-01', bank_name: 'Agroinvestbank', report_type: 'disbursements', total_loans: 42, total_outstanding_principal: 18500000, total_guarantee_amount: 9250000, status: 'approved', submission_date: '2026-02-05' },

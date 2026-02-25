@@ -15,7 +15,7 @@ import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 
-interface Bank { id: string; name: string }
+interface Bank { id: string; name_en: string }
 
 interface LoanRow {
   _key: string
@@ -97,7 +97,7 @@ export default function NewGuaranteeReportPage() {
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
-    supabase.from('banks').select('id, name').order('name').then(({ data }) => {
+    supabase.from('banks').select('id, name_en').order('name_en').then(({ data }) => {
       if (data) setBanks(data)
     })
   }, [supabase])
@@ -326,7 +326,7 @@ export default function NewGuaranteeReportPage() {
               <Select value={bankId} onValueChange={setBankId}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select bank..." /></SelectTrigger>
                 <SelectContent>
-                  {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
