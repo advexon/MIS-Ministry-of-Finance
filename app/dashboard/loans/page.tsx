@@ -55,18 +55,25 @@ export default function LoansPage() {
     setLoading(true)
     let query = supabase
       .from("loan_applications")
-      .select(`*, bank:banks(id,name_en,name_ru,name_tj), borrower:borrowers(id,company_name,first_name,last_name,tin_number), branch:bank_branches(id,name_en)`, { count: "exact" })
+      .select(
+        `*, bank:banks(id,name_en,name_ru,name_tj), borrower:borrowers(id,company_name,first_name,last_name,tin_number), branch:bank_branches(id,name_en)`,
+        { count: "exact" }
+      )
       .order("created_at", { ascending: false })
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
     if (statusFilter !== "all") query = query.eq("status", statusFilter)
     if (bankFilter !== "all") query = query.eq("bank_id", bankFilter)
     if (searchTerm) {
-      query = query.or(`application_number.ilike.%${searchTerm}%`)
+      // Search by application number OR borrower TIN number
+      query = query.or(
+        `application_number.ilike.%${searchTerm}%,borrower_id.in.(select id from borrowers where tin_number ilike '%${searchTerm}%' or company_name ilike '%${searchTerm}%')`
+      )
     }
 
     const { data, count, error } = await query
-    if (!error && data) {
+    if (error) console.error('Error fetching loans:', error)
+    if (data) {
       setLoans(data)
       setTotal(count || 0)
     }
@@ -74,9 +81,11 @@ export default function LoansPage() {
   }, [page, statusFilter, bankFilter, searchTerm, supabase])
 
   useEffect(() => {
-    supabase.from("banks").select("*").eq("is_active", true).order("name_en").then(({ data }) => { if (data) setBanks(data) })
-    supabase.from("sectors").select("*").eq("is_active", true).order("name_en").then(({ data }) => { if (data) setSectors(data) })
-  }, [])
+    supabase.from("banks").select("*").eq("is_active", true).order("name_en")
+      .then(({ data }) => { if (data) setBanks(data) })
+    supabase.from("sectors").select("*").eq("is_active", true).order("name_en")
+      .then(({ data }) => { if (data) setSectors(data) })
+  }, [supabase])
 
   useEffect(() => { fetchLoans() }, [fetchLoans])
 

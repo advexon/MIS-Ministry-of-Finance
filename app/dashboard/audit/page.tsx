@@ -22,7 +22,7 @@ interface AuditEntry {
   new_data: Record<string, unknown> | null
   changed_at: string
   ip_address: string | null
-  profiles?: { full_name: string; email: string } | null
+  profiles?: { first_name: string | null; last_name: string | null; email: string } | null
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -78,7 +78,7 @@ export default function AuditTrailPage() {
     setLoading(true)
     let q = supabase
       .from('audit_trail')
-      .select('*, profiles(full_name, email)', { count: 'exact' })
+      .select('*, profiles(first_name, last_name, email)', { count: 'exact' })
       .order('changed_at', { ascending: false })
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
@@ -92,7 +92,7 @@ export default function AuditTrailPage() {
     setEntries(data || [])
     setTotal(count || 0)
     setLoading(false)
-  }, [filters, page])
+  }, [filters, page, supabase])
 
   useEffect(() => { fetchEntries() }, [fetchEntries])
 
@@ -101,7 +101,7 @@ export default function AuditTrailPage() {
       ['Timestamp', 'User', 'Table', 'Action', 'Record ID', 'IP Address'],
       ...entries.map(e => [
         new Date(e.changed_at).toLocaleString(),
-        e.profiles?.full_name || e.profiles?.email || 'System',
+        e.profiles ? (`${e.profiles.first_name || ''} ${e.profiles.last_name || ''}`.trim() || e.profiles.email) : 'System',
         TABLE_LABELS[e.table_name] || e.table_name,
         e.action,
         e.record_id || '',
@@ -224,7 +224,7 @@ export default function AuditTrailPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{entry.profiles?.full_name || 'System'}</span>
+                          <span className="font-medium">{entry.profiles ? (`${entry.profiles.first_name || ''} ${entry.profiles.last_name || ''}`.trim() || entry.profiles.email) : 'System'}</span>
                           <span className="text-xs text-muted-foreground">{entry.profiles?.email || ''}</span>
                         </div>
                       </TableCell>
@@ -286,7 +286,7 @@ export default function AuditTrailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Performed By</p>
-                  <p className="font-medium">{selected.profiles?.full_name || selected.profiles?.email || 'System'}</p>
+                  <p className="font-medium">{selected.profiles ? (`${selected.profiles.first_name || ''} ${selected.profiles.last_name || ''}`.trim() || selected.profiles.email) : 'System'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Record ID</p>

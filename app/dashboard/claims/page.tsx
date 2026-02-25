@@ -32,8 +32,17 @@ export default function ClaimsPage() {
   const { t } = useI18n()
   const supabase = createClient()
 
+  interface LoanOption {
+    id: string
+    application_number: string
+    requested_amount: number
+    approved_amount: number | null
+    currency: string
+    borrower: { company_name: string | null; first_name: string | null; last_name: string | null } | null
+  }
+
   const [claims, setClaims] = useState<Claim[]>([])
-  const [loans, setLoans] = useState<any[]>([])
+  const [loans, setLoans] = useState<LoanOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -85,18 +94,19 @@ export default function ClaimsPage() {
     if (search) query = query.ilike("claim_number", `%${search}%`)
 
     const { data, error } = await query
-    if (!error && data) setClaims(data)
+    if (error) console.error('Error fetching claims:', error)
+    if (data) setClaims(data as Claim[])
     setLoading(false)
   }, [statusFilter, search, supabase])
 
   useEffect(() => {
-    fetchClaims()
-    supabase.from("loan_applications")
+    supabase
+      .from("loan_applications")
       .select("id,application_number,requested_amount,approved_amount,currency,borrower:borrowers(company_name,first_name,last_name)")
       .in("status", ["active", "defaulted", "claim_pending"])
       .order("application_number")
       .then(({ data }) => { if (data) setLoans(data) })
-  }, [])
+  }, [supabase])
 
   useEffect(() => { fetchClaims() }, [fetchClaims])
 
@@ -171,8 +181,9 @@ export default function ClaimsPage() {
     const { error } = await supabase.from("claims").update(updates).eq("id", selectedClaim.id)
     if (error) { showMessage("error", error.message); setSaving(false); return }
 
-    if (reviewAction === "approve" && (updates.status === "paid" || updates.status === "approved")) {
-      await supabase.from("loan_applications").update({ status: "claim_pending" }).eq("id", selectedClaim.loan_application_id)
+    if (reviewAction === "approve") {
+      const loanStatus = updates.status === "paid" ? "claim_paid" : "claim_pending"
+      await supabase.from("loan_applications").update({ status: loanStatus }).eq("id", selectedClaim.loan_application_id)
     }
     await supabase.from("audit_trail").insert({ table_name: "claims", record_id: selectedClaim.id, action: "UPDATE", old_data: { status: selectedClaim.status }, new_data: updates, changed_by: user?.id })
 

@@ -30,8 +30,18 @@ export default function FeesPage() {
   const { t } = useI18n()
   const supabase = createClient()
 
+  interface LoanOption {
+    id: string
+    application_number: string
+    approved_amount: number | null
+    requested_amount: number
+    currency: string
+    guarantee_coverage: number | null
+    borrower: { company_name: string | null; first_name: string | null; last_name: string | null } | null
+  }
+
   const [fees, setFees] = useState<Fee[]>([])
-  const [loans, setLoans] = useState<any[]>([])
+  const [loans, setLoans] = useState<LoanOption[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("all")
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -78,12 +88,13 @@ export default function FeesPage() {
 
   useEffect(() => {
     fetchFees()
-    supabase.from("loan_applications")
+    supabase
+      .from("loan_applications")
       .select("id,application_number,approved_amount,requested_amount,currency,guarantee_coverage,borrower:borrowers(company_name,first_name,last_name)")
       .in("status", ["approved", "disbursed", "active"])
       .order("application_number")
       .then(({ data }) => { if (data) setLoans(data) })
-  }, [])
+  }, [fetchFees, supabase])
 
   const formatCurrency = (val: number | null | undefined, cur = "TJS") => {
     if (!val && val !== 0) return "—"

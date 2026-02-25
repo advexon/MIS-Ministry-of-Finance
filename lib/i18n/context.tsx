@@ -17,16 +17,25 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en')
 
   useEffect(() => {
-    // Check localStorage for saved preference
-    const saved = localStorage.getItem('prsf-locale') as Locale | null
-    if (saved && ['en', 'ru', 'tj'].includes(saved)) {
-      setLocaleState(saved)
+    // Check localStorage for saved preference – wrapped in try/catch for
+    // environments where storage access may be restricted (e.g. private browsing).
+    try {
+      const saved = localStorage.getItem('cgf-locale') as Locale | null
+      if (saved && (['en', 'ru', 'tj'] as string[]).includes(saved)) {
+        setLocaleState(saved as Locale)
+      }
+    } catch {
+      // Silently ignore storage errors
     }
   }, [])
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale)
-    localStorage.setItem('prsf-locale', newLocale)
+    try {
+      localStorage.setItem('cgf-locale', newLocale)
+    } catch {
+      // Silently ignore storage errors
+    }
   }, [])
 
   const t = translations[locale]
