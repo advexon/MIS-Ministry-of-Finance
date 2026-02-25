@@ -111,32 +111,28 @@ export interface Profile {
 
 export interface Borrower {
   id: string
+  customer_code: string | null
   tin_number: string
   registration_number: string | null
   legal_type: LegalType
-  company_name: string | null
-  company_name_ru: string | null
-  first_name: string | null
-  last_name: string | null
-  patronymic: string | null
-  gender: 'male' | 'female' | null
-  date_of_birth: string | null
-  country_of_birth: string | null
-  passport_number: string | null
-  legal_address: string | null
-  actual_address: string | null
-  city: string | null
-  district: string | null
-  zip_code: string | null
+  /** Primary display name for the borrower (company name or full name) */
+  name: string
+  sector_id: string | null
+  address_street: string | null
+  address_city: string | null
+  address_district: string | null
+  address_zip: string | null
   phone: string | null
   email: string | null
-  sector_id: string | null
-  business_description: string | null
-  establishment_year: number | null
-  employee_count: number | null
-  bank_customer_code: string | null
-  is_blacklisted: boolean
-  blacklist_reason: string | null
+  legal_rep_surname: string | null
+  legal_rep_name: string | null
+  legal_rep_patronymic: string | null
+  legal_rep_gender: string | null
+  legal_rep_birthdate: string | null
+  legal_rep_country_of_birth: string | null
+  legal_rep_tin: string | null
+  workforce_count: number | null
+  created_by: string | null
   created_at: string
   updated_at: string
   sector?: Sector
@@ -144,60 +140,47 @@ export interface Borrower {
 
 export interface LoanApplication {
   id: string
-  application_number: string
+  /** Internal tracking reference (loan_request_id in DB) */
+  loan_request_id: string | null
+  /** The canonical loan number displayed throughout the UI */
+  loan_number: string | null
   bank_id: string
   branch_id: string | null
-  bank_loan_officer: string | null
   borrower_id: string
   product_id: string | null
-  loan_purpose: LoanPurpose | null
-  loan_purpose_details: string | null
-  requested_amount: number
+  status: LoanStatus
+  currency: string
   approved_amount: number | null
   disbursed_amount: number | null
-  currency: string
-  exchange_rate: number | null
-  loan_term_months: number
-  grace_period_months: number
   interest_rate: number | null
-  repayment_frequency: RepaymentFrequency
-  repayment_method: RepaymentMethod | null
+  duration_months: number | null
+  grace_period_months: number | null
+  maturity_date: string | null
+  disbursement_date: string | null
+  frequency: string | null
   guarantee_coverage: number | null
   guarantee_amount: number | null
-  application_date: string
-  bank_approval_date: string | null
-  prsf_submission_date: string | null
-  prsf_approval_date: string | null
-  disbursement_date: string | null
-  maturity_date: string | null
-  status: LoanStatus
-  rejection_reason: string | null
-  assigned_analyst_id: string | null
-  total_exposure: number | null
-  annual_turnover: number | null
-  net_income: number | null
-  risk_rating: string | null
-  collateral_description: string | null
-  personal_guarantors: PersonalGuarantor[]
-  covenants_bank: string | null
-  covenants_prsf: string | null
+  loan_officer: string | null
+  loan_approval_date: string | null
+  sector_id: string | null
+  purpose: string | null
   notes: string | null
-  guarantee_issued_date: string | null
-  cancellation_reason: string | null
-  settlement_date: string | null
-  settlement_amount: number | null
+  created_by: string | null
+  approved_by: string | null
+  created_at: string
+  updated_at: string
   reschedule_reason: string | null
   reschedule_date: string | null
   new_maturity_date: string | null
   reschedule_approved_by: string | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
+  guarantee_issued_date: string | null
+  cancellation_reason: string | null
+  settlement_date: string | null
+  settlement_amount: number | null
   bank?: Bank
   branch?: BankBranch
   borrower?: Borrower
   product?: LoanProduct
-  assigned_analyst?: Profile
 }
 
 export interface PersonalGuarantor {

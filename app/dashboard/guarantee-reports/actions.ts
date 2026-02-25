@@ -393,7 +393,7 @@ export async function autoPopulateFromLoanApplications(
     .select(`*, borrower:borrowers(*)`)
     .eq('bank_id', bankId)
     .in('status', ['approved', 'disbursed', 'active'])
-    .lte('prsf_approval_date', monthEnd.toISOString().split('T')[0])
+    .lte('loan_approval_date', monthEnd.toISOString().split('T')[0])
 
   if (loansError) {
     console.error('Error fetching loan applications:', loansError)
@@ -406,26 +406,24 @@ export async function autoPopulateFromLoanApplications(
 
   const reportLoans = loanApplications.map((loan, index) => {
     const borrower = loan.borrower
-    const customerName = borrower?.company_name ||
-      `${borrower?.first_name || ''} ${borrower?.last_name || ''}`.trim() ||
-      'Unknown'
+    const customerName = (borrower as any)?.name || 'Unknown'
 
     return {
       report_id: reportId,
       loan_application_id: loan.id,
       row_number: index + 1,
-      loan_request_number: loan.application_number || `LOAN-${loan.id.slice(0, 8)}`,
+      loan_request_number: loan.loan_number || `LOAN-${loan.id.slice(0, 8)}`,
       customer_name: customerName,
-      tin_number: borrower?.tin_number || null,
-      loan_purpose: loan.loan_purpose || null,
+      tin_number: (borrower as any)?.tin_number || null,
+      loan_purpose: loan.purpose || null,
       currency: loan.currency || 'TJS',
       approved_amount: loan.approved_amount,
       disbursed_amount: loan.disbursed_amount,
       outstanding_principal: loan.disbursed_amount,
       interest_rate: loan.interest_rate,
-      loan_term_months: loan.loan_term_months,
+      loan_term_months: loan.duration_months,
       grace_period_months: loan.grace_period_months,
-      repayment_frequency: loan.repayment_frequency,
+      repayment_frequency: loan.frequency,
       disbursement_date: loan.disbursement_date,
       maturity_date: loan.maturity_date,
       guarantee_coverage: loan.guarantee_coverage || 50,

@@ -32,12 +32,11 @@ export default function FeesPage() {
 
   interface LoanOption {
     id: string
-    application_number: string
+    loan_number: string | null
     approved_amount: number | null
-    requested_amount: number
     currency: string
     guarantee_coverage: number | null
-    borrower: { company_name: string | null; first_name: string | null; last_name: string | null } | null
+    borrower: { name: string } | null
   }
 
   const [fees, setFees] = useState<Fee[]>([])
@@ -80,7 +79,7 @@ export default function FeesPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from("fees")
-      .select(`*, loan_application:loan_applications(id,application_number,currency,bank_id,bank:banks(name_en),borrower:borrowers(company_name,first_name,last_name))`)
+      .select(`*, loan_application:loan_applications(id,loan_number,currency,bank_id,bank:banks(name_en),borrower:borrowers(name))`)
       .order("created_at", { ascending: false })
     if (!error && data) setFees(data)
     setLoading(false)
@@ -90,9 +89,9 @@ export default function FeesPage() {
     fetchFees()
     supabase
       .from("loan_applications")
-      .select("id,application_number,approved_amount,requested_amount,currency,guarantee_coverage,borrower:borrowers(company_name,first_name,last_name)")
+      .select("id,loan_number,approved_amount,currency,guarantee_coverage,borrower:borrowers(name)")
       .in("status", ["approved", "disbursed", "active"])
-      .order("application_number")
+      .order("loan_number")
       .then(({ data }) => { if (data) setLoans(data) })
   }, [fetchFees, supabase])
 
@@ -104,7 +103,7 @@ export default function FeesPage() {
   const getBorrowerName = (fee: Fee) => {
     const b = (fee as any).loan_application?.borrower
     if (!b) return "—"
-    return b.company_name || `${b.first_name || ""} ${b.last_name || ""}`.trim() || "—"
+    return b.name || "—"
   }
 
   // Auto-fill base amount from loan when selected
@@ -168,7 +167,7 @@ export default function FeesPage() {
 
   const printInvoice = (fee: Fee) => {
     const borrower = (fee as any).loan_application?.borrower
-    const borrowerName = borrower?.company_name || `${borrower?.first_name || ""} ${borrower?.last_name || ""}`.trim() || "—"
+    const borrowerName = borrower?.name || "—"
     const bank = (fee as any).loan_application?.bank?.name_en || "—"
     const today = new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" })
     const invoiceNum = fee.invoice_number || `INV-PENDING-${fee.id.substring(0, 8)}`
@@ -176,7 +175,7 @@ export default function FeesPage() {
 <style>body{font-family:Arial,sans-serif;font-size:12pt;margin:40px;color:#222}.header{text-align:center;margin-bottom:30px}.table{width:100%;border-collapse:collapse;margin:20px 0}.table td,.table th{border:1px solid #ccc;padding:8px 12px}.table th{background:#f0f0f0;font-weight:bold}.total-row{font-weight:bold;background:#f8f8f8}</style>
 </head><body>
 <div class="header"><h1>CREDIT GUARANTEE FUND - GUARANTEE FEE INVOICE</h1><h2>Credit Guarantee Fund – Ministry of Finance</h2></div>
-<p><strong>Invoice No.:</strong> ${invoiceNum}<br><strong>Date:</strong> ${today}<br><strong>Loan Ref.:</strong> ${(fee as any).loan_application?.application_number || "—"}</p>
+<p><strong>Invoice No.:</strong> ${invoiceNum}<br><strong>Date:</strong> ${today}<br><strong>Loan Ref.:</strong> ${(fee as any).loan_application?.loan_number || "—"}</p>
 <p><strong>To:</strong> ${bank}<br>Re: ${borrowerName}</p>
 <table class="table">
 <tr><th>Description</th><th>Base Amount</th><th>Rate</th><th>Fee Amount</th></tr>
@@ -194,7 +193,7 @@ export default function FeesPage() {
   const handleAutoCalculateQuarterly = async () => {
     setSaving(true)
     const { data: activeLoans } = await supabase.from("loan_applications")
-      .select("id,approved_amount,requested_amount,guarantee_coverage")
+      .select("id,approved_amount,guarantee_coverage")
       .in("status", ["active", "disbursed"])
 
     if (!activeLoans) { setSaving(false); return }
@@ -207,7 +206,7 @@ export default function FeesPage() {
     let created = 0
 
     for (const loan of activeLoans) {
-      const baseAmount = (loan.approved_amount || loan.requested_amount) * (loan.guarantee_coverage || 50) / 100
+      const baseAmount = (loan.approved_amount || 0) * (loan.guarantee_coverage || 50) / 100
       const feeRate = 0.005 // 0.5% quarterly
       const feeAmount = baseAmount * feeRate
 
@@ -310,7 +309,7 @@ export default function FeesPage() {
                       ) : (
                         filteredFees.map((fee) => (
                           <TableRow key={fee.id}>
-                            <TableCell className="font-medium text-primary text-sm">{(fee as any).loan_application?.application_number || "—"}</TableCell>
+                            <TableCell className="font-medium text-primary text-sm">{(fee as any).loan_application?.loan_number || "—"}</TableCell>
                             <TableCell className="text-sm">{getBorrowerName(fee)}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="capitalize">{fee.fee_type === "upfront" ? "Upfront" : "Quarterly"}</Badge>
@@ -373,13 +372,13 @@ export default function FeesPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Loan Application *</Label>
-              <Select value={newLoanId} onValueChange={(v) => { setNewLoanId(v); const l = loans.find((x) => x.id === v); if (l) setNewBaseAmount(String(((l.approved_amount || l.requested_amount) * (l.guarantee_coverage || 50) / 100).toFixed(0))) }}>
+              <Select value={newLoanId} onValueChange={(v) => { setNewLoanId(v); const l = loans.find((x) => x.id === v); if (l) setNewBaseAmount(String(((l.approved_amount || 0) * (l.guarantee_coverage || 50) / 100).toFixed(0))) }}>
                 <SelectTrigger><SelectValue placeholder="Select loan" /></SelectTrigger>
                 <SelectContent>
                   {loans.map((l) => {
                     const b = l.borrower
-                    const name = b?.company_name || `${b?.first_name || ""} ${b?.last_name || ""}`.trim()
-                    return <SelectItem key={l.id} value={l.id}>{l.application_number} – {name}</SelectItem>
+                const name = b?.name || "—"
+                return <SelectItem key={l.id} value={l.id}>{l.loan_number || l.id.slice(0, 8)} – {name}</SelectItem>
                   })}
                 </SelectContent>
               </Select>

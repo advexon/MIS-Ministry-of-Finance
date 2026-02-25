@@ -114,11 +114,11 @@ export default function DashboardPage() {
       // One query covers stats + portfolio + bank performance — no separate per-status queries
       supabase
         .from('loan_applications')
-        .select('id, status, disbursed_amount, guarantee_amount, approved_amount, requested_amount, bank_id, bank:banks(name_en)'),
+        .select('id, status, disbursed_amount, guarantee_amount, approved_amount, bank_id, bank:banks(name_en)'),
       supabase
         .from('loan_applications')
         .select(
-          'id, application_number, status, requested_amount, approved_amount, currency, created_at, bank:banks(name_en), borrower:borrowers(company_name, first_name, last_name)'
+          'id, loan_number, status, approved_amount, currency, created_at, bank:banks(name_en), borrower:borrowers(name)'
         )
         .order('created_at', { ascending: false })
         .limit(5),
@@ -162,7 +162,7 @@ export default function DashboardPage() {
       return {
         status: group.status,
         count: rows.length,
-        amount: rows.reduce((s, l) => s + (l.approved_amount || l.requested_amount || 0), 0),
+        amount: rows.reduce((s, l) => s + (l.approved_amount || 0), 0),
         color: group.color,
       }
     })
@@ -204,16 +204,13 @@ export default function DashboardPage() {
     // Recent activity
     if (recentLoans) {
       const activity: ActivityItem[] = recentLoans.map((loan) => {
-        const borrower = loan.borrower as
-          | { company_name: string | null; first_name: string | null; last_name: string | null }
-          | null
-        const bankName =
-          (loan.bank as { name_en: string } | null)?.name_en ?? '—'
+        const borrowerName = (loan.borrower as { name: string } | null)?.name ?? '—'
+        const bankName = (loan.bank as { name_en: string } | null)?.name_en ?? '—'
         return {
           id: loan.id,
           type: loan.status,
-          loan: loan.application_number,
-          amount: loan.approved_amount || loan.requested_amount || 0,
+          loan: loan.loan_number || borrowerName,
+          amount: loan.approved_amount || 0,
           bank: bankName,
           time: formatTimeSince(loan.created_at),
         }

@@ -167,28 +167,25 @@ export default function NewLoanPage() {
       const borrowerData = {
         tin_number: clientTin,
         legal_type: legalEntityType as "individual" | "legal_entity" | "individual_entrepreneur",
-        company_name: legalEntityType === "legal_entity" ? clientName : null,
-        first_name: legalEntityType !== "legal_entity" ? legalRepName : null,
-        last_name: legalEntityType !== "legal_entity" ? legalRepSurname : null,
-        patronymic: legalRepPatronymic || null,
-        gender: legalRepGender as "male" | "female" | null || null,
-        date_of_birth: legalRepBirthdate || null,
-        country_of_birth: legalRepCountry || null,
-        passport_number: passportNumber || null,
+        // Real DB column is `name` — holds the company name or personal full name
+        name: clientName,
         registration_number: registrationNumber || null,
         sector_id: sectorId || null,
-        city: city || null,
-        district: district || null,
-        zip_code: zipCode || null,
-        legal_address: addressStreet || null,
+        address_street: addressStreet || null,
+        address_city: city || null,
+        address_district: district || null,
+        address_zip: zipCode || null,
         phone: phone || null,
         email: email || null,
-        business_description: businessDescription || null,
-        establishment_year: establishmentYear ? parseInt(establishmentYear) : null,
-        employee_count: workforce ? parseInt(workforce) : null,
-        bank_customer_code: bankCustomerCode || null,
-        is_blacklisted: isBlacklisted,
-        blacklist_reason: isBlacklisted ? blacklistReason : null,
+        legal_rep_name: legalRepName || null,
+        legal_rep_surname: legalRepSurname || null,
+        legal_rep_patronymic: legalRepPatronymic || null,
+        legal_rep_gender: legalRepGender || null,
+        legal_rep_birthdate: legalRepBirthdate || null,
+        legal_rep_country_of_birth: legalRepCountry || null,
+        legal_rep_tin: legalRepTin || null,
+        workforce_count: workforce ? parseInt(workforce) : null,
+        customer_code: bankCustomerCode || null,
       }
 
       const { data: borrower, error: borrowerError } = await supabase
@@ -208,31 +205,20 @@ export default function NewLoanPage() {
       const appData = {
         bank_id: bankId,
         branch_id: branchId || null,
-        bank_loan_officer: loanOfficer || null,
+        loan_officer: loanOfficer || null,
         borrower_id: borrower.id,
         product_id: productId || null,
-        loan_purpose: purpose as "working_capital" | "investment" | "operational" || null,
-        loan_purpose_details: purposeDetails || null,
-        requested_amount: reqAmount,
+        purpose: purpose || null,
+        // No requested_amount in DB — store directly as approved_amount on creation
+        approved_amount: reqAmount || null,
         currency,
-        loan_term_months: parseInt(loanTerm) || 0,
+        duration_months: parseInt(loanTerm) || null,
         grace_period_months: parseInt(gracePeriod) || 0,
         interest_rate: interestRate ? parseFloat(interestRate) : null,
-        repayment_frequency: frequency as "monthly" | "quarterly",
-        repayment_method: repaymentMethod as "annuity" | "declining_balance" || null,
+        frequency: frequency,
         guarantee_coverage: coverage,
         guarantee_amount: guaranteeAmount,
-        application_date: applicationDate,
-        bank_approval_date: bankApprovalDate || null,
         status: "submitted" as const,
-        annual_turnover: annualTurnover ? parseFloat(annualTurnover) : null,
-        net_income: netIncome ? parseFloat(netIncome) : null,
-        risk_rating: riskRating || null,
-        total_exposure: totalExposure ? parseFloat(totalExposure) : null,
-        collateral_description: collateralDescription || null,
-        personal_guarantors: guarantors.filter((g) => g.name || g.id_number),
-        covenants_bank: covenantBank || null,
-        covenants_prsf: covenantPrsf || null,
         notes: notes || null,
         created_by: user?.id || null,
         sector_id: sectorId || null,
@@ -241,7 +227,7 @@ export default function NewLoanPage() {
       const { data: loanApp, error: loanError } = await supabase
         .from("loan_applications")
         .insert(appData)
-        .select("id, application_number")
+        .select("id, loan_number")
         .single()
 
       if (loanError) throw loanError

@@ -56,7 +56,7 @@ export default function LoansPage() {
     let query = supabase
       .from("loan_applications")
       .select(
-        `*, bank:banks(id,name_en,name_ru,name_tj), borrower:borrowers(id,company_name,first_name,last_name,tin_number), branch:bank_branches(id,name_en)`,
+        `*, bank:banks(id,name_en,name_ru,name_tj), borrower:borrowers(id,name,tin_number), branch:bank_branches(id,name_en)`,
         { count: "exact" }
       )
       .order("created_at", { ascending: false })
@@ -65,9 +65,8 @@ export default function LoansPage() {
     if (statusFilter !== "all") query = query.eq("status", statusFilter)
     if (bankFilter !== "all") query = query.eq("bank_id", bankFilter)
     if (searchTerm) {
-      // Search by application number OR borrower TIN number
       query = query.or(
-        `application_number.ilike.%${searchTerm}%,borrower_id.in.(select id from borrowers where tin_number ilike '%${searchTerm}%' or company_name ilike '%${searchTerm}%')`
+        `loan_number.ilike.%${searchTerm}%,borrower_id.in.(select id from borrowers where tin_number ilike '%${searchTerm}%' or name ilike '%${searchTerm}%')`
       )
     }
 
@@ -96,7 +95,7 @@ export default function LoansPage() {
 
   const getBorrowerName = (loan: LoanApplication) => {
     if (!loan.borrower) return "—"
-    return loan.borrower.company_name || `${loan.borrower.first_name || ""} ${loan.borrower.last_name || ""}`.trim() || "—"
+    return loan.borrower.name || "—"
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
@@ -104,7 +103,7 @@ export default function LoansPage() {
   // Summary stats
   const activeLoans = loans.filter((l) => l.status === "active" || l.status === "disbursed").length
   const pendingLoans = loans.filter((l) => l.status === "submitted" || l.status === "under_review").length
-  const totalAmount = loans.reduce((s, l) => s + (l.requested_amount || 0), 0)
+  const totalAmount = loans.reduce((s, l) => s + (l.approved_amount || 0), 0)
 
   return (
     <div className="p-6 lg:p-8">
@@ -204,9 +203,9 @@ export default function LoansPage() {
                   loans.map((loan) => (
                     <TableRow key={loan.id} className="hover:bg-muted/30">
                       <TableCell>
-                        <Link href={`/dashboard/loans/${loan.application_number}`} className="font-medium text-primary hover:underline">
-                          {loan.application_number}
-                        </Link>
+                  <Link href={`/dashboard/loans/${loan.id}`} className="font-medium text-primary hover:underline">
+                    {loan.loan_number || loan.id.slice(0, 8)}
+                  </Link>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -219,10 +218,10 @@ export default function LoansPage() {
                         <p className="text-xs text-muted-foreground">{loan.branch?.name_en || ""}</p>
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(loan.approved_amount || loan.requested_amount, loan.currency)}
+                        {formatCurrency(loan.approved_amount, loan.currency)}
                         <p className="text-xs text-muted-foreground">{loan.currency}</p>
                       </TableCell>
-                      <TableCell className="text-sm">{new Date(loan.application_date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-sm">{loan.created_at ? new Date(loan.created_at).toLocaleDateString() : "—"}</TableCell>
                       <TableCell className="text-right text-sm">{loan.guarantee_coverage ? `${loan.guarantee_coverage}%` : "—"}</TableCell>
                       <TableCell>
                         <Badge className={statusStyles[loan.status] || "bg-gray-100 text-gray-800"} variant="secondary">
@@ -236,12 +235,12 @@ export default function LoansPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/loans/${loan.application_number}`} className="flex items-center">
+                              <Link href={`/dashboard/loans/${loan.id}`} className="flex items-center">
                                 <Eye className="mr-2 h-4 w-4" />View Details
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/loans/${loan.application_number}/edit`} className="flex items-center">
+                              <Link href={`/dashboard/loans/${loan.id}/edit`} className="flex items-center">
                                 <Edit className="mr-2 h-4 w-4" />Edit
                               </Link>
                             </DropdownMenuItem>

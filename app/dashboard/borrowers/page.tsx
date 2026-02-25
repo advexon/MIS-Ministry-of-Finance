@@ -63,7 +63,7 @@ export default function BorrowersPage() {
 
     if (search.trim()) {
       query = query.or(
-        `tin_number.ilike.%${search}%,company_name.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`
+        `tin_number.ilike.%${search}%,name.ilike.%${search}%`
       )
     }
 
@@ -78,12 +78,11 @@ export default function BorrowersPage() {
     // Fetch summary stats once
     supabase
       .from("borrowers")
-      .select("id, legal_type, is_blacklisted", { count: "exact" })
+      .select("id, legal_type", { count: "exact" })
       .then(({ data, count }) => {
         setTotalCount(count ?? 0)
         if (data) {
-          // "active" = not blacklisted (no native status column on borrowers)
-          setActiveCount(data.filter((b) => !b.is_blacklisted).length)
+          setActiveCount(count ?? 0)
           setEntityCount(data.filter((b) => b.legal_type === "legal_entity").length)
         }
       })
@@ -109,10 +108,7 @@ export default function BorrowersPage() {
     return map[type] || type
   }
 
-  const getBorrowerName = (b: Borrower) =>
-    b.company_name ||
-    `${b.first_name || ""} ${b.last_name || ""}`.trim() ||
-    "—"
+  const getBorrowerName = (b: Borrower) => b.name || "—"
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
@@ -245,15 +241,9 @@ export default function BorrowersPage() {
                       </TableCell>
                       <TableCell className="text-sm">{b.city || "—"}</TableCell>
                       <TableCell>
-                        {b.is_blacklisted ? (
-                          <Badge variant="secondary" className="bg-red-100 text-red-800">
-                            Blacklisted
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                            Active
-                          </Badge>
-                        )}
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                          Active
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

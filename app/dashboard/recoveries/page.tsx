@@ -28,7 +28,7 @@ interface Recovery {
     claim_number: string
     claim_amount: number
     banks?: { name_en: string; code: string }
-    loan_applications?: { application_number: string }
+    loan_applications?: { loan_number: string | null }
   }
 }
 
@@ -72,7 +72,7 @@ export default function RecoveriesPage() {
       .from('recoveries')
       .select(`
         *,
-        claims(claim_number, claim_amount, banks(name_en, code), loan_applications(application_number))
+        claims(claim_number, claim_amount, banks(name_en, code), loan_applications(loan_number))
       `)
       .order('recovery_date', { ascending: false })
     setRecoveries(data || [])
@@ -113,7 +113,7 @@ export default function RecoveriesPage() {
   const filtered = recoveries.filter(r => {
     const matchSearch = !search ||
       r.claims?.claim_number?.toLowerCase().includes(search.toLowerCase()) ||
-      r.claims?.loan_applications?.application_number?.toLowerCase().includes(search.toLowerCase()) ||
+      r.claims?.loan_applications?.loan_number?.toLowerCase().includes(search.toLowerCase()) ||
       r.claims?.banks?.name_en?.toLowerCase().includes(search.toLowerCase())
     const matchBank = bankFilter === 'all' || (r.claims?.banks as any)?.id === bankFilter
     const matchMethod = methodFilter === 'all' || r.recovery_method === methodFilter
@@ -128,7 +128,7 @@ export default function RecoveriesPage() {
     const rows = filtered.map(r => [
       r.recovery_date,
       r.claims?.claim_number || '',
-      r.claims?.loan_applications?.application_number || '',
+          r.claims?.loan_applications?.loan_number || '',
       r.claims?.banks?.name_en || '',
       r.recovery_amount,
       r.prsf_share,
@@ -323,7 +323,7 @@ export default function RecoveriesPage() {
                         {rec.claims?.claim_number || '—'}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {rec.claims?.loan_applications?.application_number || '—'}
+                        {rec.claims?.loan_applications?.loan_number || '—'}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

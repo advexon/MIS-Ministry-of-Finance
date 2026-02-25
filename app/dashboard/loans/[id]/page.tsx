@@ -282,19 +282,19 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   // ── Action handlers ────────────────────────────────────────────────────────
-  const handleSubmit = () => transition("submitted", { prsf_submission_date: dateField })
+  const handleSubmit = () => transition("submitted")
 
-  const handleMarkReceived = () => transition("under_review", { prsf_submission_date: dateField })
+  const handleMarkReceived = () => transition("under_review")
 
   const handleApprove = () => transition("approved", {
-    prsf_approval_date: dateField,
-    approved_amount: parseFloat(amount) || loan?.requested_amount,
+    loan_approval_date: dateField,
+    approved_amount: parseFloat(amount) || loan?.approved_amount,
     guarantee_coverage: parseFloat(coverage) || loan?.guarantee_coverage,
-    guarantee_amount: (parseFloat(amount) || loan?.requested_amount || 0) * ((parseFloat(coverage) || loan?.guarantee_coverage || 50) / 100),
+    guarantee_amount: (parseFloat(amount) || loan?.approved_amount || 0) * ((parseFloat(coverage) || loan?.guarantee_coverage || 50) / 100),
     notes,
   })
 
-  const handleReject = () => transition("rejected", { rejection_reason: reason })
+  const handleReject = () => transition("rejected", { notes: reason })
 
   const handleIssueGuarantee = () => transition("guarantee_issued", {
     guarantee_issued_date: dateField,
@@ -391,14 +391,14 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <div class="logo-row"><h1>Credit Guarantee Fund</h1></div>
       <h2>Ministry of Finance — Republic of Tajikistan</h2>
       <p class="ref">LETTER OF GUARANTEE</p>
-      <p class="ref">No. LG-${loan.application_number} &nbsp;|&nbsp; Date: ${fmtDate(loan.guarantee_issued_date || loan.prsf_approval_date)}</p>
+      <p class="ref">No. LG-${loan.loan_number || loan.id.slice(0, 8)} &nbsp;|&nbsp; Date: ${fmtDate(loan.guarantee_issued_date || loan.loan_approval_date)}</p>
     </div>
 
     <div class="section">
       <p>This Letter of Guarantee is issued by the <strong>Credit Guarantee Fund (CGF)</strong>, established under the Ministry of Finance of the Republic of Tajikistan, in favour of:</p>
       <table>
         <tr><td>Partner Bank:</td><td class="highlight">${(loan.bank as any)?.name_en ?? "—"}</td></tr>
-        <tr><td>Borrower:</td><td class="highlight">${loan.borrower ? [(loan.borrower as any).company_name, (loan.borrower as any).first_name, (loan.borrower as any).last_name].filter(Boolean).join(" ") : "—"}</td></tr>
+        <tr><td>Borrower:</td><td class="highlight">${(loan.borrower as any)?.name ?? "—"}</td></tr>
         <tr><td>TIN Number:</td><td>${(loan.borrower as any)?.tin_number ?? "—"}</td></tr>
       </table>
     </div>
@@ -406,11 +406,11 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     <div class="section">
       <h3>Guarantee Terms</h3>
       <table>
-        <tr><td>Application Reference:</td><td>${loan.application_number}</td></tr>
+        <tr><td>Application Reference:</td><td>${loan.loan_number || loan.id.slice(0, 8)}</td></tr>
         <tr><td>Loan Amount Approved:</td><td class="highlight">${fmt(loan.approved_amount, loan.currency)}</td></tr>
         <tr><td>Guarantee Coverage:</td><td>${loan.guarantee_coverage ?? 50}%</td></tr>
         <tr><td>Guaranteed Amount:</td><td class="highlight">${fmt(loan.guarantee_amount, loan.currency)}</td></tr>
-        <tr><td>Loan Term:</td><td>${loan.loan_term_months} months</td></tr>
+        <tr><td>Loan Term:</td><td>${loan.duration_months ?? "—"} months</td></tr>
         <tr><td>Interest Rate:</td><td>${loan.interest_rate ?? "—"}% per annum</td></tr>
         <tr><td>Validity of Guarantee:</td><td>Until maturity of the loan: ${fmtDate(loan.maturity_date)}</td></tr>
       </table>
@@ -459,9 +459,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   )
 
   const actions = getAvailableActions(loan.status, userRole)
-  const borrowerName = loan.borrower
-    ? [(loan.borrower as any).company_name, (loan.borrower as any).first_name, (loan.borrower as any).last_name].filter(Boolean).join(" ")
-    : "—"
+  const borrowerName = (loan.borrower as any)?.name ?? "—"
 
   return (
     <div className="p-4 lg:p-6">
@@ -481,7 +479,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         </Button>
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold text-foreground">{loan.application_number}</h1>
+            <h1 className="text-xl font-bold text-foreground">{loan.loan_number || loan.id.slice(0, 8)}</h1>
             <Badge className={`border text-xs ${STATUS_COLORS[loan.status] ?? "bg-gray-100 text-gray-700"}`}>
               {STATUS_LABELS[loan.status] ?? loan.status}
             </Badge>
@@ -497,7 +495,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           {/* Primary action buttons */}
           {actions.includes("submit")            && <Button size="sm" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("submit") }}>Submit to PRSF</Button>}
           {actions.includes("mark_received")     && <Button size="sm" className="gap-1.5" onClick={() => setDialog("mark_received")}>Mark as Received</Button>}
-          {actions.includes("approve")           && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? loan.requested_amount)); setCoverage(String(loan.guarantee_coverage ?? 50)); setDialog("approve") }}><CheckCircle2 className="h-3.5 w-3.5" />Approve</Button>}
+          {actions.includes("approve")           && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? "")); setCoverage(String(loan.guarantee_coverage ?? 50)); setDialog("approve") }}><CheckCircle2 className="h-3.5 w-3.5" />Approve</Button>}
           {actions.includes("reject")            && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("reject")}><XCircle className="h-3.5 w-3.5" />Reject</Button>}
           {actions.includes("issue_guarantee")   && <Button size="sm" className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setDialog("issue_guarantee")}><Shield className="h-3.5 w-3.5" />Issue Guarantee</Button>}
           {actions.includes("cancel")            && <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 bg-transparent" onClick={() => setDialog("cancel")}><XCircle className="h-3.5 w-3.5" />Cancel</Button>}
@@ -523,7 +521,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
               <XCircle className="h-4 w-4 flex-shrink-0" />
               <span><strong>Step 4A — Rejected.</strong> Bank has been notified. End of process.</span>
-              {loan.rejection_reason && <span className="ml-2 text-xs opacity-75">Reason: {loan.rejection_reason}</span>}
+              {loan.notes && <span className="ml-2 text-xs opacity-75">Reason: {loan.notes}</span>}
             </div>
           )}
           {loan.status === "cancelled" && (
@@ -577,14 +575,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               <CardContent className="space-y-1.5 text-sm">
                 <div className="font-medium">{(loan.bank as any)?.name_en ?? "—"}</div>
                 <div className="text-muted-foreground">{(loan.branch as any)?.name_en ?? "Head Office"}</div>
-                <div className="text-muted-foreground">Officer: {loan.bank_loan_officer ?? "—"}</div>
+                <div className="text-muted-foreground">Officer: {loan.loan_officer ?? "—"}</div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
               <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><DollarSign className="h-3.5 w-3.5" />Loan Amount</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
-                <div className="text-lg font-bold text-foreground">{fmt(loan.approved_amount ?? loan.requested_amount, loan.currency)}</div>
-                <div className="text-xs text-muted-foreground">Requested: {fmt(loan.requested_amount, loan.currency)}</div>
+                <div className="text-lg font-bold text-foreground">{fmt(loan.approved_amount, loan.currency)}</div>
                 <div className="text-xs text-muted-foreground">Disbursed: {fmt(loan.disbursed_amount, loan.currency)}</div>
               </CardContent>
             </Card>
@@ -599,9 +596,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card className="shadow-sm">
               <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Calendar className="h-3.5 w-3.5" />Key Dates</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Application:</span><span className="text-foreground">{fmtDate(loan.application_date)}</span></div>
-                <div className="flex justify-between"><span>Bank Approval:</span><span className="text-foreground">{fmtDate(loan.bank_approval_date)}</span></div>
-                <div className="flex justify-between"><span>PRSF Approval:</span><span className="text-foreground">{fmtDate(loan.prsf_approval_date)}</span></div>
+                <div className="flex justify-between"><span>Loan Approval:</span><span className="text-foreground">{fmtDate(loan.loan_approval_date)}</span></div>
+                <div className="flex justify-between"><span>Guarantee Issued:</span><span className="text-foreground">{fmtDate(loan.guarantee_issued_date)}</span></div>
                 <div className="flex justify-between"><span>Disbursement:</span><span className="text-foreground">{fmtDate(loan.disbursement_date)}</span></div>
                 <div className="flex justify-between"><span>Maturity:</span><span className="text-foreground">{fmtDate(loan.new_maturity_date ?? loan.maturity_date)}</span></div>
               </CardContent>
@@ -610,10 +606,9 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><FileText className="h-3.5 w-3.5" />Loan Terms</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
                 <div className="flex justify-between"><span>Product:</span><span className="text-foreground">{(loan.product as any)?.name_en ?? "—"}</span></div>
-                <div className="flex justify-between"><span>Term:</span><span className="text-foreground">{loan.loan_term_months} months</span></div>
+                <div className="flex justify-between"><span>Term:</span><span className="text-foreground">{loan.duration_months ?? "—"} months</span></div>
                 <div className="flex justify-between"><span>Interest Rate:</span><span className="text-foreground">{loan.interest_rate ?? "—"}% p.a.</span></div>
-                <div className="flex justify-between"><span>Repayment:</span><span className="text-foreground capitalize">{loan.repayment_method?.replace("_", " ") ?? "—"}</span></div>
-                <div className="flex justify-between"><span>Frequency:</span><span className="text-foreground capitalize">{loan.repayment_frequency}</span></div>
+                <div className="flex justify-between"><span>Frequency:</span><span className="text-foreground capitalize">{loan.frequency ?? "—"}</span></div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
@@ -638,21 +633,20 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 <div className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                   {[
                     ["Legal Type", (loan.borrower as any).legal_type?.replace("_", " ")],
-                    ["Company Name", (loan.borrower as any).company_name],
-                    ["First Name", (loan.borrower as any).first_name],
-                    ["Last Name", (loan.borrower as any).last_name],
+                    ["Name", (loan.borrower as any).name],
                     ["TIN Number", (loan.borrower as any).tin_number],
-                    ["Passport", (loan.borrower as any).passport_number],
-                    ["Date of Birth", fmtDate((loan.borrower as any).date_of_birth)],
-                    ["Gender", (loan.borrower as any).gender],
+                    ["Registration No.", (loan.borrower as any).registration_number],
                     ["Phone", (loan.borrower as any).phone],
                     ["Email", (loan.borrower as any).email],
-                    ["City", (loan.borrower as any).city],
-                    ["District", (loan.borrower as any).district],
-                    ["Legal Address", (loan.borrower as any).legal_address],
-                    ["Employees", (loan.borrower as any).employee_count],
-                    ["Est. Year", (loan.borrower as any).establishment_year],
-                    ["Blacklisted", (loan.borrower as any).is_blacklisted ? "YES" : "No"],
+                    ["City", (loan.borrower as any).address_city],
+                    ["District", (loan.borrower as any).address_district],
+                    ["Address", (loan.borrower as any).address_street],
+                    ["Workforce", (loan.borrower as any).workforce_count],
+                    ["Legal Rep Name", (loan.borrower as any).legal_rep_name],
+                    ["Legal Rep Surname", (loan.borrower as any).legal_rep_surname],
+                    ["Legal Rep Gender", (loan.borrower as any).legal_rep_gender],
+                    ["Legal Rep Birthdate", fmtDate((loan.borrower as any).legal_rep_birthdate)],
+                    ["Legal Rep TIN", (loan.borrower as any).legal_rep_tin],
                   ].map(([label, value]) => value ? (
                     <div key={label as string}>
                       <p className="text-xs text-muted-foreground">{label}</p>
@@ -669,13 +663,15 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <TabsContent value="financials">
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="shadow-sm">
-              <CardHeader><CardTitle className="text-sm">Borrower Financials</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Loan Financials</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {[
-                  ["Annual Turnover", fmt(loan.annual_turnover, loan.currency)],
-                  ["Net Income", fmt(loan.net_income, loan.currency)],
-                  ["Total Exposure", fmt(loan.total_exposure, loan.currency)],
-                  ["Risk Rating", loan.risk_rating],
+                  ["Approved Amount", fmt(loan.approved_amount, loan.currency)],
+                  ["Disbursed Amount", fmt(loan.disbursed_amount, loan.currency)],
+                  ["Guarantee Amount", fmt(loan.guarantee_amount, loan.currency)],
+                  ["Settlement Amount", fmt(loan.settlement_amount, loan.currency)],
+                  ["Guarantee Coverage", loan.guarantee_coverage ? `${loan.guarantee_coverage}%` : null],
+                  ["Interest Rate", loan.interest_rate ? `${loan.interest_rate}% p.a.` : null],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between border-b pb-2 last:border-0">
                     <span className="text-muted-foreground">{k}</span>
@@ -685,20 +681,16 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               </CardContent>
             </Card>
             <Card className="shadow-sm">
-              <CardHeader><CardTitle className="text-sm">Collateral & Covenants</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Notes & Purpose</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div>
-                  <p className="text-xs text-muted-foreground">Collateral Description</p>
-                  <p className="mt-1">{loan.collateral_description ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground">Loan Purpose</p>
+                  <p className="mt-1">{loan.purpose ?? "—"}</p>
                 </div>
                 <Separator />
                 <div>
-                  <p className="text-xs text-muted-foreground">Bank Covenants</p>
-                  <p className="mt-1">{loan.covenants_bank ?? "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">PRSF Covenants</p>
-                  <p className="mt-1">{loan.covenants_prsf ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground">Notes</p>
+                  <p className="mt-1">{loan.notes ?? "—"}</p>
                 </div>
               </CardContent>
             </Card>
@@ -737,17 +729,14 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <CardContent>
               <ol className="relative border-l border-border ml-3 space-y-6">
                 {[
-                  { label: "Step 1 — Loan Initiated",      date: loan.application_date,      done: true },
-                  { label: "Step 2 — Bank Approved",        date: loan.bank_approval_date,     done: !!loan.bank_approval_date },
-                  { label: "Step 3 — Received by PRSF",     date: loan.prsf_submission_date,   done: !!loan.prsf_submission_date },
-                  { label: "Step 4 — PRSF Decision",        date: loan.prsf_approval_date,     done: !!loan.prsf_approval_date, extra: loan.status === "rejected" ? `Rejected: ${loan.rejection_reason ?? ""}` : loan.status !== "draft" ? "Approved" : "" },
-                  { label: "Step 5 — Bank Notified",        date: loan.prsf_approval_date,     done: ["approved","rejected","guarantee_issued","disbursed","active","settled","rescheduled","claim_pending","claim_paid","closed","cancelled"].includes(loan.status) },
-                  { label: "Step 6 — Guarantee Decision",   date: loan.guarantee_issued_date,  done: !!loan.guarantee_issued_date, extra: loan.status === "cancelled" ? `Cancelled: ${loan.cancellation_reason ?? ""}` : loan.guarantee_issued_date ? "Guarantee Issued" : "" },
-                  { label: "Step 7C — Disbursement",        date: loan.disbursement_date,      done: !!loan.disbursement_date },
-                  { label: "Step 7A — Loan Settled",        date: loan.settlement_date,        done: !!loan.settlement_date },
-                  { label: "Step 7B — Rescheduled",         date: loan.reschedule_date,        done: !!loan.reschedule_date, extra: loan.reschedule_reason },
-                  { label: "Step 7C — Claim Filed",         date: claims[0]?.claim_date,       done: !!claims[0] },
-                  { label: "Step 8B — Claim Reviewed",      date: claims[0]?.review_date,      done: !!claims[0]?.review_date, extra: claims[0]?.review_notes },
+                  { label: "Step 1 — Loan Created",         date: loan.created_at,             done: true },
+                  { label: "Step 2 — Loan Approved",        date: loan.loan_approval_date,     done: !!loan.loan_approval_date },
+                  { label: "Step 3 — Guarantee Issued",     date: loan.guarantee_issued_date,  done: !!loan.guarantee_issued_date, extra: loan.status === "cancelled" ? `Cancelled: ${loan.cancellation_reason ?? ""}` : "" },
+                  { label: "Step 4 — Disbursed",            date: loan.disbursement_date,      done: !!loan.disbursement_date },
+                  { label: "Step 5 — Loan Settled",         date: loan.settlement_date,        done: !!loan.settlement_date },
+                  { label: "Step 6 — Rescheduled",          date: loan.reschedule_date,        done: !!loan.reschedule_date, extra: loan.reschedule_reason },
+                  { label: "Step 7 — Claim Filed",          date: claims[0]?.claim_date,       done: !!claims[0] },
+                  { label: "Step 8 — Claim Reviewed",       date: claims[0]?.review_date,      done: !!claims[0]?.review_date, extra: claims[0]?.review_notes },
                 ].filter(e => e.done || e.date).map((e, i) => (
                   <li key={i} className="ml-6">
                     <span className={`absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full border-2

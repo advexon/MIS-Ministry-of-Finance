@@ -34,11 +34,10 @@ export default function ClaimsPage() {
 
   interface LoanOption {
     id: string
-    application_number: string
-    requested_amount: number
+    loan_number: string | null
     approved_amount: number | null
     currency: string
-    borrower: { company_name: string | null; first_name: string | null; last_name: string | null } | null
+    borrower: { name: string } | null
   }
 
   const [claims, setClaims] = useState<Claim[]>([])
@@ -87,7 +86,7 @@ export default function ClaimsPage() {
     setLoading(true)
     let query = supabase
       .from("claims")
-      .select(`*, loan_application:loan_applications(id,application_number,requested_amount,currency,bank:banks(name_en),borrower:borrowers(company_name,first_name,last_name))`)
+      .select(`*, loan_application:loan_applications(id,loan_number,currency,bank:banks(name_en),borrower:borrowers(name))`)
       .order("created_at", { ascending: false })
 
     if (statusFilter !== "all") query = query.eq("status", statusFilter)
@@ -102,9 +101,9 @@ export default function ClaimsPage() {
   useEffect(() => {
     supabase
       .from("loan_applications")
-      .select("id,application_number,requested_amount,approved_amount,currency,borrower:borrowers(company_name,first_name,last_name)")
+      .select("id,loan_number,approved_amount,currency,borrower:borrowers(name)")
       .in("status", ["active", "defaulted", "claim_pending"])
-      .order("application_number")
+      .order("loan_number")
       .then(({ data }) => { if (data) setLoans(data) })
   }, [supabase])
 
@@ -117,8 +116,7 @@ export default function ClaimsPage() {
 
   const getBorrowerName = (claim: Claim) => {
     const b = (claim as any).loan_application?.borrower
-    if (!b) return "—"
-    return b.company_name || `${b.first_name || ""} ${b.last_name || ""}`.trim() || "—"
+    return b?.name || "—"
   }
 
   const totalPending = claims.filter((c) => c.status === "pending" || c.status === "under_review").length
@@ -305,7 +303,7 @@ export default function ClaimsPage() {
                   claims.map((claim) => (
                     <TableRow key={claim.id}>
                       <TableCell className="font-medium text-primary">{claim.claim_number}</TableCell>
-                      <TableCell className="text-sm">{(claim as any).loan_application?.application_number || "—"}</TableCell>
+                      <TableCell className="text-sm">{(claim as any).loan_application?.loan_number || "—"}</TableCell>
                       <TableCell className="text-sm">{getBorrowerName(claim)}</TableCell>
                       <TableCell className="text-sm">{(claim as any).loan_application?.bank?.name_en || "—"}</TableCell>
                       <TableCell className="text-sm">{new Date(claim.claim_date).toLocaleDateString()}</TableCell>
@@ -367,8 +365,8 @@ export default function ClaimsPage() {
                 <SelectContent>
                   {loans.map((l) => {
                     const borrower = l.borrower
-                    const name = borrower?.company_name || `${borrower?.first_name || ""} ${borrower?.last_name || ""}`.trim()
-                    return <SelectItem key={l.id} value={l.id}>{l.application_number} – {name}</SelectItem>
+            const name = borrower?.name || "—"
+            return <SelectItem key={l.id} value={l.id}>{l.loan_number || l.id.slice(0, 8)} – {name}</SelectItem>
                   })}
                 </SelectContent>
               </Select>
@@ -417,7 +415,7 @@ export default function ClaimsPage() {
           {selectedClaim && (
             <div className="space-y-3 text-sm">
               {[
-                ["Loan", (selectedClaim as any).loan_application?.application_number],
+                ["Loan", (selectedClaim as any).loan_application?.loan_number],
                 ["Borrower", getBorrowerName(selectedClaim)],
                 ["Claim Date", new Date(selectedClaim.claim_date).toLocaleDateString()],
                 ["Principal Claimed", formatCurrency(selectedClaim.principal_claimed)],
