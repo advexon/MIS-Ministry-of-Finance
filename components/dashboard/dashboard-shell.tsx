@@ -99,17 +99,16 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const navContent = (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-4 sm:px-5">
+      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <Image
           src="/logo.png"
           alt="PRSF Emblem"
-          width={40}
-          height={40}
-          style={{ width: 'auto', height: 'auto' }}
-          priority
+          width={36}
+          height={36}
           className="flex-shrink-0"
+          style={{ width: '36px', height: '36px' }}
         />
-        <div className="hidden flex-col sm:flex min-w-0">
+        <div className="flex flex-col min-w-0">
           <span className="text-xs font-bold text-white truncate">Credit Guarantee Fund</span>
           <span className="text-[9px] leading-tight text-white/50 truncate">
             Management Information System
