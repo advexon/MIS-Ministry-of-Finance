@@ -800,39 +800,6 @@ export default function NewLoanPage() {
                   <Textarea value={collateralDescription} onChange={(e) => setCollateralDescription(e.target.value)} placeholder="Type and description of collateral (real estate, equipment, inventory...)" rows={3} />
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">Personal Guarantors</h4>
-                  <Button type="button" variant="outline" size="sm" onClick={addGuarantor} className="gap-1.5">
-                    <Plus className="h-3.5 w-3.5" />Add Guarantor
-                  </Button>
-                </div>
-                {guarantors.map((g, i) => (
-                  <div key={i} className="rounded-lg border p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <Badge variant="secondary">Guarantor #{i + 1}</Badge>
-                      {guarantors.length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeGuarantor(i)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Full Name</Label>
-                        <Input value={g.name} onChange={(e) => updateGuarantor(i, "name", e.target.value)} placeholder="Full name" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">ID / Passport Number</Label>
-                        <Input value={g.id_number} onChange={(e) => updateGuarantor(i, "id_number", e.target.value)} placeholder="AA1234567" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Relationship to Borrower</Label>
-                        <Input value={g.relationship} onChange={(e) => updateGuarantor(i, "relationship", e.target.value)} placeholder="Director, Spouse, etc." />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <Separator />
                 <h4 className="text-sm font-medium">Covenants</h4>
                 <div className="space-y-2">
                   <Label>Bank Covenants</Label>
