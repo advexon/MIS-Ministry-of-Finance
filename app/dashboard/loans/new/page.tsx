@@ -238,9 +238,12 @@ export default function NewLoanPage() {
     setError(null)
 
     try {
+      console.log("[v0] Starting submission...")
       const { data: { user } } = await supabase.auth.getUser()
+      console.log("[v0] User:", user?.id)
 
       // 1. Upsert borrower by TIN
+      console.log("[v0] Creating borrower with TIN:", clientTin)
       const borrowerData = {
         tin_number: clientTin,
         legal_type: legalEntityType as "individual" | "legal_entity" | "individual_entrepreneur",
@@ -271,7 +274,11 @@ export default function NewLoanPage() {
         .select("id")
         .single()
 
-      if (borrowerError) throw borrowerError
+      if (borrowerError) {
+        console.log("[v0] Borrower upsert failed:", borrowerError)
+        throw borrowerError
+      }
+      console.log("[v0] Borrower created:", borrower?.id)
 
       // 2. Calculate guarantee amount
       const reqAmount = parseFloat(requestedAmount) || 0
@@ -307,7 +314,11 @@ export default function NewLoanPage() {
         .select("id, loan_number")
         .single()
 
-      if (loanError) throw loanError
+      if (loanError) {
+        console.log("[v0] Loan application insert failed:", loanError)
+        throw loanError
+      }
+      console.log("[v0] Loan application created:", loanApp?.id)
 
       // 4. Log audit trail
       await supabase.from("audit_trail").insert({
