@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Building2, MapPin, TrendingUp, Plus, Search, ChevronRight, Eye } from 'lucide-react'
 import Link from 'next/link'
@@ -80,19 +80,14 @@ export default function BanksPage() {
 
   const handleCreate = async () => {
     if (!form.code || !form.name) {
-      console.log("[v0] Bank form incomplete: code:", form.code, "name:", form.name)
       toast({ title: 'Bank code and name are required', variant: 'destructive' })
       return
     }
     setSaving(true)
-    console.log("[v0] Creating bank with data:", { ...form, is_active: true })
     const { error } = await supabase.from('banks').insert({ ...form, is_active: true })
-    console.log("[v0] Insert response - error:", error)
     if (error) {
-      console.log("[v0] Bank creation failed:", error.message)
       toast({ title: 'Failed to create bank', description: error.message, variant: 'destructive' })
     } else {
-      console.log("[v0] Bank created successfully")
       toast({ title: 'Bank created successfully' })
       setDialogOpen(false)
       setForm({ code: '', name: '', contact_person: '', email: '', phone: '', address: '' })
@@ -128,6 +123,7 @@ export default function BanksPage() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Add Partner Bank</DialogTitle>
+              <DialogDescription>Enter the details of the new partner financial institution.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-2 gap-4">
