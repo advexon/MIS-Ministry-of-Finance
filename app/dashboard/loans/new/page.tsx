@@ -14,7 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { ArrowLeft, Save, Building2, User, DollarSign, FileText, Shield, Plus, Trash2, Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Save, Building2, User, DollarSign, FileText, Shield, Plus, Trash2, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
 import type { Bank, BankBranch, Sector, LoanProduct } from "@/lib/types/database"
 
@@ -60,6 +62,12 @@ export default function NewLoanPage() {
   const [bankCustomerCode, setBankCustomerCode] = useState("")
   const [isBlacklisted, setIsBlacklisted] = useState(false)
   const [blacklistReason, setBlacklistReason] = useState("")
+
+  // TIN validation state
+  const [tinError, setTinError] = useState<string | null>(null)
+  const [tinDuplicateWarning, setTinDuplicateWarning] = useState<{ name: string; type: string } | null>(null)
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [checkingTin, setCheckingTin] = useState(false)
 
   // Legal Representative fields
   const [legalRepSurname, setLegalRepSurname] = useState("")
@@ -168,6 +176,52 @@ export default function NewLoanPage() {
     const p = products.find((x) => x.id === productId)
     if (p) setGuaranteeCoverage(String(p.guarantee_coverage))
   }, [productId, products])
+
+  // TIN validation: exactly 9 digits, check for duplicates
+  const handleTinChange = async (value: string) => {
+    // Only allow digits, strip anything else
+    const digitsOnly = value.replace(/\D/g, "")
+    // Limit to 9 digits
+    const limitedValue = digitsOnly.slice(0, 9)
+    setClientTin(limitedValue)
+    setTinError(null)
+    setTinDuplicateWarning(null)
+
+    // Validate length
+    if (limitedValue.length > 0 && limitedValue.length !== 9) {
+      setTinError(`TIN must be exactly 9 digits (currently ${limitedValue.length})`)
+      return
+    }
+
+    // Check for duplicates when we have exactly 9 digits
+    if (limitedValue.length === 9) {
+      setCheckingTin(true)
+      try {
+        const { data: existingBorrower } = await supabase
+          .from("borrowers")
+          .select("id, name, legal_type")
+          .eq("tin_number", limitedValue)
+          .maybeSingle()
+
+        if (existingBorrower) {
+          const typeLabel = existingBorrower.legal_type === "legal_entity" 
+            ? "Legal Entity" 
+            : existingBorrower.legal_type === "individual_entrepreneur"
+              ? "Individual Entrepreneur"
+              : "Individual"
+          setTinDuplicateWarning({
+            name: existingBorrower.name,
+            type: typeLabel
+          })
+          setShowDuplicateDialog(true)
+        }
+      } catch (err) {
+        console.error("Error checking TIN:", err)
+      } finally {
+        setCheckingTin(false)
+      }
+    }
+  }
 
   const addGuarantor = () => setGuarantors([...guarantors, { name: "", id_number: "", relationship: "" }])
   const removeGuarantor = (i: number) => setGuarantors(guarantors.filter((_, idx) => idx !== i))
@@ -365,7 +419,32 @@ export default function NewLoanPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>TIN Number *</Label>
-                    <Input value={clientTin} onChange={(e) => setClientTin(e.target.value)} placeholder="123456789" required />
+                    <div className="relative">
+                      <Input 
+                        value={clientTin} 
+                        onChange={(e) => handleTinChange(e.target.value)} 
+                        placeholder="123456789" 
+                        required 
+                        maxLength={9}
+                        inputMode="numeric"
+                        pattern="[0-9]{9}"
+                        className={tinError ? "border-destructive" : tinDuplicateWarning ? "border-warning" : ""}
+                      />
+                      {checkingTin && (
+                        <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    {tinError && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" /> {tinError}
+                      </p>
+                    )}
+                    {tinDuplicateWarning && !tinError && (
+                      <p className="text-xs text-warning flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" /> Borrower already exists in system
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">Enter exactly 9 digits (numbers only)</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Registration Number</Label>
@@ -490,7 +569,18 @@ export default function NewLoanPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>TIN Number</Label>
-                    <Input value={legalRepTin} onChange={(e) => setLegalRepTin(e.target.value)} placeholder="123456789" />
+                    <Input 
+                      value={legalRepTin} 
+                      onChange={(e) => {
+                        const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 9)
+                        setLegalRepTin(digitsOnly)
+                      }} 
+                      placeholder="123456789"
+                      maxLength={9}
+                      inputMode="numeric"
+                      pattern="[0-9]{9}"
+                    />
+                    <p className="text-[10px] text-muted-foreground">9 digits only</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Passport / ID Number</Label>
@@ -795,6 +885,44 @@ export default function NewLoanPage() {
           </TabsContent>
         </Tabs>
       </form>
+
+      {/* Duplicate TIN Warning Dialog */}
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5" />
+              Borrower Already Registered
+            </DialogTitle>
+            <DialogDescription>
+              A borrower with this TIN number already exists in the system.
+            </DialogDescription>
+          </DialogHeader>
+          {tinDuplicateWarning && (
+            <Alert className="border-warning/50 bg-warning/10">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <AlertDescription className="ml-2">
+                <div className="space-y-1">
+                  <p><strong>Name:</strong> {tinDuplicateWarning.name}</p>
+                  <p><strong>Type:</strong> {tinDuplicateWarning.type}</p>
+                  <p><strong>TIN:</strong> {clientTin}</p>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          <p className="text-sm text-muted-foreground">
+            You can continue with this application. The existing borrower record will be updated with any new information provided.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowDuplicateDialog(false); setClientTin(""); setTinDuplicateWarning(null) }}>
+              Clear TIN
+            </Button>
+            <Button onClick={() => setShowDuplicateDialog(false)}>
+              Continue Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
