@@ -40,6 +40,7 @@ import {
   GitCompare,
   TrendingUp,
   Shield,
+  BookOpen,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
 import { NotificationsBell } from '@/components/dashboard/notifications-bell'
@@ -72,6 +73,7 @@ const navItems = [
   { titleKey: 'recoveries' as const, href: '/dashboard/recoveries', icon: TrendingUp },
   { titleKey: 'auditTrail' as const, href: '/dashboard/audit', icon: Shield },
   { titleKey: 'settings' as const, href: '/dashboard/settings', icon: Settings },
+  { titleKey: 'manual' as const, href: '/dashboard/manual', icon: BookOpen },
 ]
 
 const languages: { code: Locale; label: string; flag: string }[] = [

@@ -86,6 +86,7 @@ export const translations = {
       reconciliation: 'Reconciliation',
       recoveries: 'Recovery Tracking',
       auditTrail: 'Audit Trail',
+      manual: 'User Manual',
     },
     
     // Guarantee Reports
@@ -518,6 +519,7 @@ export const translations = {
       reconciliation: 'Сверка',
       recoveries: 'Возврат задолженности',
       auditTrail: 'Журнал аудита',
+      manual: 'Руководство',
     },
     
     // Guarantee Reports
@@ -831,7 +833,7 @@ export const translations = {
       newUser: 'Новый пользователь',
       role: 'Роль',
       isActive: 'Активен',
-      lastLogin: 'Последний вход',
+      lastLogin: 'Последний ��ход',
       preferredLanguage: 'Предпочитаемый язык',
     },
     
@@ -950,6 +952,7 @@ export const translations = {
       reconciliation: 'Мутобиқсозӣ',
       recoveries: 'Пайгирии барқарорсозӣ',
       auditTrail: 'Журнали аудит',
+      manual: 'Дастур',
     },
     
     // Guarantee Reports
@@ -1022,7 +1025,7 @@ export const translations = {
       exportReport: 'Содироти ҳисобот',
       rowNumber: '№',
       branchCode: 'Коди филиал',
-      branchName: 'Номи филиал',
+      branchName: '��оми филиал',
       serviceCenterName: 'Маркази хизматрасонӣ',
       serviceCenterCode: 'Коди марказ',
       productCode: 'Коди маҳсулот',
