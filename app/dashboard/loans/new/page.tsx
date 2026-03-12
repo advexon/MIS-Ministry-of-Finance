@@ -39,6 +39,7 @@ export default function NewLoanPage() {
   const [branches, setBranches] = useState<BankBranch[]>([])
   const [sectors, setSectors] = useState<Sector[]>([])
   const [products, setProducts] = useState<LoanProduct[]>([])
+  const [bankOfficers, setBankOfficers] = useState<{ id: string; full_name: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   // Borrower fields
@@ -127,8 +128,11 @@ export default function NewLoanPage() {
     if (!bankId) {
       setBranches([])
       setBranchId("")
+      setBankOfficers([])
+      setLoanOfficer("")
       return
     }
+    // Fetch branches
     supabase
       .from("bank_branches")
       .select("*")
@@ -138,6 +142,24 @@ export default function NewLoanPage() {
       .then(({ data }) => {
         if (data) setBranches(data)
         setBranchId("")
+      })
+    // Fetch bank staff profiles for the officer dropdown
+    supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .eq("bank_id", bankId)
+      .eq("is_active", true)
+      .order("last_name")
+      .then(({ data }) => {
+        if (data) {
+          setBankOfficers(
+            data.map((p) => ({
+              id: p.id,
+              full_name: [p.first_name, p.last_name].filter(Boolean).join(" "),
+            }))
+          )
+        }
+        setLoanOfficer("")
       })
   }, [bankId])
 
@@ -597,7 +619,26 @@ export default function NewLoanPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Loan Officer (at Bank)</Label>
-                  <Input value={loanOfficer} onChange={(e) => setLoanOfficer(e.target.value)} placeholder="Full name of the loan officer" />
+                  {bankOfficers.length > 0 ? (
+                    <Select value={loanOfficer} onValueChange={setLoanOfficer}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select loan officer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankOfficers.map((officer) => (
+                          <SelectItem key={officer.id} value={officer.full_name}>
+                            {officer.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={loanOfficer}
+                      onChange={(e) => setLoanOfficer(e.target.value)}
+                      placeholder={bankId ? "No officers found — type name manually" : "Select a bank first"}
+                    />
+                  )}
                 </div>
                 <Separator />
                 <h4 className="text-sm font-medium">Loan Purpose</h4>
