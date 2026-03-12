@@ -103,7 +103,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
           alt="PRSF Emblem"
           width={32}
           height={32}
-          className="h-8 w-8 object-contain"
+          style={{ width: 'auto', height: 'auto' }}
         />
         <div className="flex flex-col">
           <span className="text-sm font-bold text-white">Credit Guarantee Fund</span>

@@ -108,7 +108,7 @@ export default function LoginPage() {
       {/* Left panel - branding */}
       <div className="hidden flex-col justify-between bg-primary p-10 lg:flex lg:w-[480px]">
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="h-10 w-10 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} style={{ width: 'auto', height: 'auto' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           <div>
             <span className="text-base font-bold text-primary-foreground">Credit Guarantee Fund</span>
             <p className="text-[11px] text-primary-foreground/60">Management Information System</p>
@@ -133,7 +133,7 @@ export default function LoginPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3 lg:hidden">
-            <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+            <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} style={{ width: 'auto', height: 'auto' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
             <span className="text-sm font-bold text-foreground">Credit Guarantee Fund</span>
           </div>
           <div className="ml-auto">

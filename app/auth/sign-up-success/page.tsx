@@ -10,7 +10,7 @@ export default function SignUpSuccessPage() {
       {/* Header */}
       <header className="border-b bg-card px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center gap-3">
-          <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" />
+          <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} style={{ width: 'auto', height: 'auto' }} />
           <div>
             <span className="text-sm font-bold text-foreground">Credit Guarantee Fund</span>
             <p className="text-[10px] text-muted-foreground">Management Information System</p>
