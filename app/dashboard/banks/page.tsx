@@ -80,14 +80,19 @@ export default function BanksPage() {
 
   const handleCreate = async () => {
     if (!form.code || !form.name) {
+      console.log("[v0] Bank form incomplete: code:", form.code, "name:", form.name)
       toast({ title: 'Bank code and name are required', variant: 'destructive' })
       return
     }
     setSaving(true)
+    console.log("[v0] Creating bank with data:", { ...form, is_active: true })
     const { error } = await supabase.from('banks').insert({ ...form, is_active: true })
+    console.log("[v0] Insert response - error:", error)
     if (error) {
+      console.log("[v0] Bank creation failed:", error.message)
       toast({ title: 'Failed to create bank', description: error.message, variant: 'destructive' })
     } else {
+      console.log("[v0] Bank created successfully")
       toast({ title: 'Bank created successfully' })
       setDialogOpen(false)
       setForm({ code: '', name: '', contact_person: '', email: '', phone: '', address: '' })
