@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
@@ -165,7 +165,10 @@ export default function RecoveriesPage() {
               <Button size="sm" className="gap-2"><Plus className="h-4 w-4" />Record Recovery</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>Record Post-Claim Recovery</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>Record Post-Claim Recovery</DialogTitle>
+                <DialogDescription>Enter the details of a recovered amount from a paid claim.</DialogDescription>
+              </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
                   <Label>Related Claim *</Label>

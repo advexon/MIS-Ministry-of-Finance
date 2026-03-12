@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Search, Filter, Eye, Download, RefreshCw, Shield } from 'lucide-react'
 
@@ -276,6 +276,7 @@ export default function AuditTrailPage() {
               </Badge>
               {TABLE_LABELS[selected?.table_name || ''] || selected?.table_name}
             </DialogTitle>
+            <DialogDescription>View details of this audit log entry including old and new data states.</DialogDescription>
           </DialogHeader>
           {selected && (
             <div className="space-y-4 pt-2 text-sm">
