@@ -62,6 +62,7 @@ export default function NewLoanPage() {
   const [bankCustomerCode, setBankCustomerCode] = useState("")
   const [isBlacklisted, setIsBlacklisted] = useState(false)
   const [blacklistReason, setBlacklistReason] = useState("")
+  const [guaranteeType, setGuaranteeType] = useState("individual")
 
   // TIN validation state
   const [tinError, setTinError] = useState<string | null>(null)
@@ -624,23 +625,14 @@ export default function NewLoanPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Loan Product</Label>
-                  <Select value={productId} onValueChange={setProductId}>
-                    <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                    <SelectContent>
-                      {products.map((p) => <SelectItem key={p.id} value={p.id}>{getName(p)} (Max: {p.guarantee_coverage}%)</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <Separator />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Requested Amount *</Label>
+                    <Label>Loan Amount *</Label>
                     <Input type="number" value={requestedAmount} onChange={(e) => setRequestedAmount(e.target.value)} placeholder="500000" required min="0" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Currency *</Label>
+                    <Label>Loan Currency *</Label>
                     <Select value={currency} onValueChange={setCurrency}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -651,23 +643,19 @@ export default function NewLoanPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Loan Term (months) *</Label>
                     <Input type="number" value={loanTerm} onChange={(e) => setLoanTerm(e.target.value)} placeholder="36" required min="1" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Grace Period (months)</Label>
+                    <Label>Loan Grace Period (months)</Label>
                     <Input type="number" value={gracePeriod} onChange={(e) => setGracePeriod(e.target.value)} placeholder="6" min="0" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Interest Rate (%)</Label>
-                    <Input type="number" step="0.1" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} placeholder="18.5" />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Repayment Frequency</Label>
+                    <Label>Loan Repayment Frequency</Label>
                     <Select value={frequency} onValueChange={setFrequency}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -687,14 +675,26 @@ export default function NewLoanPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Guarantee Coverage (%) *</Label>
-                  <Input type="number" value={guaranteeCoverage} onChange={(e) => setGuaranteeCoverage(e.target.value)} placeholder="50" min="0" max="100" required />
-                  {requestedAmount && guaranteeCoverage && (
-                    <p className="text-xs text-muted-foreground">
-                      Guarantee amount: {new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(parseFloat(requestedAmount) * parseFloat(guaranteeCoverage) / 100)}
-                    </p>
-                  )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Guarantee Coverage (%) *</Label>
+                    <Input type="number" value={guaranteeCoverage} onChange={(e) => setGuaranteeCoverage(e.target.value)} placeholder="50" min="0" max="100" required />
+                    {requestedAmount && guaranteeCoverage && (
+                      <p className="text-xs text-muted-foreground">
+                        Guarantee amount: {new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(parseFloat(requestedAmount) * parseFloat(guaranteeCoverage) / 100)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Guarantee Product *</Label>
+                    <Select value={guaranteeType} onValueChange={setGuaranteeType} required>
+                      <SelectTrigger><SelectValue placeholder="Select guarantee type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual Guarantee</SelectItem>
+                        <SelectItem value="blanket">Blanket Guarantee</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <Separator />
                 <h4 className="text-sm font-medium">Dates</h4>
