@@ -406,9 +406,9 @@ export default function DashboardPage() {
           <CardContent className="flex items-center justify-between p-4">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Guarantee Reports</p>
-              <p className="mt-1 text-2xl font-bold text-foreground">
+              <div className="mt-1 text-2xl font-bold text-foreground">
                 {loading ? <Skeleton className="h-7 w-8" /> : '—'}
-              </p>
+              </div>
             </div>
             <Button asChild size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
               <Link href="/dashboard/guarantee-reports">{t.common.view}</Link>
@@ -422,9 +422,9 @@ export default function DashboardPage() {
               <p className="text-xs font-medium text-muted-foreground">
                 {t.dashboard.pendingApplications}
               </p>
-              <p className="mt-1 text-2xl font-bold text-foreground">
+              <div className="mt-1 text-2xl font-bold text-foreground">
                 {loading ? <Skeleton className="h-7 w-8" /> : (stats?.pendingApplications ?? 0)}
-              </p>
+              </div>
             </div>
             <Button
               asChild
@@ -442,9 +442,9 @@ export default function DashboardPage() {
               <p className="text-xs font-medium text-muted-foreground">
                 {t.dashboard.pendingClaims}
               </p>
-              <p className="mt-1 text-2xl font-bold text-foreground">
+              <div className="mt-1 text-2xl font-bold text-foreground">
                 {loading ? <Skeleton className="h-7 w-8" /> : (stats?.pendingClaims ?? 0)}
-              </p>
+              </div>
             </div>
             <Button asChild size="sm" variant="destructive">
               <Link href="/dashboard/claims?status=pending">{t.common.view}</Link>
@@ -456,9 +456,9 @@ export default function DashboardPage() {
           <CardContent className="flex items-center justify-between p-4">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Avg. Processing Time</p>
-              <p className="mt-1 text-2xl font-bold text-foreground">
+              <div className="mt-1 text-2xl font-bold text-foreground">
                 {loading ? <Skeleton className="h-7 w-12" /> : `${stats?.avgProcessingDays ?? 0} days`}
-              </p>
+              </div>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/10">
               <Clock className="h-5 w-5 text-info" />
