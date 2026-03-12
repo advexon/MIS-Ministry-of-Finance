@@ -495,8 +495,8 @@ export default function NewLoanPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Number of Employees</Label>
-                    <Input type="number" value={workforce} onChange={(e) => setWorkforce(e.target.value)} placeholder="10" min="0" />
+                    <Label>Number of Employees *</Label>
+                    <Input type="number" value={workforce} onChange={(e) => setWorkforce(e.target.value)} placeholder="10" min="1" required />
                   </div>
                 </div>
                 <div className="space-y-2">
