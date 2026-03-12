@@ -548,9 +548,9 @@ export default function NewLoanPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Gender</Label>
-                    <Select value={legalRepGender} onValueChange={setLegalRepGender}>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <Label>Gender *</Label>
+                    <Select value={legalRepGender} onValueChange={setLegalRepGender} required>
+                      <SelectTrigger className={!legalRepGender ? "border-destructive" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="male">Male</SelectItem>
                         <SelectItem value="female">Female</SelectItem>
@@ -568,7 +568,7 @@ export default function NewLoanPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>TIN Number</Label>
+                    <Label>TIN Number *</Label>
                     <Input 
                       value={legalRepTin} 
                       onChange={(e) => {
@@ -579,6 +579,7 @@ export default function NewLoanPage() {
                       maxLength={9}
                       inputMode="numeric"
                       pattern="[0-9]{9}"
+                      required
                     />
                     <p className="text-[10px] text-muted-foreground">9 digits only</p>
                   </div>
