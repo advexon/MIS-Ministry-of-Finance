@@ -308,6 +308,9 @@ export default function NewLoanPage() {
         sector_id: sectorId || null,
       }
 
+      console.log("[v0] Loan application data being submitted:", appData)
+      console.log("[v0] Checking required fields - bank_id:", bankId, "borrower_id:", borrower?.id)
+
       const { data: loanApp, error: loanError } = await supabase
         .from("loan_applications")
         .insert(appData)
@@ -332,7 +335,10 @@ export default function NewLoanPage() {
       setSuccess(true)
       setTimeout(() => router.push("/dashboard/loans"), 1500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit application")
+      console.log("[v0] Full error:", err)
+      const errorMsg = err instanceof Error ? err.message : JSON.stringify(err)
+      console.log("[v0] Error details:", errorMsg)
+      setError(errorMsg)
       setIsSubmitting(false)
     }
   }
