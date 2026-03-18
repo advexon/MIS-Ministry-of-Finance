@@ -330,7 +330,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     setSaving(false)
   }
 
-  // ── Action handlers ────────────────────────────────────────────────────────
+  // ── Action handlers ───────────────────────────���────────────────────────────
   const handleSubmit = () => transition("submitted")
 
   const handleMarkReceived = () => transition("under_review")
@@ -344,11 +344,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   })
 
   const handleReject = () => transition("rejected", { notes: reason })
-
-  const handleIssueGuarantee = () => transition("guarantee_issued", {
-    guarantee_issued_date: dateField,
-    notes,
-  })
 
   const handleCancel = () => transition("cancelled", { cancellation_reason: reason })
 
