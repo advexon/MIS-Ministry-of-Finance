@@ -214,7 +214,6 @@ export interface LoanApplication {
   new_maturity_date: string | null
   reschedule_approved_by: string | null
   guarantee_issued_date: string | null
-  guarantee_number: string | null
   cancellation_reason: string | null
   settlement_date: string | null
   settlement_amount: number | null
