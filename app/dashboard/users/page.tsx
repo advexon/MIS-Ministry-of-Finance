@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useI18n } from "@/lib/i18n/context"
+import { usePermissions, CanAccess } from "@/lib/contexts/permission-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -55,6 +56,7 @@ import {
   UserX,
   CheckCircle2,
   AlertCircle,
+  Lock,
 } from "lucide-react"
 import type { Profile, Role, Bank, BankBranch } from "@/lib/types/database"
 
@@ -74,6 +76,26 @@ const roleColors: Record<string, string> = {
 
 export default function UsersPage() {
   const { t, locale } = useI18n()
+  const permissions = usePermissions()
+
+  // Permission check: only admin can access users page
+  if (!permissions.can('users', 'view')) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <Lock className="h-12 w-12 text-destructive" />
+              <h3 className="font-semibold text-destructive">Access Denied</h3>
+              <p className="text-sm text-muted-foreground">
+                You don't have permission to access the users management page.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const [users, setUsers] = useState<UserWithRelations[]>([])
   const [roles, setRoles] = useState<Role[]>([])
