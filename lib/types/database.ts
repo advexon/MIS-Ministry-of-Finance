@@ -89,8 +89,38 @@ export interface Role {
   name_ru: string | null
   name_tj: string | null
   permissions: string[]
+  tier: number  // 1=Superadmin (highest), incrementing for lower authority
+  description: string | null
+  is_active: boolean
+  max_loan_approval_amount: number | null
+  can_approve_any_amount: boolean
   created_at: string
 }
+
+export interface RolePermission {
+  id: string
+  code: string
+  name_en: string
+  name_ru: string | null
+  name_tj: string | null
+  description: string | null
+  category: 'system' | 'users' | 'loans' | 'claims' | 'fees' | 'reports'
+  created_at: string
+}
+
+// Role tier constants for easy reference
+export const ROLE_TIERS = {
+  SUPERADMIN: 1,
+  DIRECTOR: 2,
+  MANAGER: 3,
+  ANALYST: 4,
+  AUDITOR: 5,
+  BANK_MANAGER: 6,
+  BANK_EMPLOYEE: 7,
+  VIEWER: 8,
+} as const
+
+export type RoleTier = typeof ROLE_TIERS[keyof typeof ROLE_TIERS]
 
 export interface Profile {
   id: string
