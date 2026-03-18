@@ -108,19 +108,27 @@ export interface RolePermission {
   created_at: string
 }
 
-// Role tier constants for easy reference
+// Role tier constants for easy reference (lower tier = higher authority)
 export const ROLE_TIERS = {
-  SUPERADMIN: 1,
-  DIRECTOR: 2,
-  MANAGER: 3,
-  ANALYST: 4,
-  AUDITOR: 5,
-  BANK_MANAGER: 6,
-  BANK_EMPLOYEE: 7,
-  VIEWER: 8,
+  SUPER_ADMIN: 1,    // Full system access
+  PRSF_ADMIN: 2,     // PRSF management
+  PRSF_ANALYST: 4,   // Loan analysis
+  AUDITOR: 5,        // Read-only compliance
+  BANK_ADMIN: 6,     // Bank management
+  BANK_OFFICER: 7,   // Loan submissions
+} as const
+
+export const ROLE_CODES = {
+  SUPER_ADMIN: 'super_admin',
+  PRSF_ADMIN: 'prsf_admin',
+  PRSF_ANALYST: 'prsf_analyst',
+  AUDITOR: 'auditor',
+  BANK_ADMIN: 'bank_admin',
+  BANK_OFFICER: 'bank_officer',
 } as const
 
 export type RoleTier = typeof ROLE_TIERS[keyof typeof ROLE_TIERS]
+export type RoleCode = typeof ROLE_CODES[keyof typeof ROLE_CODES]
 
 export interface Profile {
   id: string

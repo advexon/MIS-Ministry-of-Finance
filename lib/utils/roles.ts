@@ -1,18 +1,16 @@
-import type { Role, RoleTier } from '@/lib/types/database'
-import { ROLE_TIERS } from '@/lib/types/database'
+import type { Role, RoleTier, RoleCode } from '@/lib/types/database'
+import { ROLE_TIERS, ROLE_CODES } from '@/lib/types/database'
 
 /**
  * Role Tier System
  * 
  * Tier levels (lower number = higher authority):
- * - Tier 1: Superadmin - Full system control, can manage everything
- * - Tier 2: PRSF Director - Executive oversight, unlimited loan approval
- * - Tier 3: PRSF Manager/Accountant - Operational management, high-value approvals
- * - Tier 4: PRSF Analyst/Reporter - Operational staff, limited approvals
+ * - Tier 1: Super Admin - Full system control, can manage everything
+ * - Tier 2: PRSF Admin - PRSF management, unlimited loan approval
+ * - Tier 4: PRSF Analyst - Loan analysis, up to 100,000 TJS approval
  * - Tier 5: Auditor - External oversight, read-only
- * - Tier 6: Bank Manager - Bank-level management
- * - Tier 7: Bank Employee - Bank-level operations
- * - Tier 8: Viewer - Read-only access
+ * - Tier 6: Bank Admin - Bank-level management, up to 500,000 TJS
+ * - Tier 7: Bank Officer - Bank-level operations, loan submissions only
  */
 
 /**
@@ -37,10 +35,9 @@ export function canApproveLoanAmount(role: Role, amount: number): boolean {
  */
 export function getRequiredTierForAmount(amount: number): RoleTier {
   // Thresholds in TJS (Tajikistani Somoni)
-  if (amount > 1000000) return ROLE_TIERS.DIRECTOR  // >1M requires Director
-  if (amount > 500000) return ROLE_TIERS.MANAGER    // >500K requires Manager
-  if (amount > 100000) return ROLE_TIERS.ANALYST    // >100K requires Analyst
-  return ROLE_TIERS.BANK_MANAGER                     // ≤100K can be handled by Bank Manager
+  if (amount > 500000) return ROLE_TIERS.PRSF_ADMIN   // >500K requires PRSF Admin
+  if (amount > 100000) return ROLE_TIERS.PRSF_ANALYST // >100K requires PRSF Analyst
+  return ROLE_TIERS.BANK_ADMIN                         // ≤100K can be handled by Bank Admin
 }
 
 /**
@@ -78,21 +75,21 @@ export function isPRSFStaff(role: Role): boolean {
  * Check if a user is a bank staff member (external)
  */
 export function isBankStaff(role: Role): boolean {
-  return role.code.startsWith('bank_') || role.tier >= ROLE_TIERS.BANK_MANAGER
+  return role.code.startsWith('bank_') || role.tier >= ROLE_TIERS.BANK_ADMIN
 }
 
 /**
  * Check if a user is an admin (tier 1-2)
  */
 export function isAdmin(role: Role): boolean {
-  return role.tier <= ROLE_TIERS.DIRECTOR
+  return role.tier <= ROLE_TIERS.PRSF_ADMIN
 }
 
 /**
  * Check if a user is a superadmin (tier 1)
  */
 export function isSuperAdmin(role: Role): boolean {
-  return role.tier === ROLE_TIERS.SUPERADMIN
+  return role.tier === ROLE_TIERS.SUPER_ADMIN
 }
 
 /**
@@ -149,16 +146,12 @@ export function getLoanWorkflowStage(amount: number): 'standard' | 'committee' |
  * Role code to tier mapping
  */
 export const ROLE_CODE_TIERS: Record<string, number> = {
-  superadmin: 1,
-  admin: 1,
-  prsf_director: 2,
-  prsf_accountant: 3,
-  prsf_analyst: 4,
-  prsf_reporter: 4,
-  auditor: 5,
-  bank_manager: 6,
-  bank_employee: 7,
-  viewer: 8,
+  [ROLE_CODES.SUPER_ADMIN]: 1,
+  [ROLE_CODES.PRSF_ADMIN]: 2,
+  [ROLE_CODES.PRSF_ANALYST]: 4,
+  [ROLE_CODES.AUDITOR]: 5,
+  [ROLE_CODES.BANK_ADMIN]: 6,
+  [ROLE_CODES.BANK_OFFICER]: 7,
 }
 
 /**
