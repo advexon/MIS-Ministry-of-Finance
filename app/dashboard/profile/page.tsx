@@ -66,8 +66,7 @@ export default function ProfilePage() {
         .select(`
           *,
           role:roles(*),
-          bank:banks(*),
-          branch:bank_branches(*)
+          bank:banks(*)
         `)
         .eq("id", user.id)
         .single()
