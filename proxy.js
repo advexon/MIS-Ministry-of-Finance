@@ -1,6 +1,6 @@
-import { type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function middleware(request) {
   // Dynamically import to avoid loading @supabase/ssr for excluded routes
   const { updateSession } = await import('@/lib/supabase/proxy')
   return await updateSession(request)
