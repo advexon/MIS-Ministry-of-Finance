@@ -26,7 +26,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="PRSF" width={36} height={36} className="h-9 w-9 object-contain" priority />
+            <Image src="/logo.png" alt="PRSF" width={36} height={36} className="h-9 w-9 object-contain" priority loading="eager" />
             <span className="text-lg font-semibold tracking-tight">Credit Guarantee Fund</span>
           </Link>
           <div className="flex items-center gap-3">
