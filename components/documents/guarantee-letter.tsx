@@ -25,6 +25,7 @@ interface GuaranteeLetterProps {
   validUntil?: string
   approvedBy?: string
   className?: string
+  isDraft?: boolean
 }
 
 const formatCurrency = (amount: number | null | undefined, currency = 'TJS') => {
@@ -60,7 +61,7 @@ const numberToWords = (num: number): string => {
 }
 
 export const GuaranteeLetter = forwardRef<HTMLDivElement, GuaranteeLetterProps>(
-  ({ loan, guaranteeNumber, issueDate, validUntil, approvedBy, className }, ref) => {
+  ({ loan, guaranteeNumber, issueDate, validUntil, approvedBy, className, isDraft = false }, ref) => {
     const today = new Date()
     const effectiveIssueDate = issueDate || loan.guarantee_issued_date || today.toISOString()
     const effectiveGuaranteeNumber = guaranteeNumber || loan.guarantee_number || `GF-${today.getFullYear()}-${String(loan.id).slice(-6).toUpperCase()}`
@@ -75,7 +76,7 @@ export const GuaranteeLetter = forwardRef<HTMLDivElement, GuaranteeLetterProps>(
     return (
       <div
         ref={ref}
-        className={`bg-white text-black print:text-black ${className || ''}`}
+        className={`bg-white text-black print:text-black relative ${className || ''}`}
         style={{
           width: '210mm',
           minHeight: '297mm',
@@ -85,6 +86,25 @@ export const GuaranteeLetter = forwardRef<HTMLDivElement, GuaranteeLetterProps>(
           lineHeight: '1.6',
         }}
       >
+        {/* Draft Watermark */}
+        {isDraft && (
+          <div 
+            className="absolute inset-0 flex items-center justify-center pointer-events-none print:hidden"
+            style={{ zIndex: 10 }}
+          >
+            <span 
+              className="text-red-200 font-bold uppercase tracking-widest select-none"
+              style={{ 
+                fontSize: '120px', 
+                transform: 'rotate(-30deg)',
+                opacity: 0.3 
+              }}
+            >
+              DRAFT
+            </span>
+          </div>
+        )}
+
         {/* Header with Logo */}
         <div className="flex items-start justify-between border-b-2 border-gray-800 pb-4 mb-6">
           <div className="flex items-center gap-4">

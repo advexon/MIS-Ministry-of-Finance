@@ -255,6 +255,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const [saving, setSaving] = useState(false)
   const [showGuaranteePreview, setShowGuaranteePreview] = useState(false)
   const [downloadingPDF, setDownloadingPDF] = useState(false)
+  const [showIssueGuaranteeDialog, setShowIssueGuaranteeDialog] = useState(false)
+  const [issuingGuarantee, setIssuingGuarantee] = useState(false)
 
   // Form fields (shared across dialogs)
   const [notes, setNotes]             = useState("")
@@ -272,7 +274,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   const fmt = (v: number | null | undefined, ccy = "TJS") =>
-    v == null ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: ccy, minimumFractionDigits: 0 }).format(v)
+    v == null ? "���" : new Intl.NumberFormat("en-US", { style: "currency", currency: ccy, minimumFractionDigits: 0 }).format(v)
 
   const fmtDate = (d: string | null | undefined) =>
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"
@@ -431,6 +433,39 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const handleDeclineExtension = () => transition("cancelled", {
     cancellation_reason: reason || "Extension request declined",
   })
+
+  // ── Issue Guarantee Letter ────────────────────────────────────────────────
+  const handleIssueGuarantee = async () => {
+    if (!loan) return
+    setIssuingGuarantee(true)
+    try {
+      const response = await fetch(`/api/loans/${loan.id}/generate-guarantee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to issue guarantee')
+      }
+
+      showToast(data.already_exists 
+        ? 'Guarantee letter already exists' 
+        : 'Letter of Guarantee issued successfully!')
+      
+      setShowIssueGuaranteeDialog(false)
+      await fetchLoan() // Refresh loan data
+      
+      // Show the preview after issuing
+      if (!data.already_exists) {
+        setShowGuaranteePreview(true)
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Failed to issue guarantee', 'error')
+    } finally {
+      setIssuingGuarantee(false)
+    }
+  }
 
   // ── Letter of Guarantee Functions ─────────────────────────────────────────
   const handleDownloadPDF = async () => {
@@ -866,17 +901,63 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* Issue Guarantee — Step 6B */}
       <Dialog open={dialog === "issue_guarantee"} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Step 6 · Issue Letter of Guarantee</DialogTitle><DialogDescription>Issue the formal PRSF guarantee. A printable Letter of Guarantee will be available after this step.</DialogDescription></DialogHeader>
-          <div className="space-y-3">
-            <div><Label className="text-xs">Guarantee Issue Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Notes</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1" /></div>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-teal-600" />
+              Step 6 · Issue Letter of Guarantee
+            </DialogTitle>
+            <DialogDescription>
+              Issue the formal PRSF guarantee. You can preview the letter before issuing.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            {/* Guarantee Summary */}
+            <div className="rounded-lg border bg-teal-50/50 p-4 space-y-2">
+              <h4 className="font-medium text-sm text-teal-800">Guarantee Summary</h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Borrower:</span>
+                <span className="font-medium">{(loan.borrower as any)?.name || "—"}</span>
+                <span className="text-muted-foreground">Approved Amount:</span>
+                <span className="font-medium">{fmt(loan.approved_amount, loan.currency)}</span>
+                <span className="text-muted-foreground">Guarantee Coverage:</span>
+                <span className="font-medium">{loan.guarantee_coverage || 50}%</span>
+                <span className="text-muted-foreground">Guarantee Amount:</span>
+                <span className="font-medium text-teal-700">{fmt(loan.guarantee_amount, loan.currency)}</span>
+                <span className="text-muted-foreground">Valid Until:</span>
+                <span className="font-medium">{fmtDate(loan.maturity_date)} + 3 months</span>
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Guarantee Issue Date</Label>
+                <Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Notes (optional)</Label>
+                <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" placeholder="Add any internal notes..." />
+              </div>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button className="bg-teal-600 hover:bg-teal-700 text-white" onClick={handleIssueGuarantee} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Issue Guarantee
+          
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              className="gap-2 border-teal-200 text-teal-700 hover:bg-teal-50"
+              onClick={() => { setDialog(null); setShowGuaranteePreview(true) }}
+            >
+              <Eye className="h-4 w-4" />Preview Letter
             </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+              <Button className="gap-2 bg-teal-600 hover:bg-teal-700 text-white" onClick={handleIssueGuarantee} disabled={issuingGuarantee}>
+                {issuingGuarantee && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Shield className="h-4 w-4" />Issue Guarantee
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1094,19 +1175,39 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileCheck className="h-5 w-5 text-teal-600" />
-              Letter of Guarantee Preview
+              Letter of Guarantee {loan.guarantee_number ? '' : '(Preview)'}
             </DialogTitle>
             <DialogDescription>
-              Preview, print, or download the Letter of Guarantee as PDF.
+              {loan.guarantee_number 
+                ? `Guarantee Number: ${loan.guarantee_number} · Issued: ${fmtDate(loan.guarantee_issued_date)}`
+                : 'Preview the Letter of Guarantee before issuing. This is a draft preview.'}
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Status Banner */}
+          {!loan.guarantee_number && loan.status === 'approved' && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-amber-800">
+                <AlertTriangle className="h-4 w-4" />
+                <span>This guarantee has not been issued yet. This is a preview only.</span>
+              </div>
+              <Button 
+                size="sm" 
+                className="gap-2 bg-teal-600 hover:bg-teal-700 text-white"
+                onClick={() => { setShowGuaranteePreview(false); setDialog('issue_guarantee') }}
+              >
+                <Shield className="h-4 w-4" />Issue Now
+              </Button>
+            </div>
+          )}
           
           {/* Action Buttons */}
           <div className="flex items-center gap-3 border-b pb-4 flex-shrink-0">
             <Button
               onClick={handleDownloadPDF}
-              disabled={downloadingPDF}
+              disabled={downloadingPDF || !loan.guarantee_number}
               className="gap-2 bg-teal-600 hover:bg-teal-700 text-white"
+              title={!loan.guarantee_number ? 'Issue the guarantee first to download' : ''}
             >
               {downloadingPDF ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1115,10 +1216,21 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               )}
               Download PDF
             </Button>
-            <Button variant="outline" onClick={handlePrintGuarantee} className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handlePrintGuarantee} 
+              className="gap-2"
+              disabled={!loan.guarantee_number}
+              title={!loan.guarantee_number ? 'Issue the guarantee first to print' : ''}
+            >
               <Printer className="h-4 w-4" />
               Print
             </Button>
+            {loan.guarantee_number && (
+              <div className="ml-auto text-xs text-muted-foreground">
+                Valid until: {fmtDate(loan.maturity_date)}
+              </div>
+            )}
           </div>
 
           {/* Preview Area with Scroll */}
@@ -1132,9 +1244,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                   bank: loan.bank as any,
                   branch: loan.branch as any,
                 }}
-                guaranteeNumber={loan.guarantee_number || `GF-${new Date().getFullYear()}-${(loan.loan_number || loan.id.slice(0, 8)).toUpperCase()}`}
-                issueDate={loan.guarantee_issued_date || loan.loan_approval_date || undefined}
+                guaranteeNumber={loan.guarantee_number || `DRAFT-${loan.loan_number || loan.id.slice(0, 8)}`}
+                issueDate={loan.guarantee_issued_date || undefined}
                 validUntil={loan.maturity_date || undefined}
+                isDraft={!loan.guarantee_number}
               />
             </div>
           </div>
