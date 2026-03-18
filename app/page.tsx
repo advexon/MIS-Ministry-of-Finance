@@ -26,7 +26,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="PRSF" width={36} height={36} style={{ width: 'auto', height: 'auto' }} />
+            <Image src="/logo.png" alt="PRSF" width={36} height={36} className="h-9 w-9 object-contain" priority />
             <span className="text-lg font-semibold tracking-tight">Credit Guarantee Fund</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -133,7 +133,7 @@ export default function LandingPage() {
       <footer className="border-t border-border bg-background">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
           <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="PRSF" width={24} height={24} style={{ width: 'auto', height: 'auto' }} />
+            <Image src="/logo.png" alt="PRSF" width={24} height={24} className="h-6 w-6 object-contain" />
             <span className="text-sm font-medium">Credit Guarantee Fund MIS</span>
           </div>
           <p className="text-xs text-muted-foreground">
