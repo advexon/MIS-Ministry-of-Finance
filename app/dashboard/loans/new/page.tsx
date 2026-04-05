@@ -541,6 +541,7 @@ export default function NewLoanPage() {
       const loanRequestId = `LR-${year}-${randomSuffix}`
 
       // 4. Create loan application
+      // Column names must match actual database schema (see lib/types/database.ts LoanApplication interface)
       const appData = {
         bank_id: bankId,
         branch_id: branchId || null,
@@ -548,12 +549,14 @@ export default function NewLoanPage() {
         borrower_id: borrower.id,
         product_id: productId || null,
         purpose: purpose || null,
-        requested_amount: reqAmount,
+        // Note: requested_amount doesn't exist in DB - use approved_amount for initial value
         approved_amount: reqAmount || null,
         currency,
+        // Note: DB column is 'duration_months' not 'loan_term_months'
         duration_months: parseInt(loanTerm) || null,
         grace_period_months: parseInt(gracePeriod) || 0,
         interest_rate: interestRate ? parseFloat(interestRate) : null,
+        // Note: DB column is 'frequency' not 'repayment_frequency'
         frequency: frequency,
         guarantee_coverage: coverage,
         guarantee_amount: guaranteeAmount,

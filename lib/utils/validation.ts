@@ -56,8 +56,10 @@ export function validateLoan(loan: any, reportType: 'blank_guarantee' | 'disburs
     errors.push({ field: 'guarantee_coverage', message: 'Guarantee coverage must be between 0 and 100' })
   }
 
-  if (loan.loan_term_months && loan.loan_term_months <= 0) {
-    errors.push({ field: 'loan_term_months', message: 'Loan term must be greater than 0' })
+  // Support both column names: duration_months (loan_applications) and loan_term_months (guarantee_reports)
+  const termMonths = loan.duration_months || loan.loan_term_months
+  if (termMonths && termMonths <= 0) {
+    errors.push({ field: 'duration_months', message: 'Loan term must be greater than 0' })
   }
 
   // Validate outstanding amounts don't exceed disbursed amount
