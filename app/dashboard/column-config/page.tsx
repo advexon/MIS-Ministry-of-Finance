@@ -64,7 +64,7 @@ const defaultColumns: Partial<ColumnConfiguration>[] = [
   { column_key: "purpose", display_name_en: "Loan Purpose", display_name_ru: "Цель кредита", display_name_tj: "Мақсади қарз", field_group: "loan", is_visible_in_table: true, is_visible_in_form: true, is_required: true, is_system_required: false, input_type: "textarea", display_order: 23, table_column_order: 5 },
   { column_key: "requested_amount", display_name_en: "Requested Amount", display_name_ru: "Запрашиваемая сумма", display_name_tj: "Маблағи дархостшуда", field_group: "loan", is_visible_in_table: true, is_visible_in_form: true, is_required: true, is_system_required: true, input_type: "currency", display_order: 24, table_column_order: 6 },
   { column_key: "currency", display_name_en: "Currency", display_name_ru: "Валюта", display_name_tj: "Асъор", field_group: "loan", is_visible_in_table: true, is_visible_in_form: true, is_required: true, is_system_required: true, input_type: "select", display_order: 25, table_column_order: 7 },
-  { column_key: "loan_term_months", display_name_en: "Loan Term (months)", display_name_ru: "Срок кредита (месяцев)", display_name_tj: "Мӯҳлати қарз (моҳ)", field_group: "loan", is_visible_in_table: true, is_visible_in_form: true, is_required: true, is_system_required: false, input_type: "number", display_order: 26, table_column_order: 8 },
+  { column_key: "loan_term_months", display_name_en: "Loan Term (months)", display_name_ru: "Срок ��редита (месяцев)", display_name_tj: "Мӯҳлати қарз (моҳ)", field_group: "loan", is_visible_in_table: true, is_visible_in_form: true, is_required: true, is_system_required: false, input_type: "number", display_order: 26, table_column_order: 8 },
   { column_key: "interest_rate", display_name_en: "Interest Rate (%)", display_name_ru: "Процентная ставка (%)", display_name_tj: "Фоизи қарз (%)", field_group: "loan", is_visible_in_table: true, is_visible_in_form: true, is_required: true, is_system_required: false, input_type: "number", display_order: 27, table_column_order: 9 },
   // Guarantee Details
   { column_key: "guarantee_coverage", display_name_en: "Guarantee Coverage (%)", display_name_ru: "Покрытие гарантии (%)", display_name_tj: "Ҳаҷми кафолат (%)", field_group: "guarantee", is_visible_in_table: true, is_visible_in_form: true, is_required: true, is_system_required: true, input_type: "number", display_order: 40, table_column_order: 10 },
@@ -81,7 +81,7 @@ const defaultColumns: Partial<ColumnConfiguration>[] = [
 
 export default function ColumnConfigPage() {
   const { t, locale } = useI18n()
-  const { role } = usePermissions()
+  const { role, can } = usePermissions()
   const supabase = useMemo(() => createClient(), [])
 
   const [columns, setColumns] = useState<Partial<ColumnConfiguration>[]>([])
@@ -96,8 +96,8 @@ export default function ColumnConfigPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Check if user is superadmin (tier 1)
-  const isSuperAdmin = role?.tier === 1
+  // Check if user is superadmin (tier 1 OR has admin role) - tier 1 takes precedence
+  const isSuperAdmin = role?.tier === 1 || role?.name_en?.toLowerCase().includes('admin')
 
   const getDisplayName = useCallback((col: Partial<ColumnConfiguration>) => {
     if (locale === "ru" && col.display_name_ru) return col.display_name_ru
@@ -263,7 +263,7 @@ export default function ColumnConfigPage() {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            You do not have permission to access this page. Only Superadmins can configure column settings.
+            You do not have permission to access this page. Column Settings is only available for administrators.
           </AlertDescription>
         </Alert>
       </div>
@@ -359,7 +359,7 @@ export default function ColumnConfigPage() {
 
           {/* Column Groups */}
           <Accordion type="multiple" defaultValue={["borrower", "loan", "guarantee"]} className="space-y-3">
-            {(Object.entries(fieldGroups) as [ColumnFieldGroup, typeof fieldGroups[ColumnFieldGroup]][]).map(([groupKey, group]) => {
+            {(Object.entries(fieldGroups) as Array<[ColumnFieldGroup, any]>).map(([groupKey, group]) => {
               const groupCols = groupedColumns[groupKey]
               if (groupCols.length === 0) return null
 
