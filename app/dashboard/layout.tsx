@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { DashboardShell } from '@/components/dashboard/dashboard-shell'
 import { I18nProvider } from '@/lib/i18n/context'
 import { PermissionProvider } from '@/lib/contexts/permission-context'
+import { ColumnConfigProvider } from '@/lib/contexts/column-config-context'
 
 export default async function DashboardLayout({
   children,
@@ -28,9 +29,11 @@ export default async function DashboardLayout({
   return (
     <I18nProvider>
       <PermissionProvider user={user} role={profile?.role || null}>
-        <DashboardShell user={user}>
-          {children}
-        </DashboardShell>
+        <ColumnConfigProvider>
+          <DashboardShell user={user}>
+            {children}
+          </DashboardShell>
+        </ColumnConfigProvider>
       </PermissionProvider>
     </I18nProvider>
   )

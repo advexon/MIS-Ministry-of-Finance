@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, FileText, Download, Loader2, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import type { LoanApplication, Bank, Sector } from "@/lib/types/database"
+import { useColumnConfig } from "@/lib/contexts/column-config-context"
 
 const statusStyles: Record<string, string> = {
   draft:              "bg-gray-100 text-gray-800",
@@ -59,6 +60,7 @@ const PAGE_SIZE = 15
 export default function LoansPage() {
   const { t, locale } = useI18n()
   const supabase = useMemo(() => createClient(), [])
+  const { isColumnVisible, getDisplayName } = useColumnConfig()
 
   const [loans, setLoans] = useState<LoanApplication[]>([])
   const [banks, setBanks] = useState<Bank[]>([])
@@ -206,25 +208,37 @@ export default function LoansPage() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="font-semibold">Application #</TableHead>
-                  <TableHead className="font-semibold">Borrower</TableHead>
-                  <TableHead className="font-semibold">Bank</TableHead>
-                  <TableHead className="text-right font-semibold">Amount</TableHead>
-                  <TableHead className="font-semibold">Date</TableHead>
-                  <TableHead className="text-right font-semibold">Coverage</TableHead>
-                  <TableHead className="font-semibold">Status</TableHead>
+                  {isColumnVisible("borrower_name", "table") && (
+                    <TableHead className="font-semibold">{getDisplayName("borrower_name", locale)}</TableHead>
+                  )}
+                  {isColumnVisible("bank_id", "table") && (
+                    <TableHead className="font-semibold">{getDisplayName("bank_id", locale)}</TableHead>
+                  )}
+                  {isColumnVisible("requested_amount", "table") && (
+                    <TableHead className="text-right font-semibold">{getDisplayName("requested_amount", locale)}</TableHead>
+                  )}
+                  {isColumnVisible("created_at", "table") && (
+                    <TableHead className="font-semibold">{getDisplayName("created_at", locale)}</TableHead>
+                  )}
+                  {isColumnVisible("guarantee_coverage", "table") && (
+                    <TableHead className="text-right font-semibold">{getDisplayName("guarantee_coverage", locale)}</TableHead>
+                  )}
+                  {isColumnVisible("status", "table") && (
+                    <TableHead className="font-semibold">{getDisplayName("status", locale)}</TableHead>
+                  )}
                   <TableHead className="text-right font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center">
+                    <TableCell colSpan={99} className="py-12 text-center">
                       <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : loans.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center">
+                    <TableCell colSpan={99} className="py-12 text-center">
                       <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
                       <p className="text-muted-foreground">No loan applications found</p>
                       <Button asChild variant="outline" size="sm" className="mt-3">
@@ -236,31 +250,43 @@ export default function LoansPage() {
                   loans.map((loan) => (
                     <TableRow key={loan.id} className="hover:bg-muted/30">
                       <TableCell>
-                  <Link href={`/dashboard/loans/${loan.id}`} className="font-medium text-primary hover:underline">
-                    {loan.loan_number || loan.id.slice(0, 8)}
-                  </Link>
+                        <Link href={`/dashboard/loans/${loan.id}`} className="font-medium text-primary hover:underline">
+                          {loan.loan_number || loan.id.slice(0, 8)}
+                        </Link>
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium text-sm">{getBorrowerName(loan)}</p>
-                          <p className="text-xs text-muted-foreground">TIN: {loan.borrower?.tin_number || "—"}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm">{loan.bank ? getName(loan.bank) : "—"}</p>
-                        <p className="text-xs text-muted-foreground">{loan.branch?.name_en || ""}</p>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(loan.approved_amount, loan.currency)}
-                        <p className="text-xs text-muted-foreground">{loan.currency}</p>
-                      </TableCell>
-                      <TableCell className="text-sm">{loan.created_at ? new Date(loan.created_at).toLocaleDateString() : "—"}</TableCell>
-                      <TableCell className="text-right text-sm">{loan.guarantee_coverage ? `${loan.guarantee_coverage}%` : "—"}</TableCell>
-                      <TableCell>
-<Badge className={statusStyles[loan.status] || "bg-gray-100 text-gray-800"} variant="secondary">
-{statusLabels[loan.status] ?? loan.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </Badge>
-                      </TableCell>
+                      {isColumnVisible("borrower_name", "table") && (
+                        <TableCell>
+                          <div>
+                            <p className="font-medium text-sm">{getBorrowerName(loan)}</p>
+                            <p className="text-xs text-muted-foreground">TIN: {loan.borrower?.tin_number || "—"}</p>
+                          </div>
+                        </TableCell>
+                      )}
+                      {isColumnVisible("bank_id", "table") && (
+                        <TableCell>
+                          <p className="text-sm">{loan.bank ? getName(loan.bank) : "—"}</p>
+                          <p className="text-xs text-muted-foreground">{loan.branch?.name_en || ""}</p>
+                        </TableCell>
+                      )}
+                      {isColumnVisible("requested_amount", "table") && (
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(loan.approved_amount, loan.currency)}
+                          <p className="text-xs text-muted-foreground">{loan.currency}</p>
+                        </TableCell>
+                      )}
+                      {isColumnVisible("created_at", "table") && (
+                        <TableCell className="text-sm">{loan.created_at ? new Date(loan.created_at).toLocaleDateString() : "—"}</TableCell>
+                      )}
+                      {isColumnVisible("guarantee_coverage", "table") && (
+                        <TableCell className="text-right text-sm">{loan.guarantee_coverage ? `${loan.guarantee_coverage}%` : "—"}</TableCell>
+                      )}
+                      {isColumnVisible("status", "table") && (
+                        <TableCell>
+                          <Badge className={statusStyles[loan.status] || "bg-gray-100 text-gray-800"} variant="secondary">
+                            {statusLabels[loan.status] ?? loan.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </Badge>
+                        </TableCell>
+                      )}
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

@@ -277,6 +277,58 @@ export interface PaymentSchedule {
   updated_at: string
 }
 
+// Column Configuration Types
+export type ColumnValidationType = 'text' | 'number' | 'date' | 'email' | 'phone' | 'tin' | 'currency' | 'percentage'
+export type ColumnInputType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'checkbox' | 'currency'
+export type ColumnFieldGroup = 'borrower' | 'legal_rep' | 'loan' | 'guarantee' | 'collateral' | 'additional' | 'system'
+
+export interface ColumnConfiguration {
+  id: string
+  entity_type: string
+  column_key: string
+  display_name_en: string
+  display_name_ru: string | null
+  display_name_tj: string | null
+  description_en: string | null
+  description_ru: string | null
+  description_tj: string | null
+  field_group: ColumnFieldGroup
+  is_visible_in_table: boolean
+  is_visible_in_form: boolean
+  is_visible_in_detail: boolean
+  is_required: boolean
+  is_system_required: boolean
+  validation_type: ColumnValidationType | null
+  min_value: number | null
+  max_value: number | null
+  min_length: number | null
+  max_length: number | null
+  regex_pattern: string | null
+  input_type: ColumnInputType
+  placeholder_en: string | null
+  placeholder_ru: string | null
+  placeholder_tj: string | null
+  help_text_en: string | null
+  help_text_ru: string | null
+  help_text_tj: string | null
+  display_order: number
+  table_column_order: number
+  created_at: string
+  updated_at: string
+  created_by: string | null
+  updated_by: string | null
+}
+
+export interface ColumnConfigAudit {
+  id: string
+  config_id: string | null
+  action: 'create' | 'update' | 'delete'
+  previous_values: Record<string, any> | null
+  new_values: Record<string, any> | null
+  changed_by: string | null
+  changed_at: string
+}
+
 export interface MonthlyReport {
   id: string
   loan_application_id: string

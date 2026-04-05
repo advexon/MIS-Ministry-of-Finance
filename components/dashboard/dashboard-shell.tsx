@@ -78,6 +78,7 @@ const navItems: NavItem[] = [
   { titleKey: 'recoveries', href: '/dashboard/recoveries', icon: TrendingUp, resource: 'claims', prsfOnly: true },
   { titleKey: 'auditTrail', href: '/dashboard/audit', icon: Shield, resource: 'audit_logs' },
   { titleKey: 'roles' as any, href: '/dashboard/roles', icon: Shield, resource: 'roles', adminOnly: true },
+  { titleKey: 'columnConfig' as any, href: '/dashboard/column-config', icon: Settings, adminOnly: true },
   { titleKey: 'settings', href: '/dashboard/settings', icon: Settings, adminOnly: true },
   { titleKey: 'manual', href: '/dashboard/manual', icon: BookOpen },
 ]
