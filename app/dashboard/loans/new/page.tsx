@@ -490,12 +490,29 @@ export default function NewLoanPage() {
         customer_code: bankCustomerCode || null,
       }
 
-      // First check if borrower with this TIN already exists
-      const { data: existingBorrower } = await supabase
-        .from("borrowers")
-        .select("id")
-        .eq("tin_number", clientTin)
-        .maybeSingle()
+      // First check if borrower with this TIN or customer_code already exists
+      // (customer_code has unique constraint in DB)
+      let existingBorrower = null
+      
+      // Check by TIN first
+      if (clientTin) {
+        const { data: byTin } = await supabase
+          .from("borrowers")
+          .select("id")
+          .eq("tin_number", clientTin)
+          .maybeSingle()
+        existingBorrower = byTin
+      }
+      
+      // If not found by TIN, check by customer_code (bank customer code)
+      if (!existingBorrower && bankCustomerCode) {
+        const { data: byCode } = await supabase
+          .from("borrowers")
+          .select("id")
+          .eq("customer_code", bankCustomerCode)
+          .maybeSingle()
+        existingBorrower = byCode
+      }
 
       let borrower: { id: string } | null = null
 
