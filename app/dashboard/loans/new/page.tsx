@@ -337,7 +337,12 @@ export default function NewLoanPage() {
       const coverage = parseFloat(guaranteeCoverage) || 50
       const guaranteeAmount = (reqAmount * coverage) / 100
 
-      // 3. Create loan application
+      // 3. Generate loan_request_id (internal tracking reference)
+      const year = new Date().getFullYear()
+      const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase()
+      const loanRequestId = `LR-${year}-${randomSuffix}`
+
+      // 4. Create loan application
       const appData = {
         bank_id: bankId,
         branch_id: branchId || null,
@@ -345,19 +350,20 @@ export default function NewLoanPage() {
         borrower_id: borrower.id,
         product_id: productId || null,
         purpose: purpose || null,
-        // No requested_amount in DB — store directly as approved_amount on creation
+        requested_amount: reqAmount,
         approved_amount: reqAmount || null,
         currency,
-        duration_months: parseInt(loanTerm) || null,
+        loan_term_months: parseInt(loanTerm) || null,
         grace_period_months: parseInt(gracePeriod) || 0,
         interest_rate: interestRate ? parseFloat(interestRate) : null,
-        frequency: frequency,
+        repayment_frequency: frequency,
         guarantee_coverage: coverage,
         guarantee_amount: guaranteeAmount,
         status: "submitted" as const,
         notes: notes || null,
         created_by: user?.id || null,
         sector_id: sectorId || null,
+        loan_request_id: loanRequestId,
       }
 
       const { data: loanApp, error: loanError } = await supabase
