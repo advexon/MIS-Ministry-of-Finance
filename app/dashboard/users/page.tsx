@@ -210,34 +210,28 @@ export default function UsersPage() {
   const handleSaveUser = async () => {
     if (!selectedUser) return
     setSaving(true)
-    const supabase = createClient()
     try {
-      console.log("[v0] Updating user:", selectedUser.id, "with role_id:", editRoleId || null)
-      
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: editFirstName || null,
-          last_name: editLastName || null,
-          phone: editPhone || null,
-          role_id: editRoleId || null,
-          bank_id: editBankId || null,
+      // Use the admin API endpoint to bypass RLS
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          first_name: editFirstName,
+          last_name: editLastName,
+          phone: editPhone,
+          role_id: editRoleId,
+          bank_id: editBankId,
           is_active: editIsActive,
-        })
-        .eq("id", selectedUser.id)
+        }),
+      })
 
-      if (error) throw error
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to update user")
 
-      console.log("[v0] User updated successfully, waiting before refresh...")
-      
-      // Wait a moment for the database to process the update
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      console.log("[v0] Refreshing user data...")
       showMessage("success", `User ${getUserName(selectedUser)} updated successfully`)
       setEditDialogOpen(false)
       await fetchData()
-      console.log("[v0] User data refreshed")
     } catch (err) {
       console.error("[v0] Error saving user:", err)
       showMessage("error", err instanceof Error ? err.message : "Failed to update user")
