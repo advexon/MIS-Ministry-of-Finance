@@ -237,6 +237,33 @@ export default function NewLoanPage() {
     setIsSubmitting(true)
     setError(null)
 
+    // Validate TIN format (9 digits for Tajikistan)
+    const cleanedTin = clientTin.replace(/\D/g, '')
+    if (cleanedTin.length !== 9) {
+      setError('TIN must be exactly 9 digits')
+      setIsSubmitting(false)
+      return
+    }
+
+    // Validate required fields
+    if (!bankId) {
+      setError('Please select a bank')
+      setIsSubmitting(false)
+      return
+    }
+
+    if (!clientName.trim()) {
+      setError('Please enter the borrower name')
+      setIsSubmitting(false)
+      return
+    }
+
+    if (!requestedAmount || parseFloat(requestedAmount) <= 0) {
+      setError('Please enter a valid loan amount')
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
 

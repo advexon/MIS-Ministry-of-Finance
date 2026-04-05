@@ -8,10 +8,14 @@ import type { LoanApplication } from '@/lib/types/database'
 interface GuaranteeLetterProps {
   loan: LoanApplication & {
     borrower?: {
+      name?: string
       company_name?: string
       legal_name?: string
+      tin_number?: string
       tin?: string
       legal_address?: string
+      address_street?: string
+      address_city?: string
     }
     bank?: {
       name_en?: string
@@ -49,7 +53,11 @@ function formatDate(dateStr: string | null | undefined): string {
 
 export const GuaranteeLetter = forwardRef<HTMLDivElement, GuaranteeLetterProps>(
   ({ loan, guaranteeNumber, issueDate, validUntil, approvedBy, className, isDraft = false }, ref) => {
-    const borrowerName = loan.borrower?.company_name || loan.borrower?.legal_name || '—'
+    const borrowerName = loan.borrower?.name || loan.borrower?.company_name || loan.borrower?.legal_name || '—'
+    const borrowerTIN = loan.borrower?.tin_number || loan.borrower?.tin || '—'
+    const borrowerAddress = loan.borrower?.address_street 
+      ? `${loan.borrower.address_street}${loan.borrower.address_city ? ', ' + loan.borrower.address_city : ''}`
+      : loan.borrower?.legal_address || '—'
     const bankName = loan.bank?.name_en || '—'
     const branchName = loan.branch?.name_en || ''
     const guaranteeCoverage = loan.guarantee_coverage || 50
