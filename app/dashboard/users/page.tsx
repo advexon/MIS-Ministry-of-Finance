@@ -136,19 +136,21 @@ export default function UsersPage() {
 
   const fetchData = useCallback(async () => {
     try {
+      console.log("[v0] Fetching user data...")
       const res = await fetch("/api/users", { credentials: "include" })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        console.error("[users] API error:", res.status, body)
+        console.error("[v0] API error:", res.status, body)
         return
       }
       const data = await res.json()
+      console.log("[v0] Fetched users:", data.users?.map((u: any) => ({ email: u.email, role_id: u.role_id, role: u.role })))
       setUsers(data.users ?? [])
       setRoles(data.roles ?? [])
       setBanks(data.banks ?? [])
       setBranches(data.branches ?? [])
     } catch (err) {
-      console.error("[users] fetch error:", err)
+      console.error("[v0] Fetch error:", err)
     } finally {
       setLoading(false)
     }
@@ -210,6 +212,8 @@ export default function UsersPage() {
     setSaving(true)
     const supabase = createClient()
     try {
+      console.log("[v0] Updating user:", selectedUser.id, "with role_id:", editRoleId || null)
+      
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -224,10 +228,18 @@ export default function UsersPage() {
 
       if (error) throw error
 
+      console.log("[v0] User updated successfully, waiting before refresh...")
+      
+      // Wait a moment for the database to process the update
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      console.log("[v0] Refreshing user data...")
       showMessage("success", `User ${getUserName(selectedUser)} updated successfully`)
       setEditDialogOpen(false)
-      fetchData()
+      await fetchData()
+      console.log("[v0] User data refreshed")
     } catch (err) {
+      console.error("[v0] Error saving user:", err)
       showMessage("error", err instanceof Error ? err.message : "Failed to update user")
     } finally {
       setSaving(false)
