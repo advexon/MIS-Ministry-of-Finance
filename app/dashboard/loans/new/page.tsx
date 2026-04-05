@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
@@ -14,11 +14,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { ArrowLeft, Save, Building2, User, DollarSign, FileText, Shield, Plus, Trash2, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { ArrowLeft, Save, Building2, User, DollarSign, FileText, Shield, Plus, Trash2, Loader2, AlertCircle, CheckCircle2, AlertTriangle, Clock, FileEdit } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import type { Bank, BankBranch, Sector, LoanProduct } from "@/lib/types/database"
+import { useLoanFormValidation, type FormStep } from "@/lib/hooks/use-loan-form-validation"
+import { useLoanDraft } from "@/lib/hooks/use-loan-draft"
 
 interface Guarantor {
   name: string
@@ -32,9 +35,12 @@ export default function NewLoanPage() {
   const supabase = createClient()
 
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [activeTab, setActiveTab] = useState("borrower")
+  const [activeTab, setActiveTab] = useState<FormStep>("borrower")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set())
+  const [showValidationSummary, setShowValidationSummary] = useState(false)
+  const [draftMessage, setDraftMessage] = useState<string | null>(null)
 
   // Reference data
   const [banks, setBanks] = useState<Bank[]>([])
@@ -112,6 +118,80 @@ export default function NewLoanPage() {
 
   const [notes, setNotes] = useState("")
 
+  // Collect all form data into a single object for validation
+  const formData = useMemo(() => ({
+    legalEntityType, clientName, clientTin, registrationNumber, sectorId,
+    addressStreet, city, district, zipCode, workforce, establishmentYear,
+    businessDescription, phone, email, bankCustomerCode, isBlacklisted,
+    blacklistReason, guaranteeType, legalRepSurname, legalRepName,
+    legalRepPatronymic, legalRepGender, legalRepBirthdate, legalRepCountry,
+    legalRepTin, passportNumber, bankId, branchId, productId, requestedAmount,
+    currency, loanTerm, gracePeriod, frequency, repaymentMethod, interestRate,
+    guaranteeCoverage, loanOfficer, purpose, purposeDetails, applicationDate,
+    bankApprovalDate, annualTurnover, netIncome, riskRating, totalExposure,
+    collateralDescription, covenantBank, covenantPrsf, guarantors, notes,
+  }), [
+    legalEntityType, clientName, clientTin, registrationNumber, sectorId,
+    addressStreet, city, district, zipCode, workforce, establishmentYear,
+    businessDescription, phone, email, bankCustomerCode, isBlacklisted,
+    blacklistReason, guaranteeType, legalRepSurname, legalRepName,
+    legalRepPatronymic, legalRepGender, legalRepBirthdate, legalRepCountry,
+    legalRepTin, passportNumber, bankId, branchId, productId, requestedAmount,
+    currency, loanTerm, gracePeriod, frequency, repaymentMethod, interestRate,
+    guaranteeCoverage, loanOfficer, purpose, purposeDetails, applicationDate,
+    bankApprovalDate, annualTurnover, netIncome, riskRating, totalExposure,
+    collateralDescription, covenantBank, covenantPrsf, guarantors, notes,
+  ])
+
+  // Validation hook
+  const {
+    validateField,
+    validateStep,
+    stepsStatus,
+    canProceedToStep,
+    allErrors,
+    isFormValid,
+  } = useLoanFormValidation(formData)
+
+  // Draft management hook
+  const {
+    currentDraftId,
+    isSaving: isDraftSaving,
+    lastSaved,
+    saveDraft,
+    loadDraft,
+    startAutoSave,
+    stopAutoSave,
+    updateFormData,
+    clearCurrentDraft,
+    calculateCompletion,
+  } = useLoanDraft({
+    autoSaveInterval: 30000,
+    autoSaveEnabled: true,
+    onAutoSave: () => setDraftMessage("Draft auto-saved"),
+    onError: (err) => setError(`Draft error: ${err}`),
+  })
+
+  // Calculate completion percentage
+  const completionPercentage = useMemo(() => calculateCompletion(formData), [formData, calculateCompletion])
+
+  // Mark field as touched for validation display
+  const markTouched = useCallback((field: string) => {
+    setTouchedFields(prev => new Set(prev).add(field))
+  }, [])
+
+  // Get field error if touched
+  const getFieldError = useCallback((field: string): string | null => {
+    if (!touchedFields.has(field)) return null
+    const result = validateField(field, formData[field as keyof typeof formData])
+    return result.isValid ? null : result.error || null
+  }, [touchedFields, validateField, formData])
+
+  // Check if field has error
+  const hasFieldError = useCallback((field: string): boolean => {
+    return getFieldError(field) !== null
+  }, [getFieldError])
+
   const getName = (item: { name_en: string; name_ru?: string | null; name_tj?: string | null }) => {
     if (locale === "ru" && item.name_ru) return item.name_ru
     if (locale === "tj" && item.name_tj) return item.name_tj
@@ -132,6 +212,73 @@ export default function NewLoanPage() {
     }
     fetchData()
   }, [])
+
+  // Load draft from sessionStorage on mount
+  useEffect(() => {
+    const draftId = sessionStorage.getItem("loanDraftId")
+    if (draftId) {
+      sessionStorage.removeItem("loanDraftId")
+      loadDraft(draftId).then(draft => {
+        if (draft) {
+          const data = draft.form_data
+          // Restore form data
+          if (data.legalEntityType) setLegalEntityType(data.legalEntityType)
+          if (data.clientName) setClientName(data.clientName)
+          if (data.clientTin) setClientTin(data.clientTin)
+          if (data.registrationNumber) setRegistrationNumber(data.registrationNumber)
+          if (data.sectorId) setSectorId(data.sectorId)
+          if (data.addressStreet) setAddressStreet(data.addressStreet)
+          if (data.city) setCity(data.city)
+          if (data.district) setDistrict(data.district)
+          if (data.zipCode) setZipCode(data.zipCode)
+          if (data.workforce) setWorkforce(data.workforce)
+          if (data.phone) setPhone(data.phone)
+          if (data.email) setEmail(data.email)
+          if (data.legalRepSurname) setLegalRepSurname(data.legalRepSurname)
+          if (data.legalRepName) setLegalRepName(data.legalRepName)
+          if (data.legalRepPatronymic) setLegalRepPatronymic(data.legalRepPatronymic)
+          if (data.legalRepGender) setLegalRepGender(data.legalRepGender)
+          if (data.legalRepBirthdate) setLegalRepBirthdate(data.legalRepBirthdate)
+          if (data.passportNumber) setPassportNumber(data.passportNumber)
+          if (data.bankId) setBankId(data.bankId)
+          if (data.branchId) setBranchId(data.branchId)
+          if (data.requestedAmount) setRequestedAmount(data.requestedAmount)
+          if (data.currency) setCurrency(data.currency)
+          if (data.loanTerm) setLoanTerm(data.loanTerm)
+          if (data.gracePeriod) setGracePeriod(data.gracePeriod)
+          if (data.interestRate) setInterestRate(data.interestRate)
+          if (data.guaranteeCoverage) setGuaranteeCoverage(data.guaranteeCoverage)
+          if (data.purpose) setPurpose(data.purpose)
+          if (data.notes) setNotes(data.notes)
+          if (data.collateralDescription) setCollateralDescription(data.collateralDescription)
+          // Set active tab to where user left off
+          if (draft.current_step) setActiveTab(draft.current_step as FormStep)
+          setDraftMessage(`Draft "${draft.draft_name}" loaded successfully`)
+        }
+      })
+    }
+  }, [loadDraft])
+
+  // Update auto-save with current form data
+  useEffect(() => {
+    updateFormData(formData, activeTab)
+  }, [formData, activeTab, updateFormData])
+
+  // Start/stop auto-save based on form activity
+  useEffect(() => {
+    if (clientName || clientTin || bankId) {
+      startAutoSave(formData, activeTab)
+    }
+    return () => stopAutoSave()
+  }, [clientName, clientTin, bankId, startAutoSave, stopAutoSave, formData, activeTab])
+
+  // Clear draft message after 3 seconds
+  useEffect(() => {
+    if (draftMessage) {
+      const timer = setTimeout(() => setDraftMessage(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [draftMessage])
 
   useEffect(() => {
     if (!bankId) {
@@ -230,6 +377,57 @@ export default function NewLoanPage() {
     const updated = [...guarantors]
     updated[i] = { ...updated[i], [field]: value }
     setGuarantors(updated)
+  }
+
+  // Step navigation with validation
+  const stepOrder: FormStep[] = ["borrower", "legal_rep", "loan", "collateral", "additional"]
+
+  const handleStepChange = (newStep: FormStep) => {
+    const currentIndex = stepOrder.indexOf(activeTab)
+    const newIndex = stepOrder.indexOf(newStep)
+
+    // Mark all fields in current step as touched when leaving
+    const currentStepStatus = stepsStatus.find(s => s.step === activeTab)
+    if (currentStepStatus) {
+      const newTouched = new Set(touchedFields)
+      currentStepStatus.errors.forEach(e => newTouched.add(e.field))
+      setTouchedFields(newTouched)
+    }
+
+    // If going forward, validate current step
+    if (newIndex > currentIndex) {
+      const { isValid, errors } = validateStep(activeTab)
+      if (!isValid) {
+        setError(`Please fix ${errors.length} error${errors.length > 1 ? "s" : ""} before proceeding`)
+        setShowValidationSummary(true)
+        return
+      }
+    }
+
+    setError(null)
+    setActiveTab(newStep)
+  }
+
+  const handleNextStep = () => {
+    const currentIndex = stepOrder.indexOf(activeTab)
+    if (currentIndex < stepOrder.length - 1) {
+      handleStepChange(stepOrder[currentIndex + 1])
+    }
+  }
+
+  const handlePreviousStep = () => {
+    const currentIndex = stepOrder.indexOf(activeTab)
+    if (currentIndex > 0) {
+      setActiveTab(stepOrder[currentIndex - 1])
+    }
+  }
+
+  // Manual save draft
+  const handleSaveDraft = async () => {
+    const result = await saveDraft(formData, activeTab, `${clientName || "Untitled"} - ${new Date().toLocaleDateString()}`)
+    if (result.success) {
+      setDraftMessage("Draft saved successfully")
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -414,39 +612,144 @@ export default function NewLoanPage() {
 
   return (
     <div className="p-6 lg:p-8">
-      <div className="mb-6 flex items-center gap-4">
-        <Button asChild variant="ghost" size="icon">
-          <Link href="/dashboard/loans"><ArrowLeft className="h-5 w-5" /></Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.loans.newApplication}</h1>
-          <p className="text-muted-foreground">Fill in all required fields to submit a new loan guarantee application</p>
+      {/* Header with Progress */}
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button asChild variant="ghost" size="icon">
+            <Link href="/dashboard/loans"><ArrowLeft className="h-5 w-5" /></Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{t.loans.newApplication}</h1>
+            <p className="text-muted-foreground">Fill in all required fields to submit a new loan guarantee application</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Draft Status */}
+          {currentDraftId && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <FileEdit className="h-4 w-4" />
+              {lastSaved && (
+                <span>Saved {new Date(lastSaved).toLocaleTimeString()}</span>
+              )}
+            </div>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleSaveDraft}
+            disabled={isDraftSaving}
+          >
+            {isDraftSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save Draft
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/dashboard/loans/drafts">
+              View Drafts
+            </Link>
+          </Button>
         </div>
       </div>
 
+      {/* Progress Bar */}
+      <Card className="mb-6">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">Application Progress</span>
+            <span className="text-sm text-muted-foreground">{completionPercentage}% Complete</span>
+          </div>
+          <Progress value={completionPercentage} className="h-2" />
+          <div className="flex items-center justify-between mt-3">
+            {stepsStatus.map((step, index) => (
+              <div key={step.step} className="flex items-center gap-1.5">
+                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
+                  step.isValid && step.isComplete
+                    ? "bg-green-100 text-green-700"
+                    : step.errorCount > 0 && touchedFields.size > 0
+                    ? "bg-red-100 text-red-700"
+                    : activeTab === step.step
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}>
+                  {step.isValid && step.isComplete ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : step.errorCount > 0 && touchedFields.size > 0 ? (
+                    <AlertCircle className="h-4 w-4" />
+                  ) : (
+                    index + 1
+                  )}
+                </div>
+                <span className={`text-xs hidden md:block ${activeTab === step.step ? "font-medium" : "text-muted-foreground"}`}>
+                  {step.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Draft Message */}
+      {draftMessage && (
+        <Alert className="mb-4 border-green-500/50 bg-green-50">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">{draftMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Error/Validation Summary */}
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Validation Error</AlertTitle>
+          <AlertDescription>
+            {error}
+            {showValidationSummary && allErrors.length > 0 && (
+              <ul className="mt-2 list-disc pl-5 space-y-1">
+                {allErrors.slice(0, 5).map((err, i) => (
+                  <li key={i} className="text-sm">
+                    <strong>{err.label}:</strong> {err.error}
+                  </li>
+                ))}
+                {allErrors.length > 5 && (
+                  <li className="text-sm">...and {allErrors.length - 5} more errors</li>
+                )}
+              </ul>
+            )}
+          </AlertDescription>
+        </Alert>
       )}
 
       <form onSubmit={handleSubmit}>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(v) => handleStepChange(v as FormStep)} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="borrower" className="gap-1.5 text-xs sm:text-sm">
+            <TabsTrigger value="borrower" className="gap-1.5 text-xs sm:text-sm relative">
               <User className="h-3.5 w-3.5" /><span className="hidden sm:inline">Borrower</span>
+              {stepsStatus[0].errorCount > 0 && touchedFields.size > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
+                  {stepsStatus[0].errorCount}
+                </span>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="representative" className="gap-1.5 text-xs sm:text-sm">
+            <TabsTrigger value="legal_rep" className="gap-1.5 text-xs sm:text-sm relative">
               <Shield className="h-3.5 w-3.5" /><span className="hidden sm:inline">Legal Rep</span>
+              {stepsStatus[1].errorCount > 0 && touchedFields.size > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
+                  {stepsStatus[1].errorCount}
+                </span>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="loan" className="gap-1.5 text-xs sm:text-sm">
+            <TabsTrigger value="loan" className="gap-1.5 text-xs sm:text-sm relative">
               <DollarSign className="h-3.5 w-3.5" /><span className="hidden sm:inline">Loan</span>
+              {stepsStatus[2].errorCount > 0 && touchedFields.size > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
+                  {stepsStatus[2].errorCount}
+                </span>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="collateral" className="gap-1.5 text-xs sm:text-sm">
+            <TabsTrigger value="collateral" className="gap-1.5 text-xs sm:text-sm relative">
               <Building2 className="h-3.5 w-3.5" /><span className="hidden sm:inline">Collateral</span>
             </TabsTrigger>
-            <TabsTrigger value="additional" className="gap-1.5 text-xs sm:text-sm">
+            <TabsTrigger value="additional" className="gap-1.5 text-xs sm:text-sm relative">
               <FileText className="h-3.5 w-3.5" /><span className="hidden sm:inline">Additional</span>
             </TabsTrigger>
           </TabsList>
@@ -461,29 +764,60 @@ export default function NewLoanPage() {
               <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Legal Entity Type *</Label>
-                    <Select value={legalEntityType} onValueChange={setLegalEntityType} required>
-                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                    <Label className={hasFieldError("legalEntityType") ? "text-destructive" : ""}>
+                      Legal Entity Type *
+                    </Label>
+                    <Select 
+                      value={legalEntityType} 
+                      onValueChange={(v) => { setLegalEntityType(v); markTouched("legalEntityType") }}
+                    >
+                      <SelectTrigger className={hasFieldError("legalEntityType") ? "border-destructive" : ""}>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="individual">{t.borrowers.individual}</SelectItem>
                         <SelectItem value="legal_entity">{t.borrowers.legalEntity}</SelectItem>
                         <SelectItem value="individual_entrepreneur">{t.borrowers.individualEntrepreneur}</SelectItem>
                       </SelectContent>
                     </Select>
+                    {hasFieldError("legalEntityType") && (
+                      <p className="text-xs text-destructive">{getFieldError("legalEntityType")}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Business Sector *</Label>
-                    <Select value={sectorId} onValueChange={setSectorId} required>
-                      <SelectTrigger><SelectValue placeholder="Select sector" /></SelectTrigger>
+                    <Label className={hasFieldError("sectorId") ? "text-destructive" : ""}>
+                      Business Sector *
+                    </Label>
+                    <Select 
+                      value={sectorId} 
+                      onValueChange={(v) => { setSectorId(v); markTouched("sectorId") }}
+                    >
+                      <SelectTrigger className={hasFieldError("sectorId") ? "border-destructive" : ""}>
+                        <SelectValue placeholder="Select sector" />
+                      </SelectTrigger>
                       <SelectContent>
                         {sectors.map((s) => <SelectItem key={s.id} value={s.id}>{getName(s)}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    {hasFieldError("sectorId") && (
+                      <p className="text-xs text-destructive">{getFieldError("sectorId")}</p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Client / Company Name *</Label>
-                  <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Full name or company name" required />
+                  <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
+                    Client / Company Name *
+                  </Label>
+                  <Input 
+                    value={clientName} 
+                    onChange={(e) => setClientName(e.target.value)} 
+                    onBlur={() => markTouched("clientName")}
+                    placeholder="Full name or company name" 
+                    className={hasFieldError("clientName") ? "border-destructive" : ""}
+                  />
+                  {hasFieldError("clientName") && (
+                    <p className="text-xs text-destructive">{getFieldError("clientName")}</p>
+                  )}
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -589,12 +923,12 @@ export default function NewLoanPage() {
               </CardContent>
             </Card>
             <div className="flex justify-end">
-              <Button type="button" onClick={() => setActiveTab("representative")}>Next</Button>
+              <Button type="button" onClick={handleNextStep}>Next: Legal Representative</Button>
             </div>
           </TabsContent>
 
           {/* ── LEGAL REP TAB ── */}
-          <TabsContent value="representative" className="space-y-6">
+          <TabsContent value="legal_rep" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Legal Representative</CardTitle>
@@ -660,8 +994,8 @@ export default function NewLoanPage() {
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setActiveTab("borrower")}>Previous</Button>
-              <Button type="button" onClick={() => setActiveTab("loan")}>Next</Button>
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
+              <Button type="button" onClick={handleNextStep}>Next: Loan Details</Button>
             </div>
           </TabsContent>
 
@@ -850,8 +1184,8 @@ export default function NewLoanPage() {
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setActiveTab("representative")}>Previous</Button>
-              <Button type="button" onClick={() => setActiveTab("collateral")}>Next</Button>
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
+              <Button type="button" onClick={handleNextStep}>Next: Collateral</Button>
             </div>
           </TabsContent>
 
@@ -880,8 +1214,8 @@ export default function NewLoanPage() {
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setActiveTab("loan")}>Previous</Button>
-              <Button type="button" onClick={() => setActiveTab("additional")}>Next</Button>
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
+              <Button type="button" onClick={handleNextStep}>Next: Additional Info</Button>
             </div>
           </TabsContent>
 
@@ -913,11 +1247,28 @@ export default function NewLoanPage() {
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setActiveTab("collateral")}>Previous</Button>
-              <Button type="submit" disabled={isSubmitting} className="gap-2 px-8">
-                {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Submitting...</> : <><Save className="h-4 w-4" />Submit Application</>}
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || !isFormValid} 
+                className="gap-2 px-8"
+                title={!isFormValid ? "Please complete all required fields" : ""}
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Submitting...</>
+                ) : (
+                  <><Save className="h-4 w-4" />Submit Application</>
+                )}
               </Button>
             </div>
+            {!isFormValid && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Please complete all required fields before submitting. {allErrors.length} field{allErrors.length === 1 ? " has" : "s have"} errors.
+                </AlertDescription>
+              </Alert>
+            )}
           </TabsContent>
         </Tabs>
       </form>
