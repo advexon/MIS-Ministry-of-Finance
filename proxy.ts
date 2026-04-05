@@ -18,13 +18,13 @@ const ROUTE_PERMISSIONS: Record<string, { resource: string; permission: string }
   '/dashboard/access': { resource: 'access_logs', permission: 'view' },
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Dynamically import to avoid loading @supabase/ssr for excluded routes
   const { updateSession } = await import('@/lib/supabase/proxy')
   const response = await updateSession(request)
   
   // Route permission checking is handled by individual pages/components via usePermissions hook
-  // This middleware just ensures session is up to date
+  // This proxy just ensures session is up to date
   
   return response
 }

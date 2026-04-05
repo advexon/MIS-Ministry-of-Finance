@@ -51,9 +51,11 @@ const nextConfig = {
     ]
   },
 
-  // Next.js 16 uses Turbopack by default. Adding an empty turbopack config
-  // silences the "webpack config present but no turbopack config" build error.
-  turbopack: {},
+  // Next.js 16 uses Turbopack by default. Set root to current directory
+  // to ensure proper package resolution.
+  turbopack: {
+    root: process.cwd(),
+  },
 }
 
 export default nextConfig
