@@ -1,4 +1,6 @@
-import * as Sentry from "@sentry/nextjs"
+// Error monitoring utilities
+// Sentry is temporarily disabled until it supports Next.js 16
+// These functions provide a no-op fallback while maintaining the same API
 
 export interface ErrorContext {
   userId?: string
@@ -18,38 +20,16 @@ export function captureError(
 ) {
   const err = error instanceof Error ? error : new Error(String(error))
 
-  // Set user context if available
-  if (context?.userId || context?.email) {
-    Sentry.setUser({
-      id: context.userId,
-      email: context.email,
-    })
-  }
-
-  // Add breadcrumb for tracking
-  if (context?.action) {
-    Sentry.captureMessage(`Action: ${context.action}`, level)
-  }
-
-  // Capture with extra context
-  Sentry.captureException(err, {
-    level,
-    contexts: {
-      app: {
-        loanId: context?.loanId,
-        action: context?.action,
-        ...context?.metadata,
-      },
-    },
-    tags: {
-      action: context?.action || "unknown",
-      userId: context?.userId || "anonymous",
-    },
-  })
-
-  // Also log to console in development
+  // Log to console (would be sent to Sentry in production)
   if (process.env.NODE_ENV === "development") {
-    console.error("Captured error:", err, context)
+    console.error(`[${level.toUpperCase()}]`, err.message, context)
+  } else {
+    // In production, log errors for server-side visibility
+    console.error(`[Error Capture] ${level}:`, err.message, {
+      action: context?.action,
+      userId: context?.userId,
+      loanId: context?.loanId,
+    })
   }
 }
 
@@ -61,30 +41,23 @@ export function addBreadcrumb(
   category = "user-action",
   level: "fatal" | "error" | "warning" | "info" | "debug" = "info"
 ) {
-  Sentry.captureMessage(message, level)
-  Sentry.addBreadcrumb({
-    message,
-    category,
-    level,
-    timestamp: Date.now() / 1000,
-  })
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[Breadcrumb] ${category}: ${message}`)
+  }
 }
 
 /**
  * Set user context for all subsequent errors
  */
 export function setErrorUser(userId: string, email?: string) {
-  Sentry.setUser({
-    id: userId,
-    email: email,
-  })
+  // No-op without Sentry
 }
 
 /**
  * Clear user context
  */
 export function clearErrorUser() {
-  Sentry.setUser(null)
+  // No-op without Sentry
 }
 
 /**
