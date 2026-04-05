@@ -238,12 +238,9 @@ export default function NewLoanPage() {
     setError(null)
 
     try {
-      console.log("[v0] Starting submission...")
       const { data: { user } } = await supabase.auth.getUser()
-      console.log("[v0] User:", user?.id)
 
       // 1. Upsert borrower by TIN
-      console.log("[v0] Creating borrower with TIN:", clientTin)
       const borrowerData = {
         tin_number: clientTin,
         legal_type: legalEntityType as "individual" | "legal_entity" | "individual_entrepreneur",
@@ -275,10 +272,8 @@ export default function NewLoanPage() {
         .single()
 
       if (borrowerError) {
-        console.log("[v0] Borrower upsert failed:", borrowerError)
         throw borrowerError
       }
-      console.log("[v0] Borrower created:", borrower?.id)
 
       // 2. Calculate guarantee amount
       const reqAmount = parseFloat(requestedAmount) || 0
@@ -308,9 +303,6 @@ export default function NewLoanPage() {
         sector_id: sectorId || null,
       }
 
-      console.log("[v0] Loan application data being submitted:", appData)
-      console.log("[v0] Checking required fields - bank_id:", bankId, "borrower_id:", borrower?.id)
-
       const { data: loanApp, error: loanError } = await supabase
         .from("loan_applications")
         .insert(appData)
@@ -318,10 +310,8 @@ export default function NewLoanPage() {
         .single()
 
       if (loanError) {
-        console.log("[v0] Loan application insert failed:", loanError)
         throw loanError
       }
-      console.log("[v0] Loan application created:", loanApp?.id)
 
       // 4. Log audit trail
       await supabase.from("audit_trail").insert({
@@ -335,9 +325,7 @@ export default function NewLoanPage() {
       setSuccess(true)
       setTimeout(() => router.push("/dashboard/loans"), 1500)
     } catch (err) {
-      console.log("[v0] Full error:", err)
       const errorMsg = err instanceof Error ? err.message : JSON.stringify(err)
-      console.log("[v0] Error details:", errorMsg)
       setError(errorMsg)
       setIsSubmitting(false)
     }

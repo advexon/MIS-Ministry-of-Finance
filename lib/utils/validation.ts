@@ -168,3 +168,194 @@ export function autoCalculateRemainingBalance(
   const totalPaid = paymentsToDate.reduce((sum, p) => sum + (p.principal_amount || 0), 0)
   return Math.max(0, totalAmount - totalPaid)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// General-purpose validation utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ValidationResult {
+  isValid: boolean
+  error?: string
+}
+
+export interface NumericValidationOptions {
+  min?: number
+  max?: number
+  required?: boolean
+  allowDecimal?: boolean
+  decimalPlaces?: number
+  fieldName?: string
+}
+
+/**
+ * Validates a numeric input value
+ */
+export function validateNumeric(
+  value: string | number | undefined,
+  options: NumericValidationOptions = {}
+): ValidationResult {
+  const {
+    min,
+    max,
+    required = false,
+    allowDecimal = true,
+    decimalPlaces,
+    fieldName = 'Value'
+  } = options
+
+  if (value === undefined || value === null || value === '') {
+    if (required) {
+      return { isValid: false, error: `${fieldName} is required` }
+    }
+    return { isValid: true }
+  }
+
+  const numValue = typeof value === 'string' ? parseFloat(value) : value
+
+  if (isNaN(numValue)) {
+    return { isValid: false, error: `${fieldName} must be a valid number` }
+  }
+
+  if (!allowDecimal && !Number.isInteger(numValue)) {
+    return { isValid: false, error: `${fieldName} must be a whole number` }
+  }
+
+  if (decimalPlaces !== undefined) {
+    const parts = String(value).split('.')
+    if (parts[1] && parts[1].length > decimalPlaces) {
+      return { isValid: false, error: `${fieldName} can have at most ${decimalPlaces} decimal places` }
+    }
+  }
+
+  if (min !== undefined && numValue < min) {
+    return { isValid: false, error: `${fieldName} must be at least ${min}` }
+  }
+
+  if (max !== undefined && numValue > max) {
+    return { isValid: false, error: `${fieldName} cannot exceed ${max}` }
+  }
+
+  return { isValid: true }
+}
+
+/**
+ * Validates a percentage value (0-100)
+ */
+export function validatePercentage(
+  value: string | number | undefined,
+  options: Omit<NumericValidationOptions, 'min' | 'max'> = {}
+): ValidationResult {
+  return validateNumeric(value, {
+    ...options,
+    min: 0,
+    max: 100,
+    fieldName: options.fieldName || 'Percentage'
+  })
+}
+
+/**
+ * Validates a currency amount (positive, 2 decimal places)
+ */
+export function validateCurrency(
+  value: string | number | undefined,
+  options: Omit<NumericValidationOptions, 'min' | 'decimalPlaces'> & { maxAmount?: number } = {}
+): ValidationResult {
+  return validateNumeric(value, {
+    ...options,
+    min: 0,
+    max: options.maxAmount,
+    decimalPlaces: 2,
+    fieldName: options.fieldName || 'Amount'
+  })
+}
+
+/**
+ * Validates months/duration (positive integer)
+ */
+export function validateMonths(
+  value: string | number | undefined,
+  options: Omit<NumericValidationOptions, 'allowDecimal'> = {}
+): ValidationResult {
+  return validateNumeric(value, {
+    ...options,
+    allowDecimal: false,
+    min: options.min ?? 1,
+    max: options.max ?? 360,
+    fieldName: options.fieldName || 'Duration'
+  })
+}
+
+/**
+ * Validates interest rate (0-100%, up to 2 decimal places)
+ */
+export function validateInterestRate(
+  value: string | number | undefined,
+  options: Omit<NumericValidationOptions, 'min' | 'max' | 'decimalPlaces'> = {}
+): ValidationResult {
+  return validateNumeric(value, {
+    ...options,
+    min: 0,
+    max: 100,
+    decimalPlaces: 2,
+    fieldName: options.fieldName || 'Interest rate'
+  })
+}
+
+/**
+ * Validates TIN (9 digits for Tajikistan)
+ */
+export function validateTIN(value: string | undefined, required = true): ValidationResult {
+  if (!value || value.trim() === '') {
+    if (required) {
+      return { isValid: false, error: 'TIN is required' }
+    }
+    return { isValid: true }
+  }
+
+  const cleaned = value.replace(/\D/g, '')
+  if (cleaned.length !== 9) {
+    return { isValid: false, error: 'TIN must be exactly 9 digits' }
+  }
+
+  return { isValid: true }
+}
+
+/**
+ * Validates email format
+ */
+export function validateEmail(value: string | undefined, required = false): ValidationResult {
+  if (!value || value.trim() === '') {
+    if (required) {
+      return { isValid: false, error: 'Email is required' }
+    }
+    return { isValid: true }
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(value)) {
+    return { isValid: false, error: 'Please enter a valid email address' }
+  }
+
+  return { isValid: true }
+}
+
+/**
+ * Validates phone number
+ */
+export function validatePhone(value: string | undefined, required = false): ValidationResult {
+  if (!value || value.trim() === '') {
+    if (required) {
+      return { isValid: false, error: 'Phone number is required' }
+    }
+    return { isValid: true }
+  }
+
+  const cleaned = value.replace(/[\s\-\(\)]/g, '')
+  const phoneRegex = /^\+?\d{7,15}$/
+  
+  if (!phoneRegex.test(cleaned)) {
+    return { isValid: false, error: 'Please enter a valid phone number' }
+  }
+
+  return { isValid: true }
+}
