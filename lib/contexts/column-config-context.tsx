@@ -316,3 +316,48 @@ export function useColumnValidation() {
   
   return { validateField, validateForm, isColumnRequired }
 }
+
+// Hook for grouped validation - returns missing required fields per section
+export function useGroupedValidation() {
+  const { columns, validateField } = useColumnConfig()
+  
+  const getMissingFieldsByGroup = useCallback((formData: Record<string, any>) => {
+    const groups: Record<ColumnFieldGroup, Array<{ field: string; label: string; error: string }>> = {
+      borrower: [],
+      legal_rep: [],
+      loan: [],
+      guarantee: [],
+      collateral: [],
+      additional: [],
+      system: [],
+    }
+    
+    for (const col of columns) {
+      if (!col.column_key || !col.is_visible_in_form || !col.field_group) continue
+      
+      // Only check required fields
+      if (!col.is_required && !col.is_system_required) continue
+      
+      const result = validateField(col.column_key, formData[col.column_key])
+      if (!result.valid && result.error) {
+        groups[col.field_group].push({
+          field: col.column_key,
+          label: col.display_name_en || col.column_key,
+          error: result.error,
+        })
+      }
+    }
+    
+    return groups
+  }, [columns, validateField])
+  
+  const getRequiredFieldsForGroup = useCallback((group: ColumnFieldGroup) => {
+    return columns.filter(c => 
+      c.field_group === group && 
+      c.is_visible_in_form && 
+      (c.is_required || c.is_system_required)
+    )
+  }, [columns])
+  
+  return { getMissingFieldsByGroup, getRequiredFieldsForGroup }
+}

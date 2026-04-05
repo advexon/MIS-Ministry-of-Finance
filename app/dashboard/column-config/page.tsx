@@ -81,7 +81,7 @@ const defaultColumns: Partial<ColumnConfiguration>[] = [
 
 export default function ColumnConfigPage() {
   const { t, locale } = useI18n()
-  const { role, can } = usePermissions()
+  const { role } = usePermissions()
   const supabase = useMemo(() => createClient(), [])
 
   const [columns, setColumns] = useState<Partial<ColumnConfiguration>[]>([])
@@ -328,11 +328,15 @@ export default function ColumnConfigPage() {
       )}
 
       {/* Tabs */}
-      <Tabs defaultValue="configure" className="space-y-4">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+      <Tabs defaultValue="form-requirements" className="space-y-4">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+          <TabsTrigger value="form-requirements" className="flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            Form Requirements
+          </TabsTrigger>
           <TabsTrigger value="configure" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
-            Configure
+            Column Settings
           </TabsTrigger>
           <TabsTrigger value="preview-table" className="flex items-center gap-2">
             <Eye className="h-4 w-4" />
@@ -343,6 +347,114 @@ export default function ColumnConfigPage() {
             Form Preview
           </TabsTrigger>
         </TabsList>
+
+        {/* Form Requirements Tab - New dedicated interface for mandatory/optional fields */}
+        <TabsContent value="form-requirements" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="h-5 w-5" />
+                Loan Application Form Field Requirements
+              </CardTitle>
+              <CardDescription>
+                Configure which fields are mandatory (*) or optional in the loan application form. 
+                Mandatory fields will show an asterisk and trigger validation errors when left empty.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {(Object.entries(fieldGroups) as Array<[ColumnFieldGroup, { label: string; icon: React.ElementType; color: string }]>).map(([groupKey, group]) => {
+                const groupCols = columns.filter(c => c.field_group === groupKey && c.is_visible_in_form)
+                if (groupCols.length === 0 || groupKey === 'system') return null
+
+                const GroupIcon = group.icon
+                const requiredCount = groupCols.filter(c => c.is_required).length
+                const totalCount = groupCols.length
+
+                return (
+                  <div key={groupKey} className={`rounded-lg border ${group.color}`}>
+                    <div className="p-4 border-b flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <GroupIcon className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <h3 className="font-semibold">{group.label}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {requiredCount} of {totalCount} fields are mandatory
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={requiredCount > 0 ? "default" : "secondary"}>
+                        {requiredCount} required
+                      </Badge>
+                    </div>
+                    <div className="p-4">
+                      <div className="grid gap-3">
+                        {groupCols.map((col) => (
+                          <div 
+                            key={col.column_key} 
+                            className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                              col.is_required ? 'bg-primary/5 border-primary/20' : 'bg-background'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${col.is_required ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{getDisplayName(col)}</span>
+                                  {col.is_required && <span className="text-destructive font-bold">*</span>}
+                                  {col.is_system_required && (
+                                    <Badge variant="outline" className="text-xs">System Required</Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">{col.column_key}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-sm ${col.is_required ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                                {col.is_required ? 'Mandatory' : 'Optional'}
+                              </span>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Switch
+                                      checked={col.is_required || false}
+                                      onCheckedChange={() => handleToggleRequired(col.column_key!)}
+                                      disabled={col.is_system_required}
+                                    />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {col.is_system_required 
+                                      ? "This field is required by the system and cannot be changed"
+                                      : col.is_required 
+                                        ? "Click to make this field optional"
+                                        : "Click to make this field mandatory"
+                                    }
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Info Box */}
+              <Alert className="bg-blue-50 border-blue-200">
+                <AlertDescription className="text-blue-800">
+                  <strong>How it works:</strong> When a field is set to mandatory, the loan application form will:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Display an asterisk (*) next to the field label</li>
+                    <li>Show a validation error if the field is left empty</li>
+                    <li>List missing mandatory fields in a &quot;fields missing&quot; notification per section</li>
+                    <li>Prevent form submission until all mandatory fields are filled</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Configuration Tab */}
         <TabsContent value="configure" className="space-y-4">
@@ -562,14 +674,15 @@ export default function ColumnConfigPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-6 max-w-2xl">
-                {(Object.entries(fieldGroups) as [ColumnFieldGroup, typeof fieldGroups[ColumnFieldGroup]][]).map(([groupKey, group]) => {
+                {(Object.entries(fieldGroups) as Array<[ColumnFieldGroup, { label: string; icon: React.ElementType; color: string }]>).map(([groupKey, group]) => {
                   const groupCols = formVisibleColumns.filter(c => c.field_group === groupKey)
                   if (groupCols.length === 0) return null
 
+                  const GroupIcon = group.icon
                   return (
                     <div key={groupKey} className={`p-4 rounded-lg border ${group.color}`}>
                       <h3 className="font-medium text-sm mb-4 flex items-center gap-2">
-                        {React.createElement(group.icon, { className: "h-4 w-4" })}
+                        <GroupIcon className="h-4 w-4" />
                         {group.label}
                       </h3>
                       <div className="grid gap-4 sm:grid-cols-2">
