@@ -57,7 +57,7 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
     return Math.round((filledCount / requiredFields.length) * 100)
   }, [])
 
-  // Save draft to database
+  // Save draft to database (gracefully handles missing table)
   const saveDraft = useCallback(async (
     formData: Record<string, any>,
     currentStep: string,
@@ -97,7 +97,14 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
           .select()
           .single()
         
-        if (error) throw error
+        // If table doesn't exist, silently fail for auto-save
+        if (error) {
+          if (error.code === "42P01" && isAutoSave) {
+            // Table doesn't exist - drafts feature not yet deployed
+            return { success: false, error: "Draft feature not available" }
+          }
+          throw error
+        }
         result = data
       } else {
         // Create new draft
@@ -110,7 +117,14 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
           .select()
           .single()
         
-        if (error) throw error
+        // If table doesn't exist, silently fail for auto-save
+        if (error) {
+          if (error.code === "42P01" && isAutoSave) {
+            // Table doesn't exist - drafts feature not yet deployed
+            return { success: false, error: "Draft feature not available" }
+          }
+          throw error
+        }
         result = data
         setCurrentDraftId(result.id)
       }
@@ -121,9 +135,14 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
       }
 
       return { success: true, draftId: result.id }
-    } catch (error) {
+    } catch (error: any) {
+      // Gracefully handle missing table errors
+      if (error?.code === "42P01") {
+        // Table doesn't exist - drafts feature not yet deployed
+        return { success: false, error: "Draft feature requires database migration" }
+      }
       const errorMsg = error instanceof Error ? error.message : "Failed to save draft"
-      if (onError) onError(errorMsg)
+      if (onError && !isAutoSave) onError(errorMsg)
       return { success: false, error: errorMsg }
     } finally {
       setIsSaving(false)
@@ -144,9 +163,21 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         .gt("expires_at", new Date().toISOString())
         .order("updated_at", { ascending: false })
 
-      if (error) throw error
+      // Handle missing table gracefully
+      if (error) {
+        if (error.code === "42P01") {
+          // Table doesn't exist - drafts feature not yet deployed
+          setDrafts([])
+          return
+        }
+        throw error
+      }
       setDrafts(data || [])
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === "42P01") {
+        setDrafts([])
+        return
+      }
       const errorMsg = error instanceof Error ? error.message : "Failed to load drafts"
       if (onError) onError(errorMsg)
     } finally {
@@ -163,10 +194,19 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         .eq("id", draftId)
         .single()
 
-      if (error) throw error
+      // Handle missing table gracefully
+      if (error) {
+        if (error.code === "42P01") {
+          return null
+        }
+        throw error
+      }
       setCurrentDraftId(data.id)
       return data
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === "42P01") {
+        return null
+      }
       const errorMsg = error instanceof Error ? error.message : "Failed to load draft"
       if (onError) onError(errorMsg)
       return null
@@ -181,7 +221,12 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         .delete()
         .eq("id", draftId)
 
-      if (error) throw error
+      if (error) {
+        if (error.code === "42P01") {
+          return false
+        }
+        throw error
+      }
       
       if (currentDraftId === draftId) {
         setCurrentDraftId(null)
@@ -189,7 +234,10 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
       
       setDrafts(prev => prev.filter(d => d.id !== draftId))
       return true
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === "42P01") {
+        return false
+      }
       const errorMsg = error instanceof Error ? error.message : "Failed to delete draft"
       if (onError) onError(errorMsg)
       return false
