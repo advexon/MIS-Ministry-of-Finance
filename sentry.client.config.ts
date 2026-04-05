@@ -5,11 +5,11 @@ const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN
 Sentry.init({
   dsn: SENTRY_DSN,
   environment: process.env.NODE_ENV,
-  enabled: SENTRY_DSN ? true : false,
+  enabled: !!SENTRY_DSN,
   
-  // Integrations
+  // Integrations - v8 uses function syntax
   integrations: [
-    new Sentry.Replay({
+    Sentry.replayIntegration({
       maskAllText: true,
       blockAllMedia: true,
     }),
@@ -27,7 +27,6 @@ Sentry.init({
   
   // Before sending to Sentry
   beforeSend(event, hint) {
-    // Ignore certain errors
     if (event.exception) {
       const error = hint.originalException
       if (error instanceof Error) {
@@ -40,15 +39,11 @@ Sentry.init({
     return event
   },
   
-  // Ignore certain URLs
+  // Ignore certain errors
   ignoreErrors: [
-    // Browser extensions
     "top.GLOBALS",
-    // Chrome extensions
     "chrome-extension://",
-    // Firefox extensions
     "moz-extension://",
-    // Random plugins
     "Can't find variable: ZiteReader",
     "jigsaw is not defined",
     "ComboSearch is not defined",
