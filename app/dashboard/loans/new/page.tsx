@@ -610,6 +610,33 @@ export default function NewLoanPage() {
     )
   }
 
+  // Per-step validation panel rendered inside each tab
+  const StepValidationPanel = ({ step }: { step: FormStep }) => {
+    const status = stepsStatus.find(s => s.step === step)
+    if (!status || status.errors.length === 0 || touchedFields.size === 0) return null
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+        <div className="flex items-center gap-2 text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-semibold">
+            {status.errors.length} required {status.errors.length === 1 ? "field" : "fields"} missing in this section
+          </span>
+        </div>
+        <ul className="space-y-1 pl-6">
+          {status.errors.map((err) => (
+            <li key={err.field} className="flex items-start gap-2 text-sm">
+              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" />
+              <span>
+                <span className="font-medium text-destructive">{err.label}:</span>{" "}
+                <span className="text-destructive/80">{err.error}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 lg:p-8">
       {/* Header with Progress */}
@@ -696,26 +723,11 @@ export default function NewLoanPage() {
         </Alert>
       )}
 
-      {/* Error/Validation Summary */}
+      {/* Navigation Error (step blocked) */}
       {error && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Validation Error</AlertTitle>
-          <AlertDescription>
-            {error}
-            {showValidationSummary && allErrors.length > 0 && (
-              <ul className="mt-2 list-disc pl-5 space-y-1">
-                {allErrors.slice(0, 5).map((err, i) => (
-                  <li key={i} className="text-sm">
-                    <strong>{err.label}:</strong> {err.error}
-                  </li>
-                ))}
-                {allErrors.length > 5 && (
-                  <li className="text-sm">...and {allErrors.length - 5} more errors</li>
-                )}
-              </ul>
-            )}
-          </AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
@@ -756,6 +768,7 @@ export default function NewLoanPage() {
 
           {/* ── BORROWER TAB ── */}
           <TabsContent value="borrower" className="space-y-6">
+            <StepValidationPanel step="borrower" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Borrower Information</CardTitle>
@@ -929,6 +942,7 @@ export default function NewLoanPage() {
 
           {/* ── LEGAL REP TAB ── */}
           <TabsContent value="legal_rep" className="space-y-6">
+            <StepValidationPanel step="legal_rep" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Legal Representative</CardTitle>
@@ -1001,6 +1015,7 @@ export default function NewLoanPage() {
 
           {/* ── LOAN TAB ── */}
           <TabsContent value="loan" className="space-y-6">
+            <StepValidationPanel step="loan" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" />Loan & Guarantee Details</CardTitle>
@@ -1191,6 +1206,7 @@ export default function NewLoanPage() {
 
           {/* ── COLLATERAL TAB ── */}
           <TabsContent value="collateral" className="space-y-6">
+            <StepValidationPanel step="collateral" />
             <Card>
               <CardHeader>
                 <CardTitle>Collateral & Guarantors</CardTitle>
@@ -1221,6 +1237,7 @@ export default function NewLoanPage() {
 
           {/* ── ADDITIONAL TAB ── */}
           <TabsContent value="additional" className="space-y-6">
+            <StepValidationPanel step="additional" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Notes & Submission</CardTitle>

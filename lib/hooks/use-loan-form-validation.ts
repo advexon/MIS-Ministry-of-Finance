@@ -156,8 +156,8 @@ const stepValidations: StepValidation[] = [
       {
         field: "interestRate",
         label: "Interest Rate",
-        required: true,
-        validate: (v) => validatePercentage(v, { required: true, fieldName: "Interest rate" })
+        required: false,
+        validate: (v) => v ? validatePercentage(v, { required: false, fieldName: "Interest rate" }) : { isValid: true }
       },
       {
         field: "guaranteeCoverage",
