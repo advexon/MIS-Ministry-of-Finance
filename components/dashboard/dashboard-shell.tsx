@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ErrorBoundary } from '@/components/error-boundary'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -290,7 +291,9 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto" id="main-content">
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

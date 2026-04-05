@@ -26,12 +26,11 @@ import {
   Phone,
   Clock,
 } from "lucide-react"
-import type { Profile, Role, Bank, BankBranch } from "@/lib/types/database"
+import type { Profile, Role, Bank } from "@/lib/types/database"
 
 interface ProfileWithRelations extends Profile {
   role?: Role
   bank?: Bank
-  branch?: BankBranch
 }
 
 export default function ProfilePage() {
