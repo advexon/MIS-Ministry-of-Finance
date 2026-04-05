@@ -292,14 +292,44 @@ export default function NewLoanPage() {
         customer_code: bankCustomerCode || null,
       }
 
-      const { data: borrower, error: borrowerError } = await supabase
+      // First check if borrower with this TIN already exists
+      const { data: existingBorrower } = await supabase
         .from("borrowers")
-        .upsert(borrowerData, { onConflict: "tin_number" })
         .select("id")
-        .single()
+        .eq("tin_number", clientTin)
+        .maybeSingle()
 
-      if (borrowerError) {
-        throw borrowerError
+      let borrower: { id: string } | null = null
+
+      if (existingBorrower) {
+        // Update existing borrower
+        const { data: updatedBorrower, error: updateError } = await supabase
+          .from("borrowers")
+          .update(borrowerData)
+          .eq("id", existingBorrower.id)
+          .select("id")
+          .single()
+
+        if (updateError) {
+          throw updateError
+        }
+        borrower = updatedBorrower
+      } else {
+        // Insert new borrower
+        const { data: newBorrower, error: insertError } = await supabase
+          .from("borrowers")
+          .insert(borrowerData)
+          .select("id")
+          .single()
+
+        if (insertError) {
+          throw insertError
+        }
+        borrower = newBorrower
+      }
+
+      if (!borrower) {
+        throw new Error("Failed to create or update borrower")
       }
 
       // 2. Calculate guarantee amount
