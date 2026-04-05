@@ -142,7 +142,71 @@ export async function logAccessAttempt(
       metadata: metadata || {},
     })
   } catch (error) {
-    console.error('[v0] Failed to log access attempt:', error)
+    console.error('Failed to log access attempt:', error)
+  }
+}
+
+/**
+ * Log permission/role changes to audit trail
+ */
+export async function logPermissionChange(
+  userId: string,
+  changeType: 'ROLE_ASSIGNED' | 'ROLE_REMOVED' | 'PERMISSIONS_UPDATED' | 'ROLE_CREATED' | 'ROLE_DELETED',
+  targetUserId: string | null,
+  targetRoleId: string,
+  details: {
+    roleName?: string
+    previousRole?: string
+    newRole?: string
+    permissionsChanged?: string[]
+    changedBy?: string
+  }
+) {
+  try {
+    const supabase = createClient()
+    await supabase.from('audit_trail').insert({
+      user_id: userId,
+      action: changeType,
+      entity_type: changeType.includes('ROLE') && !changeType.includes('PERMISSIONS') ? 'user' : 'role',
+      entity_id: targetUserId || targetRoleId,
+      changes: {
+        change_type: changeType,
+        target_user_id: targetUserId,
+        target_role_id: targetRoleId,
+        ...details,
+        timestamp: new Date().toISOString(),
+      },
+    })
+  } catch (error) {
+    console.error('Failed to log permission change:', error)
+  }
+}
+
+/**
+ * Log security-sensitive actions
+ */
+export async function logSecurityEvent(
+  userId: string,
+  eventType: 'LOGIN' | 'LOGOUT' | 'PASSWORD_CHANGE' | 'FAILED_LOGIN' | 'PRIVILEGE_ESCALATION_ATTEMPT' | 'UNAUTHORIZED_ACCESS',
+  metadata: Record<string, any>
+) {
+  try {
+    const supabase = createClient()
+    await supabase.from('access_logs').insert({
+      user_id: userId,
+      action: eventType,
+      resource: 'security',
+      resource_id: null,
+      success: !['FAILED_LOGIN', 'PRIVILEGE_ESCALATION_ATTEMPT', 'UNAUTHORIZED_ACCESS'].includes(eventType),
+      failure_reason: metadata.reason,
+      metadata: {
+        ...metadata,
+        event_type: eventType,
+        timestamp: new Date().toISOString(),
+      },
+    })
+  } catch (error) {
+    console.error('Failed to log security event:', error)
   }
 }
 

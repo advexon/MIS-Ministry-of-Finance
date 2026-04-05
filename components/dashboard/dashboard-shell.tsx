@@ -9,6 +9,8 @@ import { useI18n } from '@/lib/i18n/context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { usePermissions } from '@/lib/contexts/permission-context'
+import type { Permission } from '@/lib/utils/permissions'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,30 +53,33 @@ interface DashboardShellProps {
   user: User
 }
 
-const navItems = [
-  { titleKey: 'dashboard' as const, href: '/dashboard', icon: LayoutDashboard },
-  {
-    titleKey: 'loans' as const,
-    href: '/dashboard/loans',
-    icon: FileText,
-  },
-  { titleKey: 'borrowers' as const, href: '/dashboard/borrowers', icon: Users },
-  { titleKey: 'claims' as const, href: '/dashboard/claims', icon: AlertTriangle },
-  { titleKey: 'fees' as const, href: '/dashboard/fees', icon: DollarSign },
-  {
-    titleKey: 'guaranteeReports' as const,
-    href: '/dashboard/guarantee-reports',
-    icon: ShieldCheck,
-  },
-  { titleKey: 'reports' as const, href: '/dashboard/reports', icon: BarChart3 },
-  { titleKey: 'documents' as const, href: '/dashboard/documents', icon: FolderDown },
-  { titleKey: 'banks' as const, href: '/dashboard/banks', icon: Building2 },
-  { titleKey: 'users' as const, href: '/dashboard/users', icon: Users },
-  { titleKey: 'reconciliation' as const, href: '/dashboard/reconciliation', icon: GitCompare },
-  { titleKey: 'recoveries' as const, href: '/dashboard/recoveries', icon: TrendingUp },
-  { titleKey: 'auditTrail' as const, href: '/dashboard/audit', icon: Shield },
-  { titleKey: 'settings' as const, href: '/dashboard/settings', icon: Settings },
-  { titleKey: 'manual' as const, href: '/dashboard/manual', icon: BookOpen },
+interface NavItem {
+  titleKey: keyof typeof import('@/lib/i18n/translations').translations.en.nav
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  resource?: string // Resource for permission check
+  permission?: Permission // Required permission (defaults to 'view')
+  adminOnly?: boolean // Only show for tier <= 2
+  prsfOnly?: boolean // Only show for PRSF staff (non-bank users)
+}
+
+const navItems: NavItem[] = [
+  { titleKey: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { titleKey: 'loans', href: '/dashboard/loans', icon: FileText, resource: 'loans' },
+  { titleKey: 'borrowers', href: '/dashboard/borrowers', icon: Users, resource: 'loans' },
+  { titleKey: 'claims', href: '/dashboard/claims', icon: AlertTriangle, resource: 'claims' },
+  { titleKey: 'fees', href: '/dashboard/fees', icon: DollarSign, resource: 'fees' },
+  { titleKey: 'guaranteeReports', href: '/dashboard/guarantee-reports', icon: ShieldCheck, resource: 'reports' },
+  { titleKey: 'reports', href: '/dashboard/reports', icon: BarChart3, resource: 'reports' },
+  { titleKey: 'documents', href: '/dashboard/documents', icon: FolderDown, resource: 'reports' },
+  { titleKey: 'banks', href: '/dashboard/banks', icon: Building2, resource: 'banks' },
+  { titleKey: 'users', href: '/dashboard/users', icon: Users, resource: 'users' },
+  { titleKey: 'reconciliation', href: '/dashboard/reconciliation', icon: GitCompare, resource: 'fees', prsfOnly: true },
+  { titleKey: 'recoveries', href: '/dashboard/recoveries', icon: TrendingUp, resource: 'claims', prsfOnly: true },
+  { titleKey: 'auditTrail', href: '/dashboard/audit', icon: Shield, resource: 'audit_logs' },
+  { titleKey: 'roles' as any, href: '/dashboard/roles', icon: Shield, resource: 'roles', adminOnly: true },
+  { titleKey: 'settings', href: '/dashboard/settings', icon: Settings, adminOnly: true },
+  { titleKey: 'manual', href: '/dashboard/manual', icon: BookOpen },
 ]
 
 const languages: { code: Locale; label: string; flag: string }[] = [
@@ -88,6 +93,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const router = useRouter()
   const { t, locale, setLocale } = useI18n()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { can, role } = usePermissions()
 
   const handleLogout = useCallback(async () => {
     const supabase = createClient()
@@ -96,6 +102,22 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   }, [router])
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), [])
+
+  // Filter navigation items based on user permissions
+  const filteredNavItems = navItems.filter((item) => {
+    // Admin-only items require tier <= 2
+    if (item.adminOnly && (!role || role.tier > 2)) return false
+    
+    // PRSF-only items exclude bank users
+    if (item.prsfOnly && role?.code?.startsWith('bank_')) return false
+    
+    // Check resource permission if specified
+    if (item.resource) {
+      return can(item.resource, item.permission || 'view')
+    }
+    
+    return true
+  })
 
   const navContent = (
     <div className="flex h-full flex-col">
@@ -123,7 +145,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
           Navigation
         </p>
         <nav className="flex flex-col gap-0.5">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const Icon = item.icon
             const isActive =
               pathname === item.href ||
@@ -150,19 +172,21 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
         </nav>
       </ScrollArea>
 
-      {/* Quick Action */}
-      <div className="border-t border-white/10 p-3">
-        <Button
-          asChild
-          size="sm"
-          className="w-full justify-start gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
-        >
-          <Link href="/dashboard/loans/new" onClick={closeSidebar}>
-            <PlusCircle className="h-4 w-4" />
-            <span className="text-[13px]">{t.loans.newApplication}</span>
-          </Link>
-        </Button>
-      </div>
+      {/* Quick Action - only show if user can create loans */}
+      {can('loans', 'create') && (
+        <div className="border-t border-white/10 p-3">
+          <Button
+            asChild
+            size="sm"
+            className="w-full justify-start gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+          >
+            <Link href="/dashboard/loans/new" onClick={closeSidebar}>
+              <PlusCircle className="h-4 w-4" />
+              <span className="text-[13px]">{t.loans.newApplication}</span>
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   )
 
