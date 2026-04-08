@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -160,6 +161,7 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
 
 export default function DocumentsPage() {
   const { toast } = useToast()
+  const supabase = useMemo(() => createClient(), [])
 
   // Template state — start from built-in
   const initialTemplate: DocumentTemplate = {
@@ -173,9 +175,151 @@ export default function DocumentsPage() {
   const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState('')
   const [activeConfig, setActiveConfig] = useState<'columns' | 'filters' | 'sort' | 'conditional' | 'headerfooter' | 'page'>('columns')
+  const [liveData, setLiveData] = useState<Record<string, Record<string, unknown>[]>>({})
+  const [dataLoading, setDataLoading] = useState(false)
+  const [dataError, setDataError] = useState<string | null>(null)
 
-  // Computed preview data
-  const rawRows = MOCK_PREVIEW_ROWS[template.dataSource] ?? []
+  // Fetch live data from database based on data source
+  const fetchLiveData = useCallback(async (dataSource: string) => {
+    setDataLoading(true)
+    setDataError(null)
+
+    try {
+      let data: Record<string, unknown>[] = []
+
+      switch (dataSource) {
+        case 'loan_applications': {
+          const { data: loans, error } = await supabase
+            .from('loan_applications')
+            .select(`
+              *,
+              bank:banks(name_en, code),
+              borrower:borrowers(name, tin_number),
+              sector:sectors(name_en)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(500)
+
+          if (error) throw error
+          data = (loans || []).map(loan => ({
+            loan_number: loan.loan_number || `LA-${loan.id?.slice(0, 8)}`,
+            borrower_name: loan.borrower?.name || '—',
+            bank_name: loan.bank?.name_en || '—',
+            sector: loan.sector?.name_en || '—',
+            approved_amount: loan.approved_amount || 0,
+            disbursed_amount: loan.disbursed_amount || 0,
+            outstanding_balance: loan.outstanding_balance || 0,
+            guarantee_coverage: loan.guarantee_coverage || 0,
+            interest_rate: loan.interest_rate || 0,
+            maturity_date: loan.maturity_date,
+            status: loan.status || 'unknown',
+            days_overdue: loan.days_past_due || 0,
+            overdue_principal: loan.overdue_principal || 0,
+            overdue_interest: loan.overdue_interest || 0,
+            last_payment_date: loan.last_payment_date,
+          }))
+          break
+        }
+
+        case 'guarantee_reports': {
+          const { data: reports, error } = await supabase
+            .from('guarantee_reports')
+            .select(`
+              *,
+              bank:banks(name_en)
+            `)
+            .order('report_month', { ascending: false })
+            .limit(200)
+
+          if (error) throw error
+          data = (reports || []).map(r => ({
+            report_month: r.report_month,
+            bank_name: r.bank?.name_en || '—',
+            report_type: r.report_type || 'disbursements',
+            total_loans: r.total_loans || 0,
+            total_outstanding_principal: r.total_outstanding_principal || 0,
+            total_guarantee_amount: r.total_guarantee_amount || 0,
+            status: r.status || 'pending',
+            submission_date: r.submission_date || r.created_at,
+          }))
+          break
+        }
+
+        case 'claims': {
+          const { data: claims, error } = await supabase
+            .from('claims')
+            .select(`
+              *,
+              bank:banks(name_en),
+              loan:loan_applications(loan_number)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(200)
+
+          if (error) throw error
+          data = (claims || []).map(c => ({
+            claim_number: c.claim_number || `CLM-${c.id?.slice(0, 8)}`,
+            bank_name: c.bank?.name_en || '—',
+            loan_number: c.loan?.loan_number || '—',
+            claim_amount: c.claim_amount || 0,
+            approved_amount: c.approved_amount || 0,
+            paid_amount: c.paid_amount || 0,
+            filing_date: c.filing_date || c.created_at,
+            status: c.status || 'pending',
+          }))
+          break
+        }
+
+        case 'fees': {
+          const { data: fees, error } = await supabase
+            .from('fee_transactions')
+            .select(`
+              *,
+              bank:banks(name_en)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(200)
+
+          if (error) throw error
+          data = (fees || []).map(f => ({
+            bank_name: f.bank?.name_en || '—',
+            period: f.period || '—',
+            fee_rate: f.fee_rate || 1.5,
+            guarantee_amount: f.guarantee_amount || 0,
+            fee_amount: f.fee_amount || f.amount || 0,
+            due_date: f.due_date,
+            paid_date: f.paid_date,
+            status: f.status || 'pending',
+          }))
+          break
+        }
+
+        default:
+          // Fallback to mock data if table not recognized
+          data = MOCK_PREVIEW_ROWS[dataSource] || []
+      }
+
+      setLiveData(prev => ({ ...prev, [dataSource]: data }))
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data'
+      setDataError(errorMessage)
+      // Fallback to mock data on error
+      setLiveData(prev => ({ ...prev, [dataSource]: MOCK_PREVIEW_ROWS[dataSource] || [] }))
+      toast({ title: 'Using sample data', description: errorMessage, variant: 'destructive' })
+    } finally {
+      setDataLoading(false)
+    }
+  }, [supabase, toast])
+
+  // Fetch data when template changes
+  useEffect(() => {
+    if (template.dataSource && !liveData[template.dataSource]) {
+      fetchLiveData(template.dataSource)
+    }
+  }, [template.dataSource, liveData, fetchLiveData])
+
+  // Use live data if available, otherwise fallback to mock data
+  const rawRows = liveData[template.dataSource] ?? MOCK_PREVIEW_ROWS[template.dataSource] ?? []
   const filteredRows = useMemo(() => applyFilters(rawRows, template.filters), [rawRows, template.filters])
   const sortedRows = useMemo(() => applySorting(filteredRows, template.sortRules), [filteredRows, template.sortRules])
   const previewRows = useMemo(() => {
@@ -194,7 +338,14 @@ export default function DocumentsPage() {
 
   const loadTemplate = (tmpl: Omit<DocumentTemplate, 'createdAt' | 'updatedAt'>) => {
     setTemplate({ ...tmpl, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+    // Fetch fresh data for the new template's data source
+    fetchLiveData(tmpl.dataSource)
     toast({ title: `Loaded template: ${tmpl.name}` })
+  }
+
+  const handleRefreshData = () => {
+    fetchLiveData(template.dataSource)
+    toast({ title: 'Refreshing data...' })
   }
 
   const handleExport = async () => {
@@ -252,6 +403,16 @@ export default function DocumentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 bg-transparent text-xs"
+              onClick={handleRefreshData}
+              disabled={dataLoading}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", dataLoading && "animate-spin")} />
+              {dataLoading ? 'Loading...' : 'Refresh Data'}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5 bg-transparent text-xs">
@@ -273,7 +434,7 @@ export default function DocumentsPage() {
               size="sm"
               className="gap-2 text-xs"
               onClick={handleExport}
-              disabled={exporting}
+              disabled={exporting || dataLoading}
             >
               {exporting
                 ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -286,8 +447,20 @@ export default function DocumentsPage() {
 
       {/* Stat bar */}
       <div className="flex-shrink-0 border-b bg-secondary/20 px-6 py-3">
+        {dataError && (
+          <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            <AlertCircle className="mr-1.5 inline h-3.5 w-3.5" />
+            Using sample data: {dataError}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Total Records" value={rawRows.length} sub="in data source" icon={BarChart3} accent="bg-primary" />
+          <StatCard 
+            label="Total Records" 
+            value={dataLoading ? '...' : rawRows.length} 
+            sub={dataLoading ? 'loading from database' : 'from live database'} 
+            icon={BarChart3} 
+            accent="bg-primary" 
+          />
           <StatCard label="After Filters" value={filteredRows.length} sub={`${template.filters.filter(f => f.enabled).length} filter(s) active`} icon={Filter} accent="bg-accent" />
           <StatCard label="Visible Columns" value={visibleCols.length} sub={`of ${template.columns.length} total`} icon={Layout} accent="bg-info" />
           <StatCard label="Cond. Rules" value={template.conditionalRules.filter(r => r.enabled).length} sub="active formatting rules" icon={Palette} accent="bg-warning" />
