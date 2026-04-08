@@ -43,7 +43,12 @@ const stepValidations: StepValidation[] = [
         field: "legalEntityType",
         label: "Legal Entity Type",
         required: true,
-        validate: (v) => v ? { isValid: true } : { isValid: false, error: "Please select entity type" }
+        validate: (v) => {
+          if (!v) return { isValid: false, error: "Please select entity type" }
+          const validTypes = ["individual", "legal_entity", "individual_entrepreneur"]
+          if (!validTypes.includes(v)) return { isValid: false, error: "Invalid entity type selected" }
+          return { isValid: true }
+        }
       },
       {
         field: "clientName",

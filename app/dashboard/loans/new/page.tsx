@@ -509,6 +509,14 @@ export default function NewLoanPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
 
+      // Validate legal_type before submission - must be one of the allowed values
+      const validLegalTypes = ["individual", "legal_entity", "individual_entrepreneur"]
+      if (!legalEntityType || !validLegalTypes.includes(legalEntityType)) {
+        setSubmitError("Please select a valid Legal Entity Type")
+        setIsSubmitting(false)
+        return
+      }
+
       // 1. Upsert borrower by TIN
       const borrowerData = {
         tin_number: clientTin,
