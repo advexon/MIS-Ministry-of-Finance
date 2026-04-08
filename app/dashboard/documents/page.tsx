@@ -264,32 +264,34 @@ export default function DocumentsPage() {
             claim_amount: c.claim_amount || 0,
             approved_amount: c.approved_amount || 0,
             paid_amount: c.paid_amount || 0,
-            filing_date: c.filing_date || c.created_at,
+            claim_date: c.claim_date,
+            default_date: c.default_date,
             status: c.status || 'pending',
+            days_delinquent: c.days_delinquent || 0,
           }))
           break
         }
 
         case 'fees': {
-          const { data: fees, error } = await supabase
-            .from('fee_transactions')
+          // Use guarantee_reports as the source for fee/commission data
+          const { data: reports, error } = await supabase
+            .from('guarantee_reports')
             .select(`
               *,
               bank:banks(name_en)
             `)
-            .order('created_at', { ascending: false })
+            .order('report_month', { ascending: false })
             .limit(200)
 
           if (error) throw error
-          data = (fees || []).map(f => ({
-            bank_name: f.bank?.name_en || '—',
-            period: f.period || '—',
-            fee_rate: f.fee_rate || 1.5,
-            guarantee_amount: f.guarantee_amount || 0,
-            fee_amount: f.fee_amount || f.amount || 0,
-            due_date: f.due_date,
-            paid_date: f.paid_date,
-            status: f.status || 'pending',
+          data = (reports || []).map(r => ({
+            bank_name: r.bank?.name_en || '—',
+            report_month: r.report_month,
+            total_guarantee_amount: r.total_guarantee_amount || 0,
+            total_outstanding_principal: r.total_outstanding_principal || 0,
+            total_loans: r.total_loans || 0,
+            status: r.status || 'pending',
+            submission_date: r.submission_date,
           }))
           break
         }
