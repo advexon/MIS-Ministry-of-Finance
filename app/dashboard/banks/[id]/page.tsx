@@ -51,18 +51,24 @@ export default function BankDetailPage() {
     fetchAll()
   }, [id])
 
+  // Helper to get localized bank name
+  const getBankName = (b: any) => {
+    if (t.locale === 'ru' && b?.name_ru) return b.name_ru
+    if (t.locale === 'tj' && b?.name_tj) return b.name_tj
+    return b?.name_en || ''
+  }
+
   const handleSave = async () => {
     setSaving(true)
     const { error } = await supabase.from('banks').update({
-      name: form.name,
-      contact_person: form.contact_person,
-      email: form.email,
-      phone: form.phone,
-      address: form.address,
+      code: form.code,
+      name_en: form.name_en,
+      name_ru: form.name_ru || form.name_en,
+      name_tj: form.name_tj || form.name_en,
       is_active: form.is_active,
     }).eq('id', id)
     if (error) {
-      toast({ title: 'Failed to update bank', variant: 'destructive' })
+      toast({ title: 'Failed to update bank', description: error.message, variant: 'destructive' })
     } else {
       toast({ title: 'Bank updated successfully' })
       setBank(form)
@@ -102,8 +108,8 @@ export default function BankDetailPage() {
             {bank.code?.charAt(0)}
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">{bank.name}</h1>
-            <p className="text-sm text-muted-foreground font-mono">{bank.code}</p>
+            <h1 className="text-xl font-bold text-foreground">{bank.code}</h1>
+            <p className="text-sm text-muted-foreground">{getBankName(bank)}</p>
           </div>
           <Badge className={bank.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}>
             {bank.is_active ? 'Active' : 'Inactive'}
@@ -169,12 +175,10 @@ export default function BankDetailPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 {[
-                  { label: 'Bank Code', field: 'code', readOnly: true },
-                  { label: 'Bank Name', field: 'name' },
-                  { label: 'Contact Person', field: 'contact_person' },
-                  { label: 'Email', field: 'email' },
-                  { label: 'Phone', field: 'phone' },
-                  { label: 'Address', field: 'address' },
+                  { label: 'Bank Code', field: 'code', readOnly: !editing },
+                  { label: 'Bank Name (English)', field: 'name_en' },
+                  { label: 'Bank Name (Russian)', field: 'name_ru' },
+                  { label: 'Bank Name (Tajik)', field: 'name_tj' },
                 ].map(({ label, field, readOnly }) => (
                   <div key={field} className="space-y-2">
                     <Label className="text-xs">{label}</Label>
@@ -187,15 +191,17 @@ export default function BankDetailPage() {
                   </div>
                 ))}
               </div>
-              {editing && (
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="text-sm font-medium">Active Status</p>
-                    <p className="text-xs text-muted-foreground">Enable or disable this bank in the system</p>
-                  </div>
-                  <Switch checked={form.is_active} onCheckedChange={v => setForm((p: any) => ({ ...p, is_active: v }))} />
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Active Status</p>
+                  <p className="text-xs text-muted-foreground">Enable or disable this bank in the system</p>
                 </div>
-              )}
+                <Switch 
+                  checked={form.is_active} 
+                  onCheckedChange={v => setForm((p: any) => ({ ...p, is_active: v }))} 
+                  disabled={!editing}
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
