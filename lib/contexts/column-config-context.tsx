@@ -16,6 +16,7 @@ const defaultColumns: Partial<ColumnConfiguration>[] = [
   // Legal Representative
   { column_key: "legal_rep_name", display_name_en: "Legal Representative", display_name_ru: "Законный представитель", display_name_tj: "Намояндаи қонунӣ", field_group: "legal_rep", is_visible_in_table: false, is_visible_in_form: true, is_visible_in_detail: true, is_required: false, is_system_required: false, input_type: "text", display_order: 10, table_column_order: 0 },
   { column_key: "legal_rep_position", display_name_en: "Position", display_name_ru: "Должность", display_name_tj: "Вазифа", field_group: "legal_rep", is_visible_in_table: false, is_visible_in_form: true, is_visible_in_detail: true, is_required: false, is_system_required: false, input_type: "text", display_order: 11, table_column_order: 0 },
+  { column_key: "legal_rep_tin", display_name_en: "TIN Number", display_name_ru: "ИНН представителя", display_name_tj: "РМА-и намоянда", field_group: "legal_rep", is_visible_in_table: false, is_visible_in_form: true, is_visible_in_detail: true, is_required: true, is_system_required: true, input_type: "text", display_order: 12, table_column_order: 0 },
   
   // Loan Details
   { column_key: "bank_id", display_name_en: "Bank", display_name_ru: "Банк", display_name_tj: "Бонк", field_group: "loan", is_visible_in_table: true, is_visible_in_form: true, is_visible_in_detail: true, is_required: true, is_system_required: true, input_type: "select", display_order: 20, table_column_order: 4 },

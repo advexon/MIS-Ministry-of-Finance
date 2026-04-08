@@ -90,6 +90,7 @@ INSERT INTO column_configurations (entity_type, column_key, display_name_en, dis
 ('loan_applications', 'legal_rep_name', 'Legal Representative', 'Законный представитель', 'Намояндаи қонунӣ', 'legal_rep', false, true, false, false, 'text', 10, 0),
 ('loan_applications', 'legal_rep_position', 'Position', 'Должность', 'Вазифа', 'legal_rep', false, true, false, false, 'text', 11, 0),
 ('loan_applications', 'legal_rep_phone', 'Rep Phone', 'Телефон представителя', 'Телефони намоянда', 'legal_rep', false, true, false, false, 'text', 12, 0),
+('loan_applications', 'legal_rep_tin', 'TIN Number', 'ИНН представителя', 'РМА-и намоянда', 'legal_rep', false, true, true, true, 'text', 13, 0),
 
 -- Loan Details (Group 3)
 ('loan_applications', 'bank_id', 'Bank', 'Банк', 'Бонк', 'loan', true, true, true, true, 'select', 20, 4),

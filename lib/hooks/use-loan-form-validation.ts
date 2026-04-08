@@ -130,6 +130,17 @@ const stepValidations: StepValidation[] = [
         }
       },
       {
+        field: "legalRepTin",
+        label: "TIN Number",
+        required: true,
+        validate: (v) => {
+          if (!v || v === "") return { isValid: false, error: "TIN Number is required for the legal representative" }
+          const digitsOnly = String(v).replace(/\D/g, "")
+          if (digitsOnly.length !== 9) return { isValid: false, error: "TIN Number must be exactly 9 digits" }
+          return { isValid: true }
+        }
+      },
+      {
         field: "passportNumber",
         label: "Passport Number",
         required: true,
