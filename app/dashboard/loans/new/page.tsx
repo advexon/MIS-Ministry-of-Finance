@@ -377,13 +377,19 @@ export default function NewLoanPage() {
     }
   }
 
+  // Helper to validate legal_type value
+  const isValidLegalType = (type: string | null | undefined): type is "individual" | "legal_entity" | "individual_entrepreneur" => {
+    return type === "individual" || type === "legal_entity" || type === "individual_entrepreneur"
+  }
+
   // Load existing borrower data into form fields
   const loadBorrowerData = () => {
     if (!foundBorrower) return
 
     // Borrower basic info
     setClientName(foundBorrower.name || "")
-    setLegalEntityType(foundBorrower.legal_type || "")
+    // Only set legal_type if it's a valid value, otherwise leave as empty so user must select
+    setLegalEntityType(isValidLegalType(foundBorrower.legal_type) ? foundBorrower.legal_type : "")
     setRegistrationNumber(foundBorrower.registration_number || "")
     setBankCustomerCode(foundBorrower.customer_code || "")
     setSectorId(foundBorrower.sector_id || "")
@@ -510,17 +516,39 @@ export default function NewLoanPage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       // Validate legal_type before submission - must be one of the allowed values
-      const validLegalTypes = ["individual", "legal_entity", "individual_entrepreneur"]
-      if (!legalEntityType || !validLegalTypes.includes(legalEntityType)) {
-        setSubmitError("Please select a valid Legal Entity Type")
+      const validLegalTypes = ["individual", "legal_entity", "individual_entrepreneur"] as const
+      console.log("[v0] Legal type validation - value:", JSON.stringify(legalEntityType), "type:", typeof legalEntityType)
+      
+      if (!legalEntityType || !validLegalTypes.includes(legalEntityType as typeof validLegalTypes[number])) {
+        console.log("[v0] Legal type validation FAILED - value was:", JSON.stringify(legalEntityType))
+        setSubmitError(`Please select a valid Legal Entity Type. Current value: "${legalEntityType}"`)
         setIsSubmitting(false)
         return
       }
+      console.log("[v0] Legal type validation PASSED - proceeding with:", legalEntityType)
 
       // 1. Upsert borrower by TIN
+      // Ensure legal_type is exactly one of the valid values (no whitespace, correct case)
+      const sanitizedLegalType = legalEntityType.trim().toLowerCase()
+      const legalTypeMap: Record<string, "individual" | "legal_entity" | "individual_entrepreneur"> = {
+        "individual": "individual",
+        "legal_entity": "legal_entity", 
+        "individual_entrepreneur": "individual_entrepreneur",
+      }
+      const finalLegalType = legalTypeMap[sanitizedLegalType]
+      
+      if (!finalLegalType) {
+        console.log("[v0] CRITICAL: Invalid legal_type after sanitization:", JSON.stringify(sanitizedLegalType))
+        setSubmitError(`Invalid Legal Entity Type: "${legalEntityType}". Please select a valid option.`)
+        setIsSubmitting(false)
+        return
+      }
+      
+      console.log("[v0] Creating borrower with legal_type:", finalLegalType)
+      
       const borrowerData = {
         tin_number: clientTin,
-        legal_type: legalEntityType as "individual" | "legal_entity" | "individual_entrepreneur",
+        legal_type: finalLegalType,
         // Real DB column is `name` — holds the company name or personal full name
         name: clientName,
         registration_number: registrationNumber || null,
