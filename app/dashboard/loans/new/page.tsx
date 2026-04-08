@@ -517,15 +517,12 @@ export default function NewLoanPage() {
 
       // Validate legal_type before submission - must be one of the allowed values
       const validLegalTypes = ["individual", "legal_entity", "individual_entrepreneur"] as const
-      console.log("[v0] Legal type validation - value:", JSON.stringify(legalEntityType), "type:", typeof legalEntityType)
       
       if (!legalEntityType || !validLegalTypes.includes(legalEntityType as typeof validLegalTypes[number])) {
-        console.log("[v0] Legal type validation FAILED - value was:", JSON.stringify(legalEntityType))
-        setSubmitError(`Please select a valid Legal Entity Type. Current value: "${legalEntityType}"`)
+        setSubmitError("Please select a valid Legal Entity Type")
         setIsSubmitting(false)
         return
       }
-      console.log("[v0] Legal type validation PASSED - proceeding with:", legalEntityType)
 
       // 1. Upsert borrower by TIN
       // Ensure legal_type is exactly one of the valid values (no whitespace, correct case)
@@ -538,13 +535,10 @@ export default function NewLoanPage() {
       const finalLegalType = legalTypeMap[sanitizedLegalType]
       
       if (!finalLegalType) {
-        console.log("[v0] CRITICAL: Invalid legal_type after sanitization:", JSON.stringify(sanitizedLegalType))
-        setSubmitError(`Invalid Legal Entity Type: "${legalEntityType}". Please select a valid option.`)
+        setSubmitError("Invalid Legal Entity Type. Please select a valid option.")
         setIsSubmitting(false)
         return
       }
-      
-      console.log("[v0] Creating borrower with legal_type:", finalLegalType)
       
       const borrowerData = {
         tin_number: clientTin,
