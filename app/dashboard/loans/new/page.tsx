@@ -75,6 +75,8 @@ export default function NewLoanPage() {
   const [tinDuplicateWarning, setTinDuplicateWarning] = useState<{ name: string; type: string } | null>(null)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
   const [checkingTin, setCheckingTin] = useState(false)
+  const [foundBorrower, setFoundBorrower] = useState<any | null>(null)
+  const [borrowerLoaded, setBorrowerLoaded] = useState(false)
 
   // Legal Representative fields
   const [legalRepSurname, setLegalRepSurname] = useState("")
@@ -325,7 +327,7 @@ export default function NewLoanPage() {
     if (p) setGuaranteeCoverage(String(p.guarantee_coverage))
   }, [productId, products])
 
-  // TIN validation: exactly 9 digits, check for duplicates
+  // TIN validation: exactly 9 digits, check for existing borrower
   const handleTinChange = async (value: string) => {
     // Only allow digits, strip anything else
     const digitsOnly = value.replace(/\D/g, "")
@@ -334,6 +336,8 @@ export default function NewLoanPage() {
     setClientTin(limitedValue)
     setTinError(null)
     setTinDuplicateWarning(null)
+    setFoundBorrower(null)
+    setBorrowerLoaded(false)
 
     // Validate length
     if (limitedValue.length > 0 && limitedValue.length !== 9) {
@@ -341,13 +345,14 @@ export default function NewLoanPage() {
       return
     }
 
-    // Check for duplicates when we have exactly 9 digits
+    // Check for existing borrower when we have exactly 9 digits
     if (limitedValue.length === 9) {
       setCheckingTin(true)
       try {
+        // Fetch ALL borrower fields to enable auto-population
         const { data: existingBorrower } = await supabase
           .from("borrowers")
-          .select("id, name, legal_type")
+          .select("*")
           .eq("tin_number", limitedValue)
           .maybeSingle()
 
@@ -361,6 +366,7 @@ export default function NewLoanPage() {
             name: existingBorrower.name,
             type: typeLabel
           })
+          setFoundBorrower(existingBorrower)
           setShowDuplicateDialog(true)
         }
       } catch (err) {
@@ -369,6 +375,44 @@ export default function NewLoanPage() {
         setCheckingTin(false)
       }
     }
+  }
+
+  // Load existing borrower data into form fields
+  const loadBorrowerData = () => {
+    if (!foundBorrower) return
+
+    // Borrower basic info
+    setClientName(foundBorrower.name || "")
+    setLegalEntityType(foundBorrower.legal_type || "")
+    setRegistrationNumber(foundBorrower.registration_number || "")
+    setBankCustomerCode(foundBorrower.customer_code || "")
+    setSectorId(foundBorrower.sector_id || "")
+
+    // Address
+    setAddressStreet(foundBorrower.address_street || "")
+    setCity(foundBorrower.address_city || "")
+    setDistrict(foundBorrower.address_district || "")
+    setZipCode(foundBorrower.address_zip || "")
+
+    // Contact
+    setPhone(foundBorrower.phone || "")
+    setEmail(foundBorrower.email || "")
+
+    // Workforce
+    setWorkforce(foundBorrower.workforce_count?.toString() || "")
+
+    // Legal Representative
+    setLegalRepSurname(foundBorrower.legal_rep_surname || "")
+    setLegalRepName(foundBorrower.legal_rep_name || "")
+    setLegalRepPatronymic(foundBorrower.legal_rep_patronymic || "")
+    setLegalRepGender(foundBorrower.legal_rep_gender || "")
+    setLegalRepBirthdate(foundBorrower.legal_rep_birthdate || "")
+    setLegalRepCountryOfBirth(foundBorrower.legal_rep_country_of_birth || "")
+    setLegalRepTin(foundBorrower.legal_rep_tin || "")
+
+    // Mark as loaded and close dialog
+    setBorrowerLoaded(true)
+    setShowDuplicateDialog(false)
   }
 
   const addGuarantor = () => setGuarantors([...guarantors, { name: "", id_number: "", relationship: "" }])
@@ -864,10 +908,20 @@ export default function NewLoanPage() {
                         maxLength={9}
                         inputMode="numeric"
                         pattern="[0-9]{9}"
-                        className={tinError ? "border-destructive" : tinDuplicateWarning ? "border-warning" : ""}
+                        className={
+                          tinError ? "border-destructive pr-10" : 
+                          borrowerLoaded ? "border-green-500 bg-green-50 pr-10" :
+                          tinDuplicateWarning ? "border-amber-500 pr-10" : ""
+                        }
                       />
                       {checkingTin && (
                         <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                      )}
+                      {borrowerLoaded && !checkingTin && (
+                        <CheckCircle2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-green-600" />
+                      )}
+                      {tinDuplicateWarning && !borrowerLoaded && !checkingTin && (
+                        <AlertTriangle className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-500" />
                       )}
                     </div>
                     {tinError && (
@@ -875,9 +929,22 @@ export default function NewLoanPage() {
                         <AlertCircle className="h-3 w-3" /> {tinError}
                       </p>
                     )}
-                    {tinDuplicateWarning && !tinError && (
-                      <p className="text-xs text-warning flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" /> Borrower already exists in system
+                    {borrowerLoaded && !tinError && (
+                      <p className="text-xs text-green-600 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Borrower data loaded successfully
+                      </p>
+                    )}
+                    {tinDuplicateWarning && !borrowerLoaded && !tinError && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" /> 
+                        <span>Existing borrower found - </span>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowDuplicateDialog(true)} 
+                          className="underline hover:no-underline font-medium"
+                        >
+                          click to load data
+                        </button>
                       </p>
                     )}
                     <p className="text-[10px] text-muted-foreground">Enter exactly 9 digits (numbers only)</p>
@@ -1310,39 +1377,84 @@ export default function NewLoanPage() {
         </Tabs>
       </form>
 
-      {/* Duplicate TIN Warning Dialog */}
+      {/* Existing Borrower Found Dialog */}
       <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-warning">
-              <AlertTriangle className="h-5 w-5" />
-              Borrower Already Registered
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <CheckCircle2 className="h-5 w-5" />
+              Existing Borrower Found
             </DialogTitle>
             <DialogDescription>
-              A borrower with this TIN number already exists in the system.
+              A borrower with this TIN number already exists in the system. You can load their information to save time.
             </DialogDescription>
           </DialogHeader>
-          {tinDuplicateWarning && (
-            <Alert className="border-warning/50 bg-warning/10">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-              <AlertDescription className="ml-2">
-                <div className="space-y-1">
-                  <p><strong>Name:</strong> {tinDuplicateWarning.name}</p>
-                  <p><strong>Type:</strong> {tinDuplicateWarning.type}</p>
-                  <p><strong>TIN:</strong> {clientTin}</p>
+          {tinDuplicateWarning && foundBorrower && (
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Name:</span>
+                  <p className="font-medium">{tinDuplicateWarning.name}</p>
                 </div>
-              </AlertDescription>
-            </Alert>
+                <div>
+                  <span className="text-muted-foreground">Type:</span>
+                  <p className="font-medium">{tinDuplicateWarning.type}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">TIN:</span>
+                  <p className="font-medium">{clientTin}</p>
+                </div>
+                {foundBorrower.phone && (
+                  <div>
+                    <span className="text-muted-foreground">Phone:</span>
+                    <p className="font-medium">{foundBorrower.phone}</p>
+                  </div>
+                )}
+                {foundBorrower.address_city && (
+                  <div>
+                    <span className="text-muted-foreground">City:</span>
+                    <p className="font-medium">{foundBorrower.address_city}</p>
+                  </div>
+                )}
+                {foundBorrower.email && (
+                  <div>
+                    <span className="text-muted-foreground">Email:</span>
+                    <p className="font-medium">{foundBorrower.email}</p>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-          <p className="text-sm text-muted-foreground">
-            You can continue with this application. The existing borrower record will be updated with any new information provided.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowDuplicateDialog(false); setClientTin(""); setTinDuplicateWarning(null) }}>
-              Clear TIN
+          <Alert className="border-primary/20 bg-primary/5">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            <AlertDescription className="ml-2 text-sm">
+              Click &quot;Load Borrower Data&quot; to automatically fill in all available information from this existing borrower.
+            </AlertDescription>
+          </Alert>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => { 
+                setShowDuplicateDialog(false)
+                setClientTin("")
+                setTinDuplicateWarning(null)
+                setFoundBorrower(null)
+              }}
+            >
+              Clear & Enter New TIN
             </Button>
-            <Button onClick={() => setShowDuplicateDialog(false)}>
-              Continue Anyway
+            <Button 
+              variant="secondary"
+              onClick={() => setShowDuplicateDialog(false)}
+            >
+              Continue Without Loading
+            </Button>
+            <Button 
+              onClick={loadBorrowerData}
+              className="gap-2"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Load Borrower Data
             </Button>
           </DialogFooter>
         </DialogContent>
