@@ -69,7 +69,7 @@ export default function ReconciliationPage() {
     for (const bank of allBanks) {
       const [{ data: loans }, { data: fees }, { data: report }] = await Promise.all([
         supabase.from('loan_applications')
-          .select('id, outstanding_balance, status')
+          .select('id, disbursed_amount, status')
           .eq('bank_id', bank.id)
           .gte('disbursement_date', periodStart)
           .lt('disbursement_date', periodEndStr),
@@ -89,7 +89,7 @@ export default function ReconciliationPage() {
       ])
 
       const prsfLoans = (loans || []).length
-      const prsfOutstanding = (loans || []).reduce((s, l) => s + (l.outstanding_balance || 0), 0)
+      const prsfOutstanding = (loans || []).reduce((s, l) => s + (l.disbursed_amount || 0), 0)
       const prsfFees = (fees || []).reduce((s, f) => s + (f.amount || 0), 0)
 
       const bankLoans = report ? (report as any).total_loans_under_guarantee : null

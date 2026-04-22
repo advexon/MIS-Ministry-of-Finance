@@ -38,7 +38,7 @@ export default function BankDetailPage() {
       setLoading(true)
       const [{ data: bankData }, { data: loanData }, { data: claimData }, { data: feeData }] = await Promise.all([
         supabase.from('banks').select('*').eq('id', id).single(),
-        supabase.from('loan_applications').select('id, loan_number, status, approved_amount, outstanding_balance, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('loan_applications').select('id, loan_number, status, approved_amount, disbursed_amount, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20),
         supabase.from('claims').select('id, claim_number, status, claim_amount, created_at').eq('bank_id', id).order('created_at', { ascending: false }).limit(10),
         supabase.from('fees').select('id, fee_type, amount, status, due_date').eq('bank_id', id).order('due_date', { ascending: false }).limit(10),
       ])
@@ -79,7 +79,7 @@ export default function BankDetailPage() {
 
   const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 }).format(v || 0)
   const totalDisbursed = loans.reduce((s, l) => s + (l.approved_amount || 0), 0)
-  const totalOutstanding = loans.reduce((s, l) => s + (l.outstanding_balance || 0), 0)
+  const totalOutstanding = loans.reduce((s, l) => s + (l.disbursed_amount || 0), 0)
   const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'disbursed').length
 
   if (loading) return (
@@ -232,7 +232,7 @@ export default function BankDetailPage() {
                         <Badge variant="secondary" className="text-xs capitalize">{loan.status?.replace('_', ' ')}</Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">{fmt(loan.approved_amount)}</TableCell>
-                      <TableCell className="text-right">{fmt(loan.outstanding_balance)}</TableCell>
+                      <TableCell className="text-right">{fmt(loan.disbursed_amount)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {loan.disbursement_date ? new Date(loan.disbursement_date).toLocaleDateString() : '—'}
                       </TableCell>

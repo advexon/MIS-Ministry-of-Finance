@@ -201,22 +201,20 @@ export default function DocumentsPage() {
             .limit(500)
 
           if (error) throw error
-          data = (loans || []).map(loan => ({
+          data = (loans || []).map((loan: any) => ({
             loan_number: loan.loan_number || `LA-${loan.id?.slice(0, 8)}`,
             borrower_name: loan.borrower?.name || '—',
             bank_name: loan.bank?.name_en || '—',
             sector: loan.sector?.name_en || '—',
+            requested_amount: loan.requested_amount || 0,
             approved_amount: loan.approved_amount || 0,
             disbursed_amount: loan.disbursed_amount || 0,
-            outstanding_balance: loan.outstanding_balance || 0,
+            outstanding_balance: loan.disbursed_amount || 0,
             guarantee_coverage: loan.guarantee_coverage || 0,
             interest_rate: loan.interest_rate || 0,
             maturity_date: loan.maturity_date,
+            disbursement_date: loan.disbursement_date,
             status: loan.status || 'unknown',
-            days_overdue: loan.days_past_due || 0,
-            overdue_principal: loan.overdue_principal || 0,
-            overdue_interest: loan.overdue_interest || 0,
-            last_payment_date: loan.last_payment_date,
           }))
           break
         }

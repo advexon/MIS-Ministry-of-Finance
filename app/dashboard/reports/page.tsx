@@ -48,7 +48,7 @@ export default function ReportsPage() {
     try {
       let loanQuery = supabase
         .from('loan_applications')
-        .select('id, status, approved_amount, outstanding_balance, sector, disbursement_date, bank_id, banks(name_en, code)')
+        .select('id, status, approved_amount, disbursed_amount, sector_id, disbursement_date, bank_id, banks(name_en, code), sectors(name_en)')
         .gte('created_at', dateFrom)
         .lte('created_at', dateTo + 'T23:59:59')
 
@@ -68,7 +68,7 @@ export default function ReportsPage() {
       setSummaryStats({
         totalLoans: allLoans.length,
         totalAmount: allLoans.reduce((s, l) => s + (l.approved_amount || 0), 0),
-        totalOutstanding: allLoans.reduce((s, l) => s + (l.outstanding_balance || 0), 0),
+        totalOutstanding: allLoans.reduce((s, l) => s + (l.disbursed_amount || 0), 0),
         totalClaims: allClaims.reduce((s, c) => s + (c.claim_amount || 0), 0),
         totalFees: allFees.reduce((s, f) => s + (f.amount || 0), 0),
       })
@@ -76,7 +76,7 @@ export default function ReportsPage() {
       // Sector breakdown
       const sectorMap: Record<string, { count: number; amount: number }> = {}
       for (const l of allLoans) {
-        const sec = l.sector || 'Other'
+        const sec = (l as any).sectors?.name_en || 'Other'
         if (!sectorMap[sec]) sectorMap[sec] = { count: 0, amount: 0 }
         sectorMap[sec].count++
         sectorMap[sec].amount += l.approved_amount || 0
@@ -91,7 +91,7 @@ export default function ReportsPage() {
         if (!bankMap[bk]) bankMap[bk] = { name: bkName, count: 0, amount: 0, outstanding: 0 }
         bankMap[bk].count++
         bankMap[bk].amount += l.approved_amount || 0
-        bankMap[bk].outstanding += l.outstanding_balance || 0
+        bankMap[bk].outstanding += l.disbursed_amount || 0
       }
       setBankData(Object.entries(bankMap).map(([code, d]) => ({ code, ...d })).sort((a, b) => b.amount - a.amount))
 
