@@ -113,7 +113,7 @@ function GuaranteeReportsContent() {
     setLoading(true)
     let query = supabase
       .from('guarantee_reports')
-      .select('*, banks(name)')
+      .select('*, banks(name_en, code)')
       .order('created_at', { ascending: false })
 
     if (statusFilter !== 'all') query = query.eq('status', statusFilter)
@@ -127,7 +127,7 @@ function GuaranteeReportsContent() {
   useEffect(() => { fetchReports() }, [fetchReports])
 
   const filtered = reports.filter(r => {
-    const bankName = r.banks?.name?.toLowerCase() || ''
+    const bankName = r.banks?.name_en?.toLowerCase() || ''
     const month = r.report_month?.toLowerCase() || ''
     const q = search.toLowerCase()
     return bankName.includes(q) || month.includes(q)
@@ -370,7 +370,7 @@ function GuaranteeReportsContent() {
                         />
                       </TableCell>
                       <TableCell className="text-xs font-semibold text-foreground">
-                        {report.banks?.name || '—'}
+                        {report.banks?.name_en || '—'}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {fmtMonth(report.report_month)}
