@@ -158,11 +158,11 @@ export const GuaranteeLetter = forwardRef<HTMLDivElement, GuaranteeLetterProps>(
               </tr>
               <tr>
                 <td className="py-1 text-gray-600">TIN:</td>
-                <td className="py-1">{loan.borrower?.tin || '—'}</td>
+                <td className="py-1">{borrowerTIN}</td>
               </tr>
               <tr>
                 <td className="py-1 text-gray-600">Address:</td>
-                <td className="py-1">{loan.borrower?.legal_address || '—'}</td>
+                <td className="py-1">{borrowerAddress}</td>
               </tr>
             </tbody>
           </table>

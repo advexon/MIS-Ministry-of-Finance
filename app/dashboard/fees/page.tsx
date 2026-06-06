@@ -36,6 +36,7 @@ export default function FeesPage() {
     approved_amount: number | null
     currency: string
     guarantee_coverage: number | null
+    bank_id: string | null
     borrower: { name: string } | null
   }
 
@@ -89,7 +90,7 @@ export default function FeesPage() {
     fetchFees()
     supabase
       .from("loan_applications")
-      .select("id,loan_number,approved_amount,currency,guarantee_coverage,borrower:borrowers(name)")
+      .select("id,loan_number,approved_amount,currency,guarantee_coverage,bank_id,borrower:borrowers(name)")
       .in("status", ["approved", "disbursed", "active"])
       .order("loan_number")
       .then(({ data }) => { if (data) setLoans(data) })
@@ -126,10 +127,14 @@ export default function FeesPage() {
 
     const { error } = await supabase.from("fees").insert({
       loan_application_id: newLoanId,
+      loan_id: newLoanId,
+      bank_id: selectedLoan?.bank_id || null,
       fee_type: newFeeType,
       base_amount: base,
       fee_rate: rate,
       fee_amount: amount,
+      amount: amount,
+      due_date: new Date().toISOString().split("T")[0],
       period_start: newPeriodStart || null,
       period_end: newPeriodEnd || null,
       status: "pending",
@@ -193,7 +198,7 @@ export default function FeesPage() {
   const handleAutoCalculateQuarterly = async () => {
     setSaving(true)
     const { data: activeLoans } = await supabase.from("loan_applications")
-      .select("id,approved_amount,guarantee_coverage")
+      .select("id,approved_amount,guarantee_coverage,bank_id")
       .in("status", ["active", "disbursed"])
 
     if (!activeLoans) { setSaving(false); return }
@@ -214,10 +219,14 @@ export default function FeesPage() {
       if (!existing) {
         await supabase.from("fees").insert({
           loan_application_id: loan.id,
+          loan_id: loan.id,
+          bank_id: loan.bank_id || null,
           fee_type: "quarterly",
           base_amount: baseAmount,
           fee_rate: feeRate,
           fee_amount: feeAmount,
+          amount: feeAmount,
+          due_date: quarterEnd.toISOString().split("T")[0],
           period_start: quarterStart.toISOString().split("T")[0],
           period_end: quarterEnd.toISOString().split("T")[0],
           status: "pending",

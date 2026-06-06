@@ -101,7 +101,7 @@ export default function ClaimsPage() {
   useEffect(() => {
     supabase
       .from("loan_applications")
-      .select("id,loan_number,approved_amount,currency,borrower:borrowers(name)")
+      .select("id,loan_number,approved_amount,currency,bank_id,borrower:borrowers(name)")
       .in("status", ["active", "defaulted", "claim_pending"])
       .order("loan_number")
       .then(({ data }) => { if (data) setLoans(data) })
@@ -134,8 +134,11 @@ export default function ClaimsPage() {
     const penalties = parseFloat(newPenalties) || 0
     const total = principal + interest + penalties
 
+    const selectedLoanForClaim = loans.find((l) => l.id === newLoanId)
     const { error } = await supabase.from("claims").insert({
       loan_application_id: newLoanId,
+      loan_id: newLoanId,
+      bank_id: (selectedLoanForClaim as any)?.bank_id || null,
       claim_date: newClaimDate,
       claim_amount: total,
       principal_claimed: principal,

@@ -70,7 +70,7 @@ export async function POST(
     // Fetch the loan with bank info
     const { data: loan, error: loanError } = await supabase
       .from('loan_applications')
-      .select('*, bank:banks(id, code, name_en), borrower:borrowers(company_name)')
+      .select('*, bank:banks(id, code, name_en), borrower:borrowers(name)')
       .eq('id', loanId)
       .single()
 
@@ -128,7 +128,7 @@ export async function POST(
         valid_until_date: validUntilDate,
         issued_by_user_id: user.id,
         metadata: {
-          borrower_name: (loan.borrower as any)?.company_name,
+          borrower_name: (loan.borrower as any)?.name,
           bank_name: (loan.bank as any)?.name_en,
           approved_amount: loan.approved_amount,
           guarantee_amount: loan.guarantee_amount,
