@@ -81,20 +81,20 @@ export default function ReconciliationPage() {
         supabase.from('guarantee_reports')
           .select('*')
           .eq('bank_id', bank.id)
-          .gte('reporting_period_start', periodStart)
-          .lt('reporting_period_start', periodEndStr)
+          .gte('report_month', periodStart)
+          .lt('report_month', periodEndStr)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single(),
+          .maybeSingle(),
       ])
 
       const prsfLoans = (loans || []).length
       const prsfOutstanding = (loans || []).reduce((s, l) => s + (l.disbursed_amount || 0), 0)
       const prsfFees = (fees || []).reduce((s, f) => s + (f.amount || 0), 0)
 
-      const bankLoans = report ? (report as any).total_loans_under_guarantee : null
+      const bankLoans = report ? (report as any).total_loans : null
       const bankOutstanding = report ? (report as any).total_outstanding_principal : null
-      const bankFees = report ? (report as any).total_guarantee_fees_paid : null
+      const bankFees = report ? (report as any).total_guarantee_amount : null
 
       const loanDisc = bankLoans !== null ? Math.abs(prsfLoans - bankLoans) : 0
       const outstandingDisc = bankOutstanding !== null ? Math.abs(prsfOutstanding - bankOutstanding) : 0

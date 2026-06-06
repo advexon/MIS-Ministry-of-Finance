@@ -80,7 +80,7 @@ export default function FeesPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from("fees")
-      .select(`*, loan_application:loan_applications(id,loan_number,currency,bank_id,bank:banks(name_en),borrower:borrowers(name))`)
+      .select(`*, loan_application:loan_applications!loan_application_id(id,loan_number,currency,bank_id,bank:banks(name_en),borrower:borrowers(name))`)
       .order("created_at", { ascending: false })
     if (!error && data) setFees(data)
     setLoading(false)

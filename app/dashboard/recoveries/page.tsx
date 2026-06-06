@@ -72,7 +72,7 @@ export default function RecoveriesPage() {
       .from('recoveries')
       .select(`
         *,
-        claims(claim_number, claim_amount, banks(name_en, code), loan_applications(loan_number))
+        claims(claim_number, claim_amount, banks(name_en, code), loan_applications!loan_application_id(loan_number))
       `)
       .order('recovery_date', { ascending: false })
     setRecoveries(data || [])

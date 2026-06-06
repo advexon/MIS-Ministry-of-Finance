@@ -249,7 +249,7 @@ export default function DocumentsPage() {
             .select(`
               *,
               bank:banks(name_en),
-              loan:loan_applications(loan_number)
+              loan:loan_applications!loan_application_id(loan_number)
             `)
             .order('created_at', { ascending: false })
             .limit(200)

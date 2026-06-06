@@ -381,6 +381,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     const total = (parseFloat(claimPrincipal) || 0) + (parseFloat(claimInterest) || 0)
     const { error } = await supabase.from("claims").insert({
       loan_application_id: loan.id,
+      loan_id: loan.id,
+      bank_id: (loan as any).bank_id || null,
       claim_date: dateField,
       claim_amount: total,
       principal_claimed: parseFloat(claimPrincipal) || 0,

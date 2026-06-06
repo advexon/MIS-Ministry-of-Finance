@@ -37,6 +37,7 @@ export default function ClaimsPage() {
     loan_number: string | null
     approved_amount: number | null
     currency: string
+    bank_id: string | null
     borrower: { name: string } | null
   }
 
@@ -86,7 +87,7 @@ export default function ClaimsPage() {
     setLoading(true)
     let query = supabase
       .from("claims")
-      .select(`*, loan_application:loan_applications(id,loan_number,currency,bank:banks(name_en),borrower:borrowers(name))`)
+      .select(`*, loan_application:loan_applications!loan_application_id(id,loan_number,currency,bank:banks(name_en),borrower:borrowers(name))`)
       .order("created_at", { ascending: false })
 
     if (statusFilter !== "all") query = query.eq("status", statusFilter)
