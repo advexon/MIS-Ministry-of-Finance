@@ -525,12 +525,13 @@ export default function NewLoanPage() {
       }
 
       // 1. Upsert borrower by TIN
-      // Ensure legal_type is exactly one of the valid values (no whitespace, correct case)
+      // Map the form's legal entity types to the values allowed by the
+      // borrowers_legal_type_check constraint: individual, sole_proprietor, llc, jsc, cooperative, other
       const sanitizedLegalType = legalEntityType.trim().toLowerCase()
-      const legalTypeMap: Record<string, "individual" | "legal_entity" | "individual_entrepreneur"> = {
+      const legalTypeMap: Record<string, "individual" | "sole_proprietor" | "llc"> = {
         "individual": "individual",
-        "legal_entity": "legal_entity", 
-        "individual_entrepreneur": "individual_entrepreneur",
+        "legal_entity": "llc",
+        "individual_entrepreneur": "sole_proprietor",
       }
       const finalLegalType = legalTypeMap[sanitizedLegalType]
       
