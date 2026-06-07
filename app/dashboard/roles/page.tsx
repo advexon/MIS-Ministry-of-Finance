@@ -239,11 +239,11 @@ export default function RolesPage() {
 
       // Log the permission change to audit trail
       await supabase.from('audit_trail').insert({
-        user_id: userRole?.id,
+        table_name: 'roles',
+        record_id: selectedRole.id,
         action: 'UPDATE_PERMISSIONS',
-        entity_type: 'role',
-        entity_id: selectedRole.id,
-        changes: {
+        changed_by: userRole?.id,
+        new_data: {
           role_name: selectedRole.name,
           permissions_updated: Object.keys(editedPermissions),
         },

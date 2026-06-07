@@ -165,11 +165,11 @@ export async function logPermissionChange(
   try {
     const supabase = createClient()
     await supabase.from('audit_trail').insert({
-      user_id: userId,
+      table_name: changeType.includes('ROLE') && !changeType.includes('PERMISSIONS') ? 'profiles' : 'roles',
+      record_id: targetUserId || targetRoleId,
       action: changeType,
-      entity_type: changeType.includes('ROLE') && !changeType.includes('PERMISSIONS') ? 'user' : 'role',
-      entity_id: targetUserId || targetRoleId,
-      changes: {
+      changed_by: userId,
+      new_data: {
         change_type: changeType,
         target_user_id: targetUserId,
         target_role_id: targetRoleId,
