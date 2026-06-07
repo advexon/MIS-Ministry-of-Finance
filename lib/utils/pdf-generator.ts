@@ -35,36 +35,58 @@ export async function downloadPDF(
     logging: false,
   })
 
-  // Calculate dimensions
-  const imgWidth = format === 'a4' ? 210 : 216 // mm
-  const imgHeight = format === 'a4' ? 297 : 279 // mm
-  
-  const contentWidth = imgWidth - (margin * 2)
-  const contentHeight = (canvas.height * contentWidth) / canvas.width
+  // Page dimensions (mm)
+  const pageWidth = format === 'a4' ? 210 : 216
+  const pageHeight = format === 'a4' ? 297 : 279
 
-  // Create PDF
+  // Printable content area (mm)
+  const contentWidth = pageWidth - margin * 2
+  const contentHeightMM = pageHeight - margin * 2
+
+  // Pixels-per-mm based on how the canvas width maps onto the content width
+  const pxPerMM = canvas.width / contentWidth
+  // Height of a single page worth of content, in source canvas pixels
+  const pageHeightPx = contentHeightMM * pxPerMM
+
   const pdf = new jsPDF({
     orientation,
     unit: 'mm',
     format,
   })
 
-  // Add the image
-  const imgData = canvas.toDataURL('image/png')
-  
-  // Handle multi-page if content is taller than page
-  let heightLeft = contentHeight
-  let position = margin
-  const pageHeight = imgHeight - (margin * 2)
+  const totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx))
 
-  pdf.addImage(imgData, 'PNG', margin, position, contentWidth, contentHeight)
-  heightLeft -= pageHeight
+  for (let page = 0; page < totalPages; page++) {
+    const sourceY = page * pageHeightPx
+    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - sourceY)
 
-  while (heightLeft > 0) {
-    position = heightLeft - contentHeight + margin
-    pdf.addPage()
-    pdf.addImage(imgData, 'PNG', margin, position, contentWidth, contentHeight)
-    heightLeft -= pageHeight
+    // Draw this page's slice onto a temporary canvas
+    const pageCanvas = document.createElement('canvas')
+    pageCanvas.width = canvas.width
+    pageCanvas.height = sliceHeightPx
+    const ctx = pageCanvas.getContext('2d')
+    if (ctx) {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+      ctx.drawImage(
+        canvas,
+        0,
+        sourceY,
+        canvas.width,
+        sliceHeightPx,
+        0,
+        0,
+        canvas.width,
+        sliceHeightPx,
+      )
+    }
+
+    // Convert slice height back to mm so the on-page image keeps the same scale
+    const sliceHeightMM = sliceHeightPx / pxPerMM
+    const imgData = pageCanvas.toDataURL('image/png')
+
+    if (page > 0) pdf.addPage()
+    pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, sliceHeightMM)
   }
 
   // Download
