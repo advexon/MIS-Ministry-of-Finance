@@ -22,6 +22,7 @@ import Link from "next/link"
 import type { Bank, BankBranch, Sector, LoanProduct } from "@/lib/types/database"
 import { useLoanFormValidation, type FormStep } from "@/lib/hooks/use-loan-form-validation"
 import { useLoanDraft } from "@/lib/hooks/use-loan-draft"
+import { usePermissions } from "@/lib/contexts/permission-context"
 
 interface Guarantor {
   name: string
@@ -33,6 +34,8 @@ export default function NewLoanPage() {
   const { t, locale } = useI18n()
   const router = useRouter()
   const supabase = createClient()
+  const { can } = usePermissions()
+  const canCreateLoan = can("loans", "create")
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState<FormStep>("borrower")
@@ -685,6 +688,29 @@ export default function NewLoanPage() {
       setError(errorMsg)
       setIsSubmitting(false)
     }
+  }
+
+  // Access control: only Loan Officers and Super Administrators may create
+  // a New Loan Application. Block direct navigation for everyone else.
+  if (!canCreateLoan) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
+        <Shield className="h-14 w-14 text-muted-foreground" />
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold">Access Restricted</h2>
+          <p className="max-w-md text-muted-foreground">
+            You do not have permission to create a new loan application. This action is
+            available only to Loan Officers and Super Administrators.
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/dashboard/loans">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Loans
+          </Link>
+        </Button>
+      </div>
+    )
   }
 
   if (loading) {

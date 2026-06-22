@@ -56,14 +56,16 @@ const PERMISSION_MATRIX: Record<string, Record<string, Permission[]>> = {
     'access_logs': ['view'],
   },
   [ROLE_CODES.BANK_ADMIN]: {
-    // Bank Admin manages bank operations
+    // Bank Admin manages bank operations.
+    // Note: creating a New Loan Application is restricted to the Loan Officer
+    // (bank_officer) and Super Administrator only.
     'users': ['view', 'create', 'update'],
-    'loans': ['view', 'create', 'update'],
+    'loans': ['view', 'update'],
     'claims': ['view'],
     'reports': ['view'],
   },
   [ROLE_CODES.BANK_OFFICER]: {
-    // Bank Officer submits and tracks loans
+    // Bank Loan Officer submits and tracks loans
     'loans': ['view', 'create'],
     'claims': ['view'],
     'reports': ['view'],

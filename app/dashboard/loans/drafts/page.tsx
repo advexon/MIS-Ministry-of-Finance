@@ -50,11 +50,14 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import type { LoanDraft } from "@/lib/hooks/use-loan-draft"
+import { usePermissions } from "@/lib/contexts/permission-context"
 
 export default function DraftsPage() {
   const { t, locale } = useI18n()
   const router = useRouter()
   const supabase = createClient()
+  const { can } = usePermissions()
+  const canCreateLoan = can("loans", "create")
 
   const [drafts, setDrafts] = useState<LoanDraft[]>([])
   const [loading, setLoading] = useState(true)
@@ -187,12 +190,14 @@ export default function DraftsPage() {
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button asChild>
-            <Link href="/dashboard/loans/new">
-              <Plus className="mr-2 h-4 w-4" />
-              New Application
-            </Link>
-          </Button>
+          {canCreateLoan && (
+            <Button asChild>
+              <Link href="/dashboard/loans/new">
+                <Plus className="mr-2 h-4 w-4" />
+                New Application
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 

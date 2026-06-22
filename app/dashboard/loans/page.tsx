@@ -14,6 +14,7 @@ import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, FileText, Download, Lo
 import Link from "next/link"
 import type { LoanApplication, Bank, Sector } from "@/lib/types/database"
 import { useColumnConfig } from "@/lib/contexts/column-config-context"
+import { usePermissions } from "@/lib/contexts/permission-context"
 
 const statusStyles: Record<string, string> = {
   draft:              "bg-gray-100 text-gray-800",
@@ -61,6 +62,8 @@ export default function LoansPage() {
   const { t, locale } = useI18n()
   const supabase = useMemo(() => createClient(), [])
   const { isColumnVisible, getDisplayName } = useColumnConfig()
+  const { can } = usePermissions()
+  const canCreateLoan = can("loans", "create")
 
   const [loans, setLoans] = useState<LoanApplication[]>([])
   const [banks, setBanks] = useState<Bank[]>([])
@@ -140,9 +143,11 @@ export default function LoansPage() {
           <h1 className="text-2xl font-bold text-foreground">{t.loans.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">Manage and track all loan guarantee applications</p>
         </div>
-        <Button asChild className="gap-2">
-          <Link href="/dashboard/loans/new"><Plus className="h-4 w-4" />{t.loans.newApplication}</Link>
-        </Button>
+        {canCreateLoan && (
+          <Button asChild className="gap-2">
+            <Link href="/dashboard/loans/new"><Plus className="h-4 w-4" />{t.loans.newApplication}</Link>
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -241,9 +246,11 @@ export default function LoansPage() {
                     <TableCell colSpan={99} className="py-12 text-center">
                       <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
                       <p className="text-muted-foreground">No loan applications found</p>
-                      <Button asChild variant="outline" size="sm" className="mt-3">
-                        <Link href="/dashboard/loans/new">Create First Application</Link>
-                      </Button>
+                      {canCreateLoan && (
+                        <Button asChild variant="outline" size="sm" className="mt-3">
+                          <Link href="/dashboard/loans/new">Create First Application</Link>
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
