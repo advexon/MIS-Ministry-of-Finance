@@ -336,3 +336,12 @@ export function useLoanFormValidation(formData: Record<string, any>) {
 }
 
 export { stepValidations }
+
+/**
+ * The canonical list of genuinely required field names, derived from
+ * `stepValidations` so it can never drift from the form's own validation.
+ * Used by the draft completion calculator.
+ */
+export const REQUIRED_FIELD_NAMES: string[] = stepValidations.flatMap((step) =>
+  step.fields.filter((f) => f.required).map((f) => f.field),
+)

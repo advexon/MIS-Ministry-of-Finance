@@ -41,20 +41,18 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
   const formDataRef = useRef<Record<string, any>>({})
   const currentStepRef = useRef<string>("borrower")
 
-  // Calculate completion percentage based on filled required fields
+  // Calculate completion percentage based on filled required fields.
+  // Derived from the form's own validation config so the percentage can
+  // actually reach 100% and never counts fields that are optional.
   const calculateCompletion = useCallback((formData: Record<string, any>): number => {
-    const requiredFields = [
-      "legalEntityType", "clientName", "clientTin", "sectorId", "addressStreet", "city", "phone",
-      "legalRepSurname", "legalRepName", "legalRepGender", "legalRepBirthdate", "passportNumber",
-      "bankId", "requestedAmount", "loanTerm", "interestRate", "guaranteeCoverage", "purpose"
-    ]
-    
-    const filledCount = requiredFields.filter(field => {
+    if (REQUIRED_FIELD_NAMES.length === 0) return 0
+
+    const filledCount = REQUIRED_FIELD_NAMES.filter(field => {
       const value = formData[field]
       return value !== undefined && value !== null && value !== ""
     }).length
 
-    return Math.round((filledCount / requiredFields.length) * 100)
+    return Math.round((filledCount / REQUIRED_FIELD_NAMES.length) * 100)
   }, [])
 
   // Save draft to database (gracefully handles missing table)
