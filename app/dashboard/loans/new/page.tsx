@@ -122,6 +122,29 @@ export default function NewLoanPage() {
 
   const [notes, setNotes] = useState("")
 
+  // An Individual Entrepreneur IS the legal representative — one and the same
+  // person. For that type the person's name and TIN are captured once, in the
+  // Borrower step, and mirrored into the legal-representative fields so the
+  // same data is never typed twice (and can never disagree with itself).
+  const isIndividualEntrepreneur = legalEntityType === "individual_entrepreneur"
+
+  // Borrower name = the person's name parts. Kept in the legalRep* state so
+  // there is a single source of truth rather than two fields to reconcile.
+  useEffect(() => {
+    if (!isIndividualEntrepreneur) return
+    const composed = [legalRepSurname, legalRepName, legalRepPatronymic]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(" ")
+    setClientName(composed)
+  }, [isIndividualEntrepreneur, legalRepSurname, legalRepName, legalRepPatronymic])
+
+  // Same person, so the same TIN.
+  useEffect(() => {
+    if (!isIndividualEntrepreneur) return
+    setLegalRepTin(clientTin)
+  }, [isIndividualEntrepreneur, clientTin])
+
   // Collect all form data into a single object for validation
   const formData = useMemo(() => ({
     legalEntityType, clientName, clientTin, registrationNumber, sectorId,
@@ -429,9 +452,28 @@ export default function NewLoanPage() {
     setWorkforce(foundBorrower.workforce_count?.toString() || "")
 
     // Legal Representative
-    setLegalRepSurname(foundBorrower.legal_rep_surname || "")
-    setLegalRepName(foundBorrower.legal_rep_name || "")
-    setLegalRepPatronymic(foundBorrower.legal_rep_patronymic || "")
+    const resolvedType = toSelectableLegalType(foundBorrower.legal_type)
+    const storedSurname = foundBorrower.legal_rep_surname || ""
+    const storedFirstName = foundBorrower.legal_rep_name || ""
+    const storedPatronymic = foundBorrower.legal_rep_patronymic || ""
+
+    // Older entrepreneur records may only have the single `name` with no
+    // separate rep name parts. Split it so the mirrored fields are populated
+    // instead of the composed borrower name coming out empty.
+    if (
+      resolvedType === "individual_entrepreneur" &&
+      !storedSurname && !storedFirstName && !storedPatronymic &&
+      (foundBorrower.name || "").trim()
+    ) {
+      const parts = (foundBorrower.name || "").trim().split(/\s+/)
+      setLegalRepSurname(parts[0] || "")
+      setLegalRepName(parts[1] || "")
+      setLegalRepPatronymic(parts.slice(2).join(" "))
+    } else {
+      setLegalRepSurname(storedSurname)
+      setLegalRepName(storedFirstName)
+      setLegalRepPatronymic(storedPatronymic)
+    }
     setLegalRepGender(foundBorrower.legal_rep_gender || "")
     setLegalRepBirthdate(foundBorrower.legal_rep_birthdate || "")
     setLegalRepCountry(foundBorrower.legal_rep_country_of_birth || "Tajikistan")
@@ -913,7 +955,11 @@ export default function NewLoanPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Borrower Information</CardTitle>
-                <CardDescription>Company or individual borrower details</CardDescription>
+                <CardDescription>
+                  {isIndividualEntrepreneur
+                    ? "Details of the individual entrepreneur"
+                    : "Company or individual borrower details"}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -923,7 +969,23 @@ export default function NewLoanPage() {
                     </Label>
                     <Select 
                       value={legalEntityType} 
-                      onValueChange={(v) => { setLegalEntityType(v); markTouched("legalEntityType") }}
+                      onValueChange={(v) => {
+                        // Switching to Individual Entrepreneur moves the name into
+                        // parts. Carry over anything already typed as a single name
+                        // so the switch never silently discards it.
+                        if (
+                          v === "individual_entrepreneur" &&
+                          !legalRepSurname && !legalRepName && !legalRepPatronymic &&
+                          clientName.trim()
+                        ) {
+                          const parts = clientName.trim().split(/\s+/)
+                          setLegalRepSurname(parts[0] || "")
+                          setLegalRepName(parts[1] || "")
+                          setLegalRepPatronymic(parts.slice(2).join(" "))
+                        }
+                        setLegalEntityType(v)
+                        markTouched("legalEntityType")
+                      }}
                     >
                       <SelectTrigger className={hasFieldError("legalEntityType") ? "border-destructive" : ""}>
                         <SelectValue placeholder="Select type" />
@@ -959,21 +1021,71 @@ export default function NewLoanPage() {
                     )}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
-                    Client / Company Name *
-                  </Label>
-                  <Input 
-                    value={clientName} 
-                    onChange={(e) => setClientName(e.target.value)} 
-                    onBlur={() => markTouched("clientName")}
-                    placeholder="Full name or company name" 
-                    className={hasFieldError("clientName") ? "border-destructive" : ""}
-                  />
-                  {hasFieldError("clientName") && (
-                    <p className="text-xs text-destructive">{getFieldError("clientName")}</p>
-                  )}
-                </div>
+                {isIndividualEntrepreneur ? (
+                  /* The entrepreneur is a person, not a company — capture the name
+                     in parts here, which also fills the Legal Representative step. */
+                  <div className="space-y-2">
+                    <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
+                      Client Name *
+                    </Label>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Input
+                          value={legalRepSurname}
+                          onChange={(e) => setLegalRepSurname(e.target.value)}
+                          onBlur={() => markTouched("clientName")}
+                          placeholder="Surname"
+                          aria-label="Client surname"
+                          className={hasFieldError("clientName") ? "border-destructive" : ""}
+                        />
+                        <p className="text-[10px] text-muted-foreground">Surname *</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Input
+                          value={legalRepName}
+                          onChange={(e) => setLegalRepName(e.target.value)}
+                          onBlur={() => markTouched("clientName")}
+                          placeholder="First name"
+                          aria-label="Client first name"
+                          className={hasFieldError("clientName") ? "border-destructive" : ""}
+                        />
+                        <p className="text-[10px] text-muted-foreground">First name *</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Input
+                          value={legalRepPatronymic}
+                          onChange={(e) => setLegalRepPatronymic(e.target.value)}
+                          placeholder="Patronymic"
+                          aria-label="Client patronymic"
+                        />
+                        <p className="text-[10px] text-muted-foreground">Patronymic</p>
+                      </div>
+                    </div>
+                    {hasFieldError("clientName") ? (
+                      <p className="text-xs text-destructive">{getFieldError("clientName")}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        This name and the TIN below carry over to the Legal Representative step automatically.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
+                      Client / Company Name *
+                    </Label>
+                    <Input 
+                      value={clientName} 
+                      onChange={(e) => setClientName(e.target.value)} 
+                      onBlur={() => markTouched("clientName")}
+                      placeholder="Full name or company name" 
+                      className={hasFieldError("clientName") ? "border-destructive" : ""}
+                    />
+                    {hasFieldError("clientName") && (
+                      <p className="text-xs text-destructive">{getFieldError("clientName")}</p>
+                    )}
+                  </div>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>TIN Number *</Label>
@@ -1107,21 +1219,61 @@ export default function NewLoanPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Legal Representative</CardTitle>
-                <CardDescription>Details of the person authorized to sign on behalf of the borrower</CardDescription>
+                <CardDescription>
+                  {isIndividualEntrepreneur
+                    ? "Identity details of the entrepreneur signing the application"
+                    : "Details of the person authorized to sign on behalf of the borrower"}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                {isIndividualEntrepreneur && (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-muted/50 p-3 text-xs">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                    <span className="text-muted-foreground">
+                      An Individual Entrepreneur is their own legal representative, so the name and TIN
+                      are carried over from the Borrower step.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleStepChange("borrower")}
+                      className="font-medium underline hover:no-underline"
+                    >
+                      Edit in Borrower step
+                    </button>
+                  </div>
+                )}
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label>Surname *</Label>
-                    <Input value={legalRepSurname} onChange={(e) => setLegalRepSurname(e.target.value)} required />
+                    <Input
+                      value={legalRepSurname}
+                      onChange={(e) => setLegalRepSurname(e.target.value)}
+                      readOnly={isIndividualEntrepreneur}
+                      aria-readonly={isIndividualEntrepreneur}
+                      className={isIndividualEntrepreneur ? "bg-muted text-muted-foreground" : ""}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>First Name *</Label>
-                    <Input value={legalRepName} onChange={(e) => setLegalRepName(e.target.value)} required />
+                    <Input
+                      value={legalRepName}
+                      onChange={(e) => setLegalRepName(e.target.value)}
+                      readOnly={isIndividualEntrepreneur}
+                      aria-readonly={isIndividualEntrepreneur}
+                      className={isIndividualEntrepreneur ? "bg-muted text-muted-foreground" : ""}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Patronymic</Label>
-                    <Input value={legalRepPatronymic} onChange={(e) => setLegalRepPatronymic(e.target.value)} />
+                    <Input
+                      value={legalRepPatronymic}
+                      onChange={(e) => setLegalRepPatronymic(e.target.value)}
+                      readOnly={isIndividualEntrepreneur}
+                      aria-readonly={isIndividualEntrepreneur}
+                      className={isIndividualEntrepreneur ? "bg-muted text-muted-foreground" : ""}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
@@ -1157,9 +1309,14 @@ export default function NewLoanPage() {
                       maxLength={9}
                       inputMode="numeric"
                       pattern="[0-9]{9}"
+                      readOnly={isIndividualEntrepreneur}
+                      aria-readonly={isIndividualEntrepreneur}
+                      className={isIndividualEntrepreneur ? "bg-muted text-muted-foreground" : ""}
                       required
                     />
-                    <p className="text-[10px] text-muted-foreground">9 digits only</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {isIndividualEntrepreneur ? "Same as the borrower TIN" : "9 digits only"}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Passport / ID Number</Label>
