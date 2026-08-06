@@ -69,22 +69,25 @@ const stepValidations: StepValidation[] = [
         validate: (v) => v ? { isValid: true } : { isValid: false, error: "Please select a business sector" }
       },
       {
+        // Optional (no asterisk in the form)
         field: "addressStreet",
         label: "Street Address",
-        required: true,
-        validate: (v) => v?.trim() ? { isValid: true } : { isValid: false, error: "Street address is required" }
+        required: false,
+        validate: () => ({ isValid: true })
       },
       {
+        // Optional (no asterisk in the form)
         field: "city",
         label: "City",
-        required: true,
-        validate: (v) => v?.trim() ? { isValid: true } : { isValid: false, error: "City is required" }
+        required: false,
+        validate: () => ({ isValid: true })
       },
       {
+        // Optional (no asterisk in the form). Still format-checked when filled in.
         field: "phone",
         label: "Phone Number",
-        required: true,
-        validate: (v) => validatePhone(v, true)
+        required: false,
+        validate: (v) => validatePhone(v, false)
       },
       {
         field: "email",
@@ -116,11 +119,12 @@ const stepValidations: StepValidation[] = [
         validate: (v) => v ? { isValid: true } : { isValid: false, error: "Please select gender" }
       },
       {
+        // Optional (no asterisk in the form). Age rules still apply once a date is entered.
         field: "legalRepBirthdate",
         label: "Date of Birth",
-        required: true,
+        required: false,
         validate: (v) => {
-          if (!v) return { isValid: false, error: "Date of birth is required" }
+          if (!v) return { isValid: true }
           const date = new Date(v)
           const today = new Date()
           const age = today.getFullYear() - date.getFullYear()
@@ -141,10 +145,11 @@ const stepValidations: StepValidation[] = [
         }
       },
       {
+        // Optional (no asterisk in the form)
         field: "passportNumber",
         label: "Passport Number",
-        required: true,
-        validate: (v) => v?.trim() ? { isValid: true } : { isValid: false, error: "Passport number is required" }
+        required: false,
+        validate: () => ({ isValid: true })
       },
     ],
   },
