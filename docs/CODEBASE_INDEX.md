@@ -81,7 +81,7 @@ Generated reference map of the application. ~32,500 lines across app/, component
 `legal_type` stored values: `llc` / `jsc` → "Legal Entity"; `sole_proprietor` → "Individual Entrepreneur". Form offers only these two types (`individual` retired).
 
 ## Migrations — `scripts/`
-`001_create_schema` · `002_seed_data` · `003-complete-modules` · `01-create-test-accounts-onboarding` · `010_add_role_tiers` · `011_access_control` · `012_add_tin_unique_constraint` · `013_column_configurations` · `014_loan_drafts` · `015_notifications` · `016_borrowers_legal_type_constraint` · `017_remove_zip_code` · `create-guarantee-reports`
+`001_create_schema` · `002_seed_data` · `003-complete-modules` · `01-create-test-accounts-onboarding` · `010_add_role_tiers` · `011_access_control` · `012_add_tin_unique_constraint` · `013_column_configurations` · `014_loan_drafts` · `015_notifications` · `016_borrowers_legal_type_constraint` · `017_remove_zip_code` · `018_enable_rls_access_logs_guarantee_letters` · `create-guarantee-reports`
 
 ## RBAC
 
@@ -92,21 +92,29 @@ Tier-based (`lib/utils/roles.ts`): lower tier = higher authority. Approval thres
 
 ---
 
-## Known Issues (audit findings)
+## Audit findings — all RESOLVED
 
-### Security — RLS disabled on 2 tables
-`access_logs` and `guarantee_letters` have `relrowsecurity = false` while all 25 other tables enforce RLS. Both hold sensitive data and are reachable via the anon key.
+`tsc --noEmit` is now clean (0 errors, down from 30).
 
-### Bug — Borrowers table City column always blank
-`app/dashboard/borrowers/page.tsx:252` reads `b.city`, but the column is `address_city`. Renders `—` for every row.
+### Security — RLS gap [FIXED]
+`access_logs` and `guarantee_letters` were the only tables with `relrowsecurity = false`. Fixed in `scripts/018_enable_rls_access_logs_guarantee_letters.sql`. Note **every** Supabase client here (browser, server, proxy) uses the anon key — there is no service-role bypass, so RLS is the only gate.
+- `access_logs`: append-only. INSERT open (`WITH CHECK true`) so failed/unauthenticated attempts still log; SELECT limited to `super_admin`/`auditor`; no UPDATE/DELETE.
+- `guarantee_letters`: bank users see only their own bank's letters (via `loan_applications.bank_id`), PRSF roles see all; INSERT authenticated; UPDATE (revocation) admin-only; no DELETE.
 
-### 30 TypeScript errors (pre-existing, `tsc --noEmit`)
-1. **`Role.name` does not exist** (9×) — `roles/page.tsx`, `admin/role-assignment.tsx`. Type likely uses `name_en`/`code`.
-2. **Supabase joined relations typed as arrays** (8×) — `claims`, `fees`, `guarantee-reports`, `dashboard`. `.select('borrower(name)')` returns `T[]`, cast to `T`.
-3. **`t.locale` missing** (4×) — `banks/page.tsx`, `banks/[id]/page.tsx`.
-4. **`RoleWithPermissions` extends `Role` incompatibly** — `roles/page.tsx:77`.
-5. **`Borrower.city`** — see bug above.
-6. **`boolean | undefined`** — `loans/[id]/page.tsx:262`.
+### Bug — Borrowers City column blank [FIXED]
+Read `b.city` but the column is `address_city`.
 
-### Draft completion never reaches 100%
-`use-loan-draft.ts` still counts phone/address/city/birthdate/passport as required after those became optional.
+### Role names rendered blank everywhere [FIXED]
+The `roles` table has no `name` column (only `name_en`/`name_ru`/`name_tj`), so every `role.name` read was `undefined` — 9 sites across `roles/page.tsx` and `admin/role-assignment.tsx`, including audit-log payloads. Now uses `lib/utils/localized-name.ts`.
+
+### Rules-of-Hooks violation in roles page [FIXED]
+`roles/page.tsx` returned early on the access check *before* its `useState` calls, changing hook order as `userRole` resolved. Guard moved below all hooks.
+
+### Calendar component on dead v8 API [FIXED]
+`components/ui/calendar.tsx` used react-day-picker v8 keys (`day_selected`, `nav_button`, `head_row`, `IconLeft`/`IconRight`) against installed v9, so custom arrows and most styling silently never applied. Ported to v9 (`selected`, `button_previous`, `weekdays`, orientation-aware `Chevron`).
+
+### Supabase joined relations [FIXED]
+PostgREST returns embeds as arrays; code cast them straight to objects, so `dashboard` bank/borrower names silently fell back to `Unknown`/`—`. Normalized via `lib/utils/supabase-relation.ts` (`one()`). `guarantee-reports` also declared `banks: { name }` while selecting `name_en`.
+
+### Draft completion never reached 100% [FIXED]
+Hardcoded list counted 5 optional fields (`addressStreet`, `city`, `phone`, `legalRepBirthdate`, `passportNumber`) as required and missed `legalRepTin`, capping completion near 72%. Now derived from `REQUIRED_FIELD_NAMES` in `use-loan-form-validation.ts`, so it cannot drift from the form's own validation.

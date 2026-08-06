@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { REQUIRED_FIELD_NAMES } from "@/lib/hooks/use-loan-form-validation"
 
 export interface LoanDraft {
   id: string

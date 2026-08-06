@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
+import { one } from "@/lib/utils/supabase-relation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -247,9 +248,9 @@ export default function BorrowersPage() {
                       <TableCell className="font-mono text-sm">{b.tin_number || "—"}</TableCell>
                       <TableCell className="text-sm">{getTypeLabel(b.legal_type)}</TableCell>
                       <TableCell className="text-sm">
-                        {(b.sector as { name_en: string } | null)?.name_en || "—"}
+                          {one<{ name_en: string }>(b.sector)?.name_en || "—"}
                       </TableCell>
-                      <TableCell className="text-sm">{b.city || "—"}</TableCell>
+                        <TableCell className="text-sm">{b.address_city || "—"}</TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
                           Active
