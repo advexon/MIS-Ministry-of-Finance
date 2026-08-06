@@ -23,6 +23,7 @@ import type { Bank, BankBranch, Sector, LoanProduct } from "@/lib/types/database
 import { useLoanFormValidation, type FormStep } from "@/lib/hooks/use-loan-form-validation"
 import { useLoanDraft } from "@/lib/hooks/use-loan-draft"
 import { usePermissions } from "@/lib/contexts/permission-context"
+import { getDatabaseErrorMessage } from "@/lib/utils/db-error"
 
 interface Guarantor {
   name: string
@@ -628,28 +629,43 @@ export default function NewLoanPage() {
         customer_code: bankCustomerCode || null,
       }
 
-      // First check if borrower with this TIN or customer_code already exists
-      // (customer_code has unique constraint in DB)
-      let existingBorrower = null
-      
-      // Check by TIN first
+      // Identify an existing borrower by TIN — the actual identity of the
+      // customer. `limit(1)` rather than maybeSingle(): tin_number has no
+      // unique constraint, and maybeSingle() throws when more than one row
+      // matches, which would surface as an unrelated error.
+      let existingBorrower: { id: string } | null = null
+
       if (clientTin) {
         const { data: byTin } = await supabase
           .from("borrowers")
           .select("id")
           .eq("tin_number", clientTin)
-          .maybeSingle()
-        existingBorrower = byTin
+          .limit(1)
+        existingBorrower = byTin?.[0] ?? null
       }
-      
-      // If not found by TIN, check by customer_code (bank customer code)
-      if (!existingBorrower && bankCustomerCode) {
+
+      // customer_code is globally UNIQUE, so a code already used by a
+      // DIFFERENT customer must not be reused. Previously this branch reused
+      // that row and the update below overwrote another customer's record
+      // (name, TIN, address) with this applicant's data. Stop and explain
+      // instead of silently overwriting.
+      if (bankCustomerCode) {
         const { data: byCode } = await supabase
           .from("borrowers")
-          .select("id")
+          .select("id, name, tin_number")
           .eq("customer_code", bankCustomerCode)
-          .maybeSingle()
-        existingBorrower = byCode
+          .limit(1)
+        const codeOwner = byCode?.[0]
+
+        if (codeOwner && codeOwner.id !== existingBorrower?.id) {
+          setError(
+            `Bank Customer Code "${bankCustomerCode}" is already assigned to another customer` +
+              `${codeOwner.name ? ` (${codeOwner.name})` : ""}. ` +
+              `Please enter a different code, or leave the field blank.`,
+          )
+          setIsSubmitting(false)
+          return
+        }
       }
 
       let borrower: { id: string } | null = null
@@ -744,8 +760,9 @@ export default function NewLoanPage() {
       setSuccess(true)
       setTimeout(() => router.push("/dashboard/loans"), 1500)
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : JSON.stringify(err)
-      setError(errorMsg)
+      // Never surface raw Postgres JSON to the user.
+      console.error("[v0] Loan application submit failed:", err)
+      setError(getDatabaseErrorMessage(err))
       setIsSubmitting(false)
     }
   }
