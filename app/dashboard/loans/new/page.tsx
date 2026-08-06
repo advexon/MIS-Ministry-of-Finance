@@ -1043,7 +1043,7 @@ export default function NewLoanPage() {
                   </div>
                 </div>
                 <Separator />
-                <h4 className="font-medium text-sm">Address</h4>
+                  <h4 className="font-medium text-sm">Address *</h4>
                 <div className="space-y-2">
                   <Label>Street Address (Legal Address)</Label>
                   <Input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} placeholder="Street, building" />
@@ -1066,7 +1066,7 @@ export default function NewLoanPage() {
                 <h4 className="font-medium text-sm">Contact & Business</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Phone</Label>
+                    <Label>Phone *</Label>
                     <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+992XXXXXXXXX" />
                   </div>
                   <div className="space-y-2">
