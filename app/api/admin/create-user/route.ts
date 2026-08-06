@@ -72,9 +72,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: createError.message }, { status: 400 })
   }
 
-  // Update the profile row that was auto-created by the DB trigger
+  // Update the profile row that was auto-created by the DB trigger.
+  // The result MUST be checked: this update was previously fire-and-forget, so
+  // when it failed the API still returned 201 and the new user silently ended
+  // up with no role, name, or bank assigned.
   if (newUser.user) {
-    await adminClient
+    const { error: profileError } = await adminClient
       .from('profiles')
       .update({
         first_name: firstName || null,
@@ -87,6 +90,17 @@ export async function POST(request: Request) {
         is_active: true,
       })
       .eq('id', newUser.user.id)
+
+    if (profileError) {
+      // The auth user exists but is unusable without a profile. Remove it so
+      // the admin can retry cleanly instead of leaving an orphaned account.
+      console.error('[v0] Profile update failed for new user:', profileError)
+      await adminClient.auth.admin.deleteUser(newUser.user.id)
+      return NextResponse.json(
+        { error: `Could not save the user profile: ${profileError.message}` },
+        { status: 400 }
+      )
+    }
   }
 
   return NextResponse.json({ success: true, userId: newUser.user?.id }, { status: 201 })

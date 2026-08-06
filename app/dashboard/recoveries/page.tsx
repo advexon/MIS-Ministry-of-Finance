@@ -82,7 +82,9 @@ export default function RecoveriesPage() {
   useEffect(() => {
     fetchRecoveries()
     supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
-    supabase.from('claims').select('id, claim_number, bank_id, banks(name_en)').eq('status', 'paid').order('claim_number').then(({ data }) => setClaims(data || []))
+    // `loan_id` is selected because recoveries.loan_id is NOT NULL and must be
+    // derived from the chosen claim.
+    supabase.from('claims').select('id, claim_number, bank_id, loan_id, loan_application_id, banks(name_en)').eq('status', 'paid').order('claim_number').then(({ data }) => setClaims(data || []))
   }, [fetchRecoveries])
 
   const handleCreate = async () => {
@@ -90,11 +92,31 @@ export default function RecoveriesPage() {
       toast({ title: 'Please fill in all required fields', variant: 'destructive' })
       return
     }
+    // recoveries.loan_id is NOT NULL, so it must be resolved from the selected
+    // claim — omitting it made every recovery insert fail.
+    const selectedClaimRow = claims.find((c: any) => c.id === form.claim_id) as any
+    const resolvedLoanId = selectedClaimRow?.loan_id || selectedClaimRow?.loan_application_id
+    if (!resolvedLoanId) {
+      toast({
+        title: 'Cannot record recovery',
+        description: 'The selected claim has no linked loan.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setSaving(true)
+    const amount = Number(form.recovery_amount)
+    const prsfShare = Number(form.prsf_share) || amount * 0.5
     const { error } = await supabase.from('recoveries').insert({
       claim_id: form.claim_id,
-      recovery_amount: Number(form.recovery_amount),
-      prsf_share: Number(form.prsf_share) || Number(form.recovery_amount) * 0.5,
+      loan_id: resolvedLoanId,
+      loan_application_id: selectedClaimRow?.loan_application_id || resolvedLoanId,
+      recovery_amount: amount,
+      // total_recovered mirrors recovery_amount; the list view reads both.
+      total_recovered: amount,
+      prsf_share: prsfShare,
+      bank_share: amount - prsfShare,
       recovery_date: form.recovery_date,
       recovery_method: form.recovery_method,
       notes: form.notes || null,

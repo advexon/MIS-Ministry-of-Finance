@@ -1,14 +1,25 @@
 'use client'
 
-import React, { createContext, useContext, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { Role } from '@/lib/types/database'
-import { hasPermission, Permission, getResourcePermissions, ResourcePermission } from '@/lib/utils/permissions'
+import {
+  hasPermission,
+  Permission,
+  getResourcePermissions,
+  ResourcePermission,
+  fetchRolePermissions,
+  PermissionOverrides,
+} from '@/lib/utils/permissions'
 
 interface PermissionContextType {
   user: any
   role: Role | null
   can: (resource: string, permission: Permission | Permission[]) => boolean
   getPermissions: (resource: string) => ResourcePermission | null
+  /** True until the role's permissions have been loaded from the database. */
+  permissionsLoading: boolean
+  /** Re-read permissions from the database (after an admin edits a role). */
+  refreshPermissions: () => Promise<void>
 }
 
 const PermissionContext = createContext<PermissionContextType | undefined>(undefined)
@@ -23,20 +34,52 @@ interface PermissionProviderProps {
  * Provider component that makes permissions available to all child components
  */
 export function PermissionProvider({ children, user, role }: PermissionProviderProps) {
+  // Permissions live in the `role_permissions` table so the Role Management
+  // page can actually change access. Until they load (or if they cannot be
+  // read), `hasPermission` falls back to the static matrix, which the table
+  // was seeded from — so access is never wrongly granted or blanket-denied.
+  const [overrides, setOverrides] = useState<PermissionOverrides | null>(null)
+  const [permissionsLoading, setPermissionsLoading] = useState(true)
+
+  const loadPermissions = React.useCallback(async () => {
+    if (!role?.id) {
+      setOverrides(null)
+      setPermissionsLoading(false)
+      return
+    }
+    const perms = await fetchRolePermissions(role.id)
+    setOverrides(perms)
+    setPermissionsLoading(false)
+  }, [role?.id])
+
+  useEffect(() => {
+    let active = true
+    setPermissionsLoading(true)
+    fetchRolePermissions(role?.id).then((perms) => {
+      if (!active) return
+      setOverrides(perms)
+      setPermissionsLoading(false)
+    })
+    return () => { active = false }
+  }, [role?.id])
+
   const can = (resource: string, permission: Permission | Permission[]): boolean => {
     if (Array.isArray(permission)) {
-      return permission.some(p => hasPermission(role, resource, p))
+      return permission.some(p => hasPermission(role, resource, p, overrides))
     }
-    return hasPermission(role, resource, permission)
+    return hasPermission(role, resource, permission, overrides)
   }
 
-  const getPermissions = (resource: string) => getResourcePermissions(role, resource)
+  const getPermissions = (resource: string) =>
+    getResourcePermissions(role, resource, overrides)
 
   const value: PermissionContextType = {
     user,
     role,
     can,
     getPermissions,
+    permissionsLoading,
+    refreshPermissions: loadPermissions,
   }
 
   return (

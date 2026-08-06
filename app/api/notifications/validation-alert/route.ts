@@ -30,42 +30,46 @@ export async function POST(request: NextRequest) {
     let officerName = 'Loan Officer'
 
     if (assignedOfficerId) {
-      const { data: officer } = await supabase
+      // `profiles` has first_name/last_name — there is no `full_name` column,
+      // so this select used to fail and the officer never got an email.
+      const { data: officer, error: officerError } = await supabase
         .from('profiles')
-        .select('email, full_name')
+        .select('email, first_name, last_name')
         .eq('id', assignedOfficerId)
-        .single()
+        .maybeSingle()
+
+      if (officerError) {
+        console.error('[v0] Failed to load assigned officer:', officerError)
+      }
 
       if (officer) {
         officerEmail = officer.email
-        officerName = officer.full_name || 'Loan Officer'
+        const composed = [officer.first_name, officer.last_name]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
+        officerName = composed || 'Loan Officer'
       }
     }
 
-    // Create in-app notification
-    const notificationData = {
-      user_id: assignedOfficerId || user.id,
-      type: 'validation_error',
-      title: `Validation Issues Found - ${loanNumber || 'Application'}`,
-      message: `${validationErrors.length} validation error${validationErrors.length > 1 ? 's' : ''} found for ${borrowerName || 'application'}. Please review and correct.`,
-      data: {
-        loan_application_id: loanApplicationId,
-        loan_number: loanNumber,
-        borrower_name: borrowerName,
-        errors: validationErrors,
-        reviewer_notes: reviewerNotes,
-        created_by: user.id,
-      },
-      is_read: false,
-      priority: validationErrors.length > 3 ? 'high' : 'medium',
-    }
-
+    // Create in-app notification.
+    // `notifications` has columns (user_id, title, message, type, is_read,
+    // link) only — the previous `data` and `priority` keys do not exist, so
+    // every insert was rejected and no notification was ever created. The
+    // detailed payload is preserved in the audit_trail entry below.
     const { error: notifError } = await supabase
       .from('notifications')
-      .insert(notificationData)
+      .insert({
+        user_id: assignedOfficerId || user.id,
+        type: 'validation_error',
+        title: `Validation Issues Found - ${loanNumber || 'Application'}`,
+        message: `${validationErrors.length} validation error${validationErrors.length > 1 ? 's' : ''} found for ${borrowerName || 'application'}. Please review and correct.`,
+        is_read: false,
+        link: `/dashboard/loans/${loanApplicationId}`,
+      })
 
     if (notifError) {
-      console.error('Failed to create notification:', notifError)
+      console.error('[v0] Failed to create notification:', notifError)
     }
 
     // Send email notification if officer email is available

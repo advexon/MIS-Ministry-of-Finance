@@ -13,8 +13,15 @@ export interface ResourcePermission {
 }
 
 /**
- * Permission matrix for each role and resource
- * This is the single source of truth for access control
+ * A role's effective permissions, keyed by resource. Loaded from the
+ * `role_permissions` table, which is the source of truth for access control.
+ */
+export type PermissionOverrides = Record<string, ResourcePermission>
+
+/**
+ * Fallback permission matrix, used only when `role_permissions` cannot be
+ * read (offline, RLS failure, or a role with no rows seeded yet). The table
+ * was seeded from this matrix, so the two agree until an admin edits a role.
  */
 const PERMISSION_MATRIX: Record<string, Record<string, Permission[]>> = {
   [ROLE_CODES.SUPER_ADMIN]: {
@@ -78,7 +85,8 @@ const PERMISSION_MATRIX: Record<string, Record<string, Permission[]>> = {
 export function hasPermission(
   role: Role | null,
   resource: string,
-  permission: Permission
+  permission: Permission,
+  overrides?: PermissionOverrides | null
 ): boolean {
   // No role = no access
   if (!role) return false
@@ -86,12 +94,63 @@ export function hasPermission(
   // Superadmin bypasses all permission checks
   if (role.tier === ROLE_TIERS.SUPER_ADMIN) return true
 
-  // Get role permissions from matrix
+  // Prefer the database-backed permissions when they have been loaded, so
+  // edits made on the Role Management page take real effect.
+  const fromDb = overrides?.[resource]
+  if (fromDb) {
+    switch (permission) {
+      case 'view': return fromDb.can_view
+      case 'create': return fromDb.can_create
+      case 'update': return fromDb.can_update
+      case 'delete': return fromDb.can_delete
+      case 'approve': return fromDb.can_approve
+    }
+  }
+  // A loaded override set that simply has no row for this resource means
+  // "no access to this resource" — do not fall back to the static matrix,
+  // or revoking a resource in the UI would silently have no effect.
+  if (overrides) return false
+
+  // Fallback: static matrix (overrides not loaded yet / unavailable)
   const rolePermissions = PERMISSION_MATRIX[role.code]
   if (!rolePermissions) return false
 
   const resourcePermissions = rolePermissions[resource]
   return resourcePermissions?.includes(permission) ?? false
+}
+
+/**
+ * Load a role's permissions from the database.
+ * Returns null when unavailable so callers fall back to PERMISSION_MATRIX.
+ */
+export async function fetchRolePermissions(
+  roleId: string | null | undefined
+): Promise<PermissionOverrides | null> {
+  if (!roleId) return null
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('role_permissions')
+      .select('resource, can_view, can_create, can_update, can_delete, can_approve')
+      .eq('role_id', roleId)
+
+    if (error || !data || data.length === 0) return null
+
+    const map: PermissionOverrides = {}
+    for (const row of data) {
+      map[row.resource] = {
+        resource: row.resource,
+        can_view: !!row.can_view,
+        can_create: !!row.can_create,
+        can_update: !!row.can_update,
+        can_delete: !!row.can_delete,
+        can_approve: !!row.can_approve,
+      }
+    }
+    return map
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -250,7 +309,8 @@ export function getAccessibleResources(role: Role | null): string[] {
  */
 export function getResourcePermissions(
   role: Role | null,
-  resource: string
+  resource: string,
+  overrides?: PermissionOverrides | null
 ): ResourcePermission | null {
   if (!role) return null
 
@@ -265,6 +325,8 @@ export function getResourcePermissions(
       can_approve: true,
     }
   }
+
+  if (overrides) return overrides[resource] ?? null
 
   const rolePermissions = PERMISSION_MATRIX[role.code]
   if (!rolePermissions) return null

@@ -94,7 +94,7 @@ const tierColors: Record<number, string> = {
 
 export default function RolesPage() {
   const { t, locale } = useI18n()
-  const { role: userRole, can } = usePermissions()
+  const { role: userRole, user, refreshPermissions } = usePermissions()
 
   const [roles, setRoles] = useState<RoleWithPermissions[]>([])
   const [loading, setLoading] = useState(true)
@@ -141,9 +141,16 @@ export default function RolesPage() {
     })
 
     // Fetch role_permissions
-    const { data: permsData } = await supabase
+    const { data: permsData, error: permsError } = await supabase
       .from('role_permissions')
       .select('*')
+
+    if (permsError) {
+      // Previously silent, so a failed load looked identical to "no permissions
+      // granted" — every checkbox rendered unchecked with no explanation.
+      console.error('[v0] Failed to load role permissions:', permsError)
+      showToast('Could not load permissions. Showing roles only.', 'error')
+    }
 
     // Merge permissions into roles
     const rolesWithPerms = rolesData.map((role) => ({
@@ -241,12 +248,14 @@ export default function RolesPage() {
         if (error) throw error
       }
 
-      // Log the permission change to audit trail
+      // Log the permission change to audit trail.
+      // `changed_by` is the acting USER, not their role — passing userRole.id
+      // here recorded a role id and broke attribution.
       await supabase.from('audit_trail').insert({
         table_name: 'roles',
         record_id: selectedRole.id,
         action: 'UPDATE_PERMISSIONS',
-        changed_by: userRole?.id,
+        changed_by: user?.id ?? null,
         new_data: {
           role_name: getLocalizedName(selectedRole, locale),
           permissions_updated: Object.keys(editedPermissions),
@@ -256,8 +265,15 @@ export default function RolesPage() {
       showToast('Permissions updated successfully')
       setEditDialog(false)
       fetchRoles()
+      // Access is now DB-backed, so re-read the current user's own permissions
+      // in case they just changed their own role's access.
+      await refreshPermissions()
     } catch (error) {
-      showToast('Failed to save permissions', 'error')
+      console.error('[v0] Failed to save role permissions:', error)
+      showToast(
+        error instanceof Error ? error.message : 'Failed to save permissions',
+        'error',
+      )
     } finally {
       setSaving(false)
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { hasPermission, logAccessAttempt, Permission } from '@/lib/utils/permissions'
+import { hasPermission, logAccessAttempt, Permission, PermissionOverrides } from '@/lib/utils/permissions'
 import { Role } from '@/lib/types/database'
 
 export interface ProtectedRouteOptions {
@@ -67,8 +67,34 @@ export function withPermission(
         ? options.permission
         : [options.permission]
 
+      // Load the role's permissions from the database so server-side checks
+      // honour Role Management edits. Read with this request's server client
+      // (not the browser client) and fall back to the static matrix on failure.
+      let overrides: PermissionOverrides | null = null
+      const roleId = (profile?.role as Role | null)?.id
+      if (roleId) {
+        const { data: permRows } = await supabase
+          .from('role_permissions')
+          .select('resource, can_view, can_create, can_update, can_delete, can_approve')
+          .eq('role_id', roleId)
+
+        if (permRows && permRows.length > 0) {
+          overrides = {}
+          for (const row of permRows) {
+            overrides[row.resource] = {
+              resource: row.resource,
+              can_view: !!row.can_view,
+              can_create: !!row.can_create,
+              can_update: !!row.can_update,
+              can_delete: !!row.can_delete,
+              can_approve: !!row.can_approve,
+            }
+          }
+        }
+      }
+
       const hasAccess = permissions.some(perm =>
-        hasPermission(profile?.role as Role, options.resource, perm)
+        hasPermission(profile?.role as Role, options.resource, perm, overrides)
       )
 
       if (!hasAccess) {
