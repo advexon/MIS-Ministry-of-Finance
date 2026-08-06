@@ -360,11 +360,18 @@ export default function NewLoanPage() {
           .maybeSingle()
 
         if (existingBorrower) {
-          const typeLabel = existingBorrower.legal_type === "legal_entity" 
-            ? "Legal Entity" 
-            : existingBorrower.legal_type === "individual_entrepreneur"
-              ? "Individual Entrepreneur"
-              : "Individual"
+          // legal_type here is the STORED database value, so match on those.
+          const storedTypeLabels: Record<string, string> = {
+            llc: "Legal Entity",
+            jsc: "Legal Entity",
+            legal_entity: "Legal Entity",
+            sole_proprietor: "Individual Entrepreneur",
+            individual_entrepreneur: "Individual Entrepreneur",
+            cooperative: "Cooperative",
+            individual: "Individual (legacy)",
+          }
+          const typeLabel =
+            storedTypeLabels[existingBorrower.legal_type as string] ?? "Other"
           setTinDuplicateWarning({
             name: existingBorrower.name,
             type: typeLabel
@@ -380,9 +387,22 @@ export default function NewLoanPage() {
     }
   }
 
-  // Helper to validate legal_type value
-  const isValidLegalType = (type: string | null | undefined): type is "individual" | "legal_entity" | "individual_entrepreneur" => {
-    return type === "individual" || type === "legal_entity" || type === "individual_entrepreneur"
+  // Map a borrower's STORED legal_type onto one of the two selectable form options.
+  // The DB uses llc / sole_proprietor / individual, while the form uses
+  // legal_entity / individual_entrepreneur. Retired or unmappable values
+  // (e.g. legacy "individual") return "" so the user must pick a current type.
+  const toSelectableLegalType = (type: string | null | undefined): string => {
+    switch (type) {
+      case "llc":
+      case "jsc":
+      case "legal_entity":
+        return "legal_entity"
+      case "sole_proprietor":
+      case "individual_entrepreneur":
+        return "individual_entrepreneur"
+      default:
+        return ""
+    }
   }
 
   // Load existing borrower data into form fields
@@ -391,8 +411,9 @@ export default function NewLoanPage() {
 
     // Borrower basic info
     setClientName(foundBorrower.name || "")
-    // Only set legal_type if it's a valid value, otherwise leave as empty so user must select
-    setLegalEntityType(isValidLegalType(foundBorrower.legal_type) ? foundBorrower.legal_type : "")
+    // Only set legal_type if it maps to a currently selectable option,
+    // otherwise leave it empty so the user must choose one of the two types
+    setLegalEntityType(toSelectableLegalType(foundBorrower.legal_type))
     setRegistrationNumber(foundBorrower.registration_number || "")
     setBankCustomerCode(foundBorrower.customer_code || "")
     setSectorId(foundBorrower.sector_id || "")
@@ -416,7 +437,7 @@ export default function NewLoanPage() {
     setLegalRepPatronymic(foundBorrower.legal_rep_patronymic || "")
     setLegalRepGender(foundBorrower.legal_rep_gender || "")
     setLegalRepBirthdate(foundBorrower.legal_rep_birthdate || "")
-    setLegalRepCountryOfBirth(foundBorrower.legal_rep_country_of_birth || "")
+    setLegalRepCountry(foundBorrower.legal_rep_country_of_birth || "Tajikistan")
     setLegalRepTin(foundBorrower.legal_rep_tin || "")
 
     // Mark as loaded and close dialog
@@ -519,10 +540,10 @@ export default function NewLoanPage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       // Validate legal_type before submission - must be one of the allowed values
-      const validLegalTypes = ["individual", "legal_entity", "individual_entrepreneur"] as const
+      const validLegalTypes = ["legal_entity", "individual_entrepreneur"] as const
       
       if (!legalEntityType || !validLegalTypes.includes(legalEntityType as typeof validLegalTypes[number])) {
-        setSubmitError("Please select a valid Legal Entity Type")
+        setError("Please select a valid Legal Entity Type")
         setIsSubmitting(false)
         return
       }
@@ -531,15 +552,14 @@ export default function NewLoanPage() {
       // Map the form's legal entity types to the values allowed by the
       // borrowers_legal_type_check constraint: individual, sole_proprietor, llc, jsc, cooperative, other
       const sanitizedLegalType = legalEntityType.trim().toLowerCase()
-      const legalTypeMap: Record<string, "individual" | "sole_proprietor" | "llc"> = {
-        "individual": "individual",
+      const legalTypeMap: Record<string, "sole_proprietor" | "llc"> = {
         "legal_entity": "llc",
         "individual_entrepreneur": "sole_proprietor",
       }
       const finalLegalType = legalTypeMap[sanitizedLegalType]
       
       if (!finalLegalType) {
-        setSubmitError("Invalid Legal Entity Type. Please select a valid option.")
+        setError("Invalid Legal Entity Type. Please select a valid option.")
         setIsSubmitting(false)
         return
       }
@@ -909,7 +929,8 @@ export default function NewLoanPage() {
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="individual">{t.borrowers.individual}</SelectItem>
+                        {/* Only two borrower types are accepted. "Individual" was retired —
+                            legacy records keep their stored value for display purposes. */}
                         <SelectItem value="legal_entity">{t.borrowers.legalEntity}</SelectItem>
                         <SelectItem value="individual_entrepreneur">{t.borrowers.individualEntrepreneur}</SelectItem>
                       </SelectContent>

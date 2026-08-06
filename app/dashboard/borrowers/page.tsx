@@ -83,7 +83,10 @@ export default function BorrowersPage() {
         setTotalCount(count ?? 0)
         if (data) {
           setActiveCount(count ?? 0)
-          setEntityCount(data.filter((b) => b.legal_type === "legal_entity").length)
+          // Legal entities are stored as llc / jsc, not "legal_entity"
+          setEntityCount(
+            data.filter((b) => ["llc", "jsc", "legal_entity"].includes(b.legal_type ?? "")).length
+          )
         }
       })
   }, [supabase])
@@ -99,11 +102,18 @@ export default function BorrowersPage() {
       minimumFractionDigits: 0,
     }).format(val)
 
+  // Borrowers are stored using the database vocabulary (llc / sole_proprietor / ...),
+  // so map those to labels as well as the legacy form values.
   const getTypeLabel = (type: string) => {
     const map: Record<string, string> = {
-      individual: t.borrowers.individual,
+      llc: t.borrowers.legalEntity,
+      jsc: t.borrowers.legalEntity,
       legal_entity: t.borrowers.legalEntity,
+      sole_proprietor: t.borrowers.individualEntrepreneur,
       individual_entrepreneur: t.borrowers.individualEntrepreneur,
+      individual: t.borrowers.individual,
+      cooperative: "Cooperative",
+      other: "Other",
     }
     return map[type] || type
   }
