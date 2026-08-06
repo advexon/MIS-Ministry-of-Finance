@@ -62,7 +62,6 @@ export default function NewLoanPage() {
   const [addressStreet, setAddressStreet] = useState("")
   const [city, setCity] = useState("")
   const [district, setDistrict] = useState("")
-  const [zipCode, setZipCode] = useState("")
   const [workforce, setWorkforce] = useState("")
   const [establishmentYear, setEstablishmentYear] = useState("")
   const [businessDescription, setBusinessDescription] = useState("")
@@ -126,7 +125,7 @@ export default function NewLoanPage() {
   // Collect all form data into a single object for validation
   const formData = useMemo(() => ({
     legalEntityType, clientName, clientTin, registrationNumber, sectorId,
-    addressStreet, city, district, zipCode, workforce, establishmentYear,
+    addressStreet, city, district, workforce, establishmentYear,
     businessDescription, phone, email, bankCustomerCode, isBlacklisted,
     blacklistReason, guaranteeType, legalRepSurname, legalRepName,
     legalRepPatronymic, legalRepGender, legalRepBirthdate, legalRepCountry,
@@ -137,7 +136,7 @@ export default function NewLoanPage() {
     collateralDescription, covenantBank, covenantPrsf, guarantors, notes,
   }), [
     legalEntityType, clientName, clientTin, registrationNumber, sectorId,
-    addressStreet, city, district, zipCode, workforce, establishmentYear,
+    addressStreet, city, district, workforce, establishmentYear,
     businessDescription, phone, email, bankCustomerCode, isBlacklisted,
     blacklistReason, guaranteeType, legalRepSurname, legalRepName,
     legalRepPatronymic, legalRepGender, legalRepBirthdate, legalRepCountry,
@@ -235,8 +234,7 @@ export default function NewLoanPage() {
           if (data.addressStreet) setAddressStreet(data.addressStreet)
           if (data.city) setCity(data.city)
           if (data.district) setDistrict(data.district)
-          if (data.zipCode) setZipCode(data.zipCode)
-          if (data.workforce) setWorkforce(data.workforce)
+            if (data.workforce) setWorkforce(data.workforce)
           if (data.phone) setPhone(data.phone)
           if (data.email) setEmail(data.email)
           if (data.legalRepSurname) setLegalRepSurname(data.legalRepSurname)
@@ -422,7 +420,6 @@ export default function NewLoanPage() {
     setAddressStreet(foundBorrower.address_street || "")
     setCity(foundBorrower.address_city || "")
     setDistrict(foundBorrower.address_district || "")
-    setZipCode(foundBorrower.address_zip || "")
 
     // Contact
     setPhone(foundBorrower.phone || "")
@@ -574,7 +571,6 @@ export default function NewLoanPage() {
         address_street: addressStreet || null,
         address_city: city || null,
         address_district: district || null,
-        address_zip: zipCode || null,
         phone: phone || null,
         email: email || null,
         legal_rep_name: legalRepName || null,
@@ -1048,7 +1044,7 @@ export default function NewLoanPage() {
                   <Label>Street Address (Legal Address)</Label>
                   <Input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} placeholder="Street, building" />
                 </div>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>City</Label>
                     <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Dushanbe" />
@@ -1056,10 +1052,6 @@ export default function NewLoanPage() {
                   <div className="space-y-2">
                     <Label>District</Label>
                     <Input value={district} onChange={(e) => setDistrict(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Zip Code</Label>
-                    <Input value={zipCode} onChange={(e) => setZipCode(e.target.value)} placeholder="734000" />
                   </div>
                 </div>
                 <Separator />

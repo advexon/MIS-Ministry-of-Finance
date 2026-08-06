@@ -295,7 +295,6 @@ export const translations = {
       actualAddress: 'Actual Address',
       city: 'City',
       district: 'District',
-      zipCode: 'Zip Code',
       phone: 'Phone',
       sector: 'Business Sector',
       businessDescription: 'Business Description',
@@ -647,7 +646,7 @@ export const translations = {
     // Loan Applications
     loans: {
       title: 'Заявки на кредит',
-      newApplication: 'Новая заявка на кредит',
+      newApplication: 'Н��вая заявка на кредит',
       applicationNumber: 'Номер заявки',
       loanNumber: 'Номер кредита',
       applicationDate: 'Дата заявки',
@@ -730,7 +729,6 @@ export const translations = {
       actualAddress: 'Фактический адрес',
       city: 'Город',
       district: 'Район',
-      zipCode: 'Почтовый индекс',
       phone: 'Телефон',
       sector: 'Сектор бизнеса',
       businessDescription: 'Описание бизнеса',
@@ -835,7 +833,7 @@ export const translations = {
     users: {
       title: 'Управление пользователями',
       newUser: 'Новый пользователь',
-      role: 'Роль',
+      role: '��оль',
       isActive: 'Активен',
       lastLogin: 'Последний ��ход',
       preferredLanguage: 'Предпочитаемый язык',
@@ -1165,7 +1163,6 @@ export const translations = {
       actualAddress: 'Суроғаи воқеӣ',
       city: 'Шаҳр',
       district: 'Ноҳия',
-      zipCode: 'Индекси почта',
       phone: 'Телефон',
       sector: 'Соҳаи бизнес',
       businessDescription: 'Тавсифи бизнес',
