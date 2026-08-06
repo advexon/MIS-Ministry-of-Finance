@@ -469,7 +469,9 @@ export default function NewLoanPage() {
     if (newIndex > currentIndex) {
       const { isValid, errors } = validateStep(activeTab)
       if (!isValid) {
-        setError(`Please fix ${errors.length} error${errors.length > 1 ? "s" : ""} before proceeding`)
+        setError(
+          `Please complete ${errors.length} required field${errors.length > 1 ? "s" : ""} to continue`,
+        )
         setShowValidationSummary(true)
         return
       }
@@ -756,7 +758,9 @@ export default function NewLoanPage() {
         <div className="flex items-center gap-2 text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="text-sm font-semibold">
-            {status.errors.length} required {status.errors.length === 1 ? "field" : "fields"} missing in this section
+                {status.errors.length === 1
+                  ? "Please complete this required field"
+                  : `Please complete these ${status.errors.length} required fields`}
           </span>
         </div>
         <ul className="space-y-1 pl-6">
@@ -1097,7 +1101,7 @@ export default function NewLoanPage() {
             </div>
           </TabsContent>
 
-          {/* ── LEGAL REP TAB ── */}
+          {/* ── LEGAL REP TAB ���─ */}
           <TabsContent value="legal_rep" className="space-y-6">
             <StepValidationPanel step="legal_rep" />
             <Card>
@@ -1439,7 +1443,9 @@ export default function NewLoanPage() {
               <Alert variant="destructive" className="mt-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Please complete all required fields before submitting. {allErrors.length} field{allErrors.length === 1 ? " has" : "s have"} errors.
+                  Please complete all required fields before submitting.{" "}
+                  {allErrors.length} field{allErrors.length === 1 ? "" : "s"} still{" "}
+                  {allErrors.length === 1 ? "needs" : "need"} your attention.
                 </AlertDescription>
               </Alert>
             )}
