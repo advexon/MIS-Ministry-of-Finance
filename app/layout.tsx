@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Source_Serif_4 } from 'next/font/google'
 
 import './globals.css'
 
@@ -11,6 +11,15 @@ const inter = Inter({
   // display=swap prevents invisible text during font load (FOIT)
   display: 'swap',
   // Preload the font so the browser fetches it before CSS parsing
+  preload: true,
+})
+
+// Institutional serif used for display headings only — pairs with Inter for UI/data
+const sourceSerif = Source_Serif_4({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-source-serif',
+  weight: ['400', '600', '700'],
+  display: 'swap',
   preload: true,
 })
 
@@ -36,8 +45,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>{children}</body>
+    <html lang="en" className="bg-background" suppressHydrationWarning>
+      <body className={`${inter.variable} ${sourceSerif.variable} font-sans antialiased`}>
+        {children}
+      </body>
     </html>
   )
 }
