@@ -9,7 +9,7 @@ import {
 import type { Role } from "@/lib/types/database"
 
 // Pure service-role client — no cookies, no session, no RLS.
-// NOTHING may reach this client before passing requireAdmin() below.
+// NOTHING may reach this client before passing requireUsersAccess() below.
 function getAdminClient() {
   const url =
     process.env.NEXT_PUBLIC_MISSUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -198,10 +198,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 })
     }
 
-    // Load the target once, for both bank-isolation and privilege checks.
+    // Load the target once, for bank-isolation, privilege checks, and the
+    // before-image recorded in the audit trail.
     const { data: targetProfile } = await supabase
       .from("profiles")
-      .select("bank_id, role:roles(tier)")
+      .select("first_name, last_name, phone, role_id, bank_id, is_active, role:roles(tier)")
       .eq("id", userId)
       .single()
 
@@ -297,14 +298,33 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Record who changed whom, so user administration is auditable.
-    await supabase.from("audit_trail").insert({
+    // Record who changed whom, so user administration is auditable. Only the
+    // fields actually being changed are recorded, alongside their prior values.
+    const changedKeys = Object.keys(updateData).filter((k) => k !== "updated_at")
+    const oldData: Record<string, any> = {}
+    for (const k of changedKeys) {
+      oldData[k] = (targetProfile as Record<string, any>)[k] ?? null
+    }
+
+    const { error: auditError } = await supabase.from("audit_trail").insert({
       table_name: "profiles",
       record_id: userId,
       action: "UPDATE",
       changed_by: caller!.userId,
+      old_data: oldData,
       new_data: updateData,
+      ip_address:
+        request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+        request.headers.get("x-real-ip") ??
+        null,
+      user_agent: request.headers.get("user-agent"),
     })
+
+    // A failed audit write must not hide a successful update, but it should be
+    // visible rather than silently swallowed.
+    if (auditError) {
+      console.error("[users API PATCH] audit write failed:", auditError.message)
+    }
 
     return NextResponse.json({ user: data })
   } catch (err: unknown) {
