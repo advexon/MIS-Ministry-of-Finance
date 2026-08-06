@@ -161,7 +161,6 @@ export interface Borrower {
   address_street: string | null
   address_city: string | null
   address_district: string | null
-  address_zip: string | null
   phone: string | null
   email: string | null
   legal_rep_surname: string | null

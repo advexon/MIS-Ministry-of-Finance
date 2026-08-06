@@ -123,7 +123,6 @@ CREATE TABLE IF NOT EXISTS borrowers (
   actual_address TEXT,
   city VARCHAR(100),
   district VARCHAR(100),
-  zip_code VARCHAR(20),
   phone VARCHAR(50),
   email VARCHAR(255),
   
