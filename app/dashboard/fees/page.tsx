@@ -19,6 +19,7 @@ import {
   CheckCircle, RefreshCw, Loader2, AlertCircle, CheckCircle2, Printer, Calculator,
 } from "lucide-react"
 import type { Fee } from "@/lib/types/database"
+import { one } from "@/lib/utils/supabase-relation"
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -93,7 +94,10 @@ export default function FeesPage() {
       .select("id,loan_number,approved_amount,currency,guarantee_coverage,bank_id,borrower:borrowers(name)")
       .in("status", ["approved", "disbursed", "active"])
       .order("loan_number")
-      .then(({ data }) => { if (data) setLoans(data) })
+      .then(({ data }) => {
+        // PostgREST returns embedded relations as arrays; flatten to one record.
+        if (data) setLoans(data.map((l) => ({ ...l, borrower: one(l.borrower) })))
+      })
   }, [fetchFees, supabase])
 
   const formatCurrency = (val: number | null | undefined, cur = "TJS") => {

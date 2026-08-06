@@ -25,8 +25,9 @@ export function withPermission(
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user && options.requireAuth !== false) {
+        // `user` is narrowed to null here, so there is no id to log.
         await logAccessAttempt(
-          user?.id,
+          undefined,
           req.method,
           options.resource,
           undefined,

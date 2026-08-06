@@ -48,6 +48,7 @@ import {
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { one } from '@/lib/utils/supabase-relation'
 
 interface GuaranteeReport {
   id: string
@@ -59,7 +60,8 @@ interface GuaranteeReport {
   total_loans: number
   total_outstanding_principal: number
   total_guarantee_amount: number
-  banks: { name: string } | null
+  // Matches the `banks(name_en, code)` embed in fetchReports below.
+  banks: { name_en: string; code: string } | null
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -120,7 +122,8 @@ function GuaranteeReportsContent() {
     if (typeFilter !== 'all') query = query.eq('report_type', typeFilter)
 
     const { data } = await query
-    setReports(data || [])
+    // PostgREST returns embedded relations as arrays; flatten to one record.
+    setReports((data || []).map((r) => ({ ...r, banks: one(r.banks) })))
     setLoading(false)
   }, [supabase, statusFilter, typeFilter])
 

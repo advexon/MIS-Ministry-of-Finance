@@ -37,6 +37,8 @@ import {
   Info,
 } from "lucide-react"
 import type { Role, Profile } from "@/lib/types/database"
+import { useI18n } from "@/lib/i18n/context"
+import { getLocalizedName } from "@/lib/utils/localized-name"
 
 interface RoleAssignmentProps {
   user: Profile & { role?: Role }
@@ -72,6 +74,7 @@ export function RoleAssignmentDialog({
   onSuccess,
 }: RoleAssignmentProps) {
   const { role: currentUserRole, user: currentUser } = usePermissions()
+  const { locale } = useI18n()
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedRoleId, setSelectedRoleId] = useState<string>(user.role_id || "")
   const [loading, setLoading] = useState(false)
@@ -161,9 +164,9 @@ export function RoleAssignmentDialog({
         user.id,
         selectedRoleId,
         {
-          roleName: selectedRole?.name,
-          previousRole: previousRole?.name,
-          newRole: selectedRole?.name,
+          roleName: getLocalizedName(selectedRole, locale),
+          previousRole: getLocalizedName(previousRole, locale),
+          newRole: getLocalizedName(selectedRole, locale),
           changedBy: currentUser?.email,
         }
       )
@@ -205,7 +208,7 @@ export function RoleAssignmentDialog({
                   <Badge variant="outline" className={tierColors[previousRole.tier]}>
                     Tier {previousRole.tier}
                   </Badge>
-                  <span className="font-medium">{previousRole.name}</span>
+                  <span className="font-medium">{getLocalizedName(previousRole, locale)}</span>
                 </div>
               </div>
             )}
@@ -235,7 +238,7 @@ export function RoleAssignmentDialog({
                           >
                             T{role.tier}
                           </Badge>
-                          {role.name}
+                          {getLocalizedName(role, locale)}
                         </div>
                       </SelectItem>
                     )
@@ -295,8 +298,8 @@ export function RoleAssignmentDialog({
                 <AlertTitle>Confirm Role Change</AlertTitle>
                 <AlertDescription>
                   Are you sure you want to change the role from{" "}
-                  <strong>{previousRole?.name || "None"}</strong> to{" "}
-                  <strong>{selectedRole?.name}</strong>? This action will be logged.
+                  <strong>{getLocalizedName(previousRole, locale) || "None"}</strong> to{" "}
+                  <strong>{getLocalizedName(selectedRole, locale)}</strong>? This action will be logged.
                 </AlertDescription>
               </Alert>
             )}
@@ -369,6 +372,7 @@ interface RoleBadgeWithEditProps {
 export function RoleBadgeWithEdit({ user, onRoleChange }: RoleBadgeWithEditProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const { can } = usePermissions()
+  const { locale } = useI18n()
 
   const canEditRoles = can("users", "update")
 
@@ -382,7 +386,7 @@ export function RoleBadgeWithEdit({ user, onRoleChange }: RoleBadgeWithEditProps
         } ${canEditRoles ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
         title={canEditRoles ? "Click to change role" : "You cannot edit roles"}
       >
-        {user.role?.name || "No Role"}
+        {getLocalizedName(user.role, locale) || "No Role"}
         {canEditRoles && <Shield className="h-3 w-3" />}
       </button>
 

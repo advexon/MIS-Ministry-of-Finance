@@ -46,6 +46,7 @@ import {
   CheckCircle2,
 } from "lucide-react"
 import type { Role } from "@/lib/types/database"
+import { getLocalizedName } from "@/lib/utils/localized-name"
 
 // Resource definitions with labels
 const RESOURCES = [
@@ -74,7 +75,9 @@ interface RolePermission {
   can_approve: boolean
 }
 
-interface RoleWithPermissions extends Role {
+// `Role.permissions` is a string[] of permission codes, but this page hydrates
+// it into full RolePermission records, so the base field must be replaced.
+interface RoleWithPermissions extends Omit<Role, "permissions"> {
   permissions?: RolePermission[]
   user_count?: number
 }
@@ -90,27 +93,8 @@ const tierColors: Record<number, string> = {
 }
 
 export default function RolesPage() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { role: userRole, can } = usePermissions()
-
-  // Only superadmin can access this page
-  if (!userRole || userRole.tier > 2) {
-    return (
-      <div className="flex h-full items-center justify-center p-8">
-        <Card className="max-w-md">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center gap-3 text-center">
-              <Lock className="h-12 w-12 text-destructive" />
-              <h3 className="font-semibold text-destructive">Access Denied</h3>
-              <p className="text-sm text-muted-foreground">
-                Only administrators can access role management.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
 
   const [roles, setRoles] = useState<RoleWithPermissions[]>([])
   const [loading, setLoading] = useState(true)
@@ -175,6 +159,26 @@ export default function RolesPage() {
   useEffect(() => {
     fetchRoles()
   }, [fetchRoles])
+
+  // Access check runs after all hooks so the hook order stays stable while
+  // `userRole` resolves from null to a loaded role (Rules of Hooks).
+  if (!userRole || userRole.tier > 2) {
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <Lock className="h-12 w-12 text-destructive" />
+              <h3 className="font-semibold text-destructive">Access Denied</h3>
+              <p className="text-sm text-muted-foreground">
+                Only administrators can access role management.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const handleEditRole = (role: RoleWithPermissions) => {
     setSelectedRole(role)
@@ -244,7 +248,7 @@ export default function RolesPage() {
         action: 'UPDATE_PERMISSIONS',
         changed_by: userRole?.id,
         new_data: {
-          role_name: selectedRole.name,
+          role_name: getLocalizedName(selectedRole, locale),
           permissions_updated: Object.keys(editedPermissions),
         },
       })
@@ -321,7 +325,7 @@ export default function RolesPage() {
               <TableBody>
                 {roles.map((role) => (
                   <TableRow key={role.id}>
-                    <TableCell className="font-medium">{role.name}</TableCell>
+                    <TableCell className="font-medium">{getLocalizedName(role, locale)}</TableCell>
                     <TableCell>
                       <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
                         {role.code}
@@ -403,7 +407,7 @@ export default function RolesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
-              Edit Permissions: {selectedRole?.name}
+              Edit Permissions: {getLocalizedName(selectedRole, locale)}
             </DialogTitle>
             <DialogDescription>
               Configure which resources this role can access and what actions they can perform.

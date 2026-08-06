@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
+import { getLocalizedName } from '@/lib/utils/localized-name'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -41,7 +42,7 @@ function BankSkeleton() {
 }
 
 export default function BanksPage() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -55,11 +56,7 @@ export default function BanksPage() {
   })
 
   // Helper to get localized bank name
-  const getBankName = (bank: Bank) => {
-    if (t.locale === 'ru' && bank.name_ru) return bank.name_ru
-    if (t.locale === 'tj' && bank.name_tj) return bank.name_tj
-    return bank.name_en
-  }
+  const getBankName = (bank: Bank) => getLocalizedName(bank, locale)
 
   const fetchBanks = async () => {
     setLoading(true)

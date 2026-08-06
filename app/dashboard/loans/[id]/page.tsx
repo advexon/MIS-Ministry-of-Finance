@@ -259,7 +259,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   let isSuperAdmin = false
   try {
     const { role } = usePermissions()
-    isSuperAdmin = role?.tier === 1 || role?.name_en?.toLowerCase().includes('admin')
+    isSuperAdmin = role?.tier === 1 || Boolean(role?.name_en?.toLowerCase().includes('admin'))
   } catch {
     // Not wrapped in PermissionProvider or error
   }

@@ -23,6 +23,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import Link from 'next/link'
+import { one } from '@/lib/utils/supabase-relation'
 
 interface DashboardStats {
   totalLoans: number
@@ -177,7 +178,7 @@ export default function DashboardPage() {
         { name: string; total: number; disbursed: number; active: number }
       >()
       for (const loan of bankData) {
-        const bankName = (loan.bank as { name_en: string } | null)?.name_en ?? 'Unknown'
+        const bankName = one<{ name_en: string }>(loan.bank)?.name_en ?? 'Unknown'
         const existing = bankMap.get(loan.bank_id) ?? {
           name: bankName,
           total: 0,
@@ -204,8 +205,8 @@ export default function DashboardPage() {
     // Recent activity
     if (recentLoans) {
       const activity: ActivityItem[] = recentLoans.map((loan) => {
-        const borrowerName = (loan.borrower as { name: string } | null)?.name ?? '—'
-        const bankName = (loan.bank as { name_en: string } | null)?.name_en ?? '—'
+        const borrowerName = one<{ name: string }>(loan.borrower)?.name ?? '—'
+        const bankName = one<{ name_en: string }>(loan.bank)?.name_en ?? '—'
         return {
           id: loan.id,
           type: loan.status,

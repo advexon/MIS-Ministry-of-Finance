@@ -15,17 +15,20 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined)
 
-// Cache loaded locale modules so we never fetch them twice
+// Cache loaded locale modules so we never fetch them twice.
+// The ru/tj bundles are structurally compatible with `en` but are inferred as
+// distinct literal types, so the cache is widened to the shared shape.
 const localeCache: Partial<Record<Locale, TranslationType>> = {
   en: enTranslations.en,
 }
 
 async function loadLocale(locale: Locale): Promise<TranslationType> {
-  if (localeCache[locale]) return localeCache[locale]!
+  const cached = localeCache[locale]
+  if (cached) return cached
   // Dynamic import splits ru/tj into separate webpack chunks (~0 cost for
   // users who never switch away from English)
   const mod = await import('./translations')
-  const t = mod.translations[locale]
+  const t = mod.translations[locale] as TranslationType
   localeCache[locale] = t
   return t
 }

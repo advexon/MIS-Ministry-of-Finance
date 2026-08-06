@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
+import { getLocalizedName } from '@/lib/utils/localized-name'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,7 @@ import { useToast } from '@/hooks/use-toast'
 
 export default function BankDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const supabase = createClient()
   const { toast } = useToast()
   const router = useRouter()
@@ -52,11 +53,7 @@ export default function BankDetailPage() {
   }, [id])
 
   // Helper to get localized bank name
-  const getBankName = (b: any) => {
-    if (t.locale === 'ru' && b?.name_ru) return b.name_ru
-    if (t.locale === 'tj' && b?.name_tj) return b.name_tj
-    return b?.name_en || ''
-  }
+  const getBankName = (b: any) => getLocalizedName(b, locale)
 
   const handleSave = async () => {
     setSaving(true)

@@ -82,7 +82,9 @@ export function getStatusStyle(status: string): string {
 /**
  * Group statuses by workflow stage
  */
-export const STATUS_GROUPS = {
+// Typed as LoanStatus[] so membership checks accept any LoanStatus rather than
+// narrowing to the literal union of each group's own members.
+export const STATUS_GROUPS: Record<string, LoanStatus[]> = {
   PENDING: [LOAN_STATUSES.DRAFT, LOAN_STATUSES.SUBMITTED, LOAN_STATUSES.UNDER_REVIEW],
   DECISION: [LOAN_STATUSES.APPROVED, LOAN_STATUSES.REJECTED],
   GUARANTEE: [LOAN_STATUSES.GUARANTEE_ISSUED, LOAN_STATUSES.EXTENSION_PENDING, LOAN_STATUSES.CANCELLED],

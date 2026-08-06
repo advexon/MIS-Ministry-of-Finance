@@ -19,6 +19,7 @@ import {
   AlertTriangle, DollarSign, Clock, Loader2, RefreshCw, CheckCircle2, AlertCircle,
 } from "lucide-react"
 import type { Claim } from "@/lib/types/database"
+import { one } from "@/lib/utils/supabase-relation"
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -105,7 +106,10 @@ export default function ClaimsPage() {
       .select("id,loan_number,approved_amount,currency,bank_id,borrower:borrowers(name)")
       .in("status", ["active", "defaulted", "claim_pending"])
       .order("loan_number")
-      .then(({ data }) => { if (data) setLoans(data) })
+      .then(({ data }) => {
+        // PostgREST returns embedded relations as arrays; flatten to one record.
+        if (data) setLoans(data.map((l) => ({ ...l, borrower: one(l.borrower) })))
+      })
   }, [supabase])
 
   useEffect(() => { fetchClaims() }, [fetchClaims])
