@@ -160,6 +160,7 @@ export function WorkflowTester({ loan, onStatusChange }: WorkflowTesterProps) {
   const [testNotes, setTestNotes] = useState("")
   const [actionLog, setActionLog] = useState<Array<{ time: Date; action: string; from: string; to: string }>>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [transitionError, setTransitionError] = useState<string | null>(null)
 
   const currentStatus = loan.status || "draft"
   const currentTransition = WORKFLOW_TRANSITIONS[currentStatus]
@@ -167,6 +168,7 @@ export function WorkflowTester({ loan, onStatusChange }: WorkflowTesterProps) {
   // Perform status transition
   const performTransition = useCallback(async (newStatus: string, isJump = false) => {
     setTransitioning(true)
+    setTransitionError(null)
     try {
       const updateData: Record<string, any> = {
         status: newStatus,
@@ -195,7 +197,8 @@ export function WorkflowTester({ loan, onStatusChange }: WorkflowTesterProps) {
 
       onStatusChange()
     } catch (err) {
-      console.error("Transition error:", err)
+      const message = err instanceof Error ? err.message : "Unknown error during transition"
+      setTransitionError(`Could not move from "${STATUS_LABELS[currentStatus] ?? currentStatus}" to "${STATUS_LABELS[newStatus] ?? newStatus}": ${message}`)
     } finally {
       setTransitioning(false)
     }
@@ -242,6 +245,23 @@ export function WorkflowTester({ loan, onStatusChange }: WorkflowTesterProps) {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Transition failure feedback */}
+        {transitionError && (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-start justify-between gap-3">
+              <span>{transitionError}</span>
+              <button
+                type="button"
+                onClick={() => setTransitionError(null)}
+                className="shrink-0 underline underline-offset-2"
+              >
+                Dismiss
+              </button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Current Status Display */}
         <div className="flex items-center justify-between p-3 rounded-lg bg-background border">
           <div className="flex items-center gap-3">

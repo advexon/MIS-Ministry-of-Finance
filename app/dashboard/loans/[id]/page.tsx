@@ -401,12 +401,18 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const handleApproveClaim = async () => {
     if (!loan || !claims[0]) return
     setSaving(true)
-    await supabase.from("claims").update({
+    const { error } = await supabase.from("claims").update({
       status: "approved",
       review_date: dateField,
       review_notes: notes,
       approved_amount: parseFloat(amount) || claims[0].claim_amount,
     }).eq("id", claims[0].id)
+    if (error) {
+      // Stop before moving the loan forward so the claim and loan cannot diverge
+      showToast("Failed to approve claim: " + error.message, "error")
+      setSaving(false)
+      return
+    }
     await transition("claim_paid", {})
     setSaving(false)
   }
@@ -414,7 +420,16 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const handleRejectClaim = async () => {
     if (!loan || !claims[0]) return
     setSaving(true)
-    await supabase.from("claims").update({ status: "rejected", review_date: dateField, review_notes: reason }).eq("id", claims[0].id)
+    const { error } = await supabase
+      .from("claims")
+      .update({ status: "rejected", review_date: dateField, review_notes: reason })
+      .eq("id", claims[0].id)
+    if (error) {
+      // Stop before moving the loan forward so the claim and loan cannot diverge
+      showToast("Failed to reject claim: " + error.message, "error")
+      setSaving(false)
+      return
+    }
     await transition("claim_rejected", {})
     setSaving(false)
   }
