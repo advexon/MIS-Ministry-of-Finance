@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Source_Serif_4 } from 'next/font/google'
 
 import './globals.css'
+import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
@@ -48,6 +49,12 @@ export default function RootLayout({
     <html lang="en" className="bg-background" suppressHydrationWarning>
       <body className={`${inter.variable} ${sourceSerif.variable} font-sans antialiased`}>
         {children}
+        {/*
+          Every toast() call in the app was being dropped because no Toaster was
+          ever mounted, so failed saves and permission errors across 11 screens
+          reported nothing at all to the user. Mounted once here at the root.
+        */}
+        <Toaster />
       </body>
     </html>
   )

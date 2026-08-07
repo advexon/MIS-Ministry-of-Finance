@@ -43,12 +43,14 @@ export default function CommitteePage() {
   const [myId, setMyId] = useState<string | null>(null)
   const [myRole, setMyRole] = useState<string | null>(null)
 
+  const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ meeting_no: '', scheduled_at: '', quorum: '5' })
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError(null)
 
     const { data: auth } = await supabase.auth.getUser()
     const uid = auth.user?.id ?? null
@@ -56,7 +58,7 @@ export default function CommitteePage() {
 
     if (uid) {
       const { data: profile } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('role:roles(code)')
         .eq('id', uid)
         .maybeSingle()
@@ -65,10 +67,15 @@ export default function CommitteePage() {
     }
 
     // Everyone eligible to sit on the committee, so the secretary can seat them.
-    const { data: memberRows } = await supabase
-      .from('user_profiles')
+    const { data: memberRows, error: memberErr } = await supabase
+      .from('profiles')
       .select('id, first_name, last_name, email, role:roles(code, name_en)')
       .eq('is_active', true)
+
+    // Surface this instead of swallowing it. An empty member list and a failed
+    // query look identical in the UI ("No members seated yet"), which would
+    // leave a secretary unable to seat anyone with no idea why.
+    if (memberErr) setError(`Could not load eligible members: ${memberErr.message}`)
 
     setMembers(
       ((memberRows ?? []) as unknown as CommitteeMember[]).filter((m) => {
@@ -173,6 +180,15 @@ export default function CommitteePage() {
           </Button>
         )}
       </header>
+
+      {error && (
+        <p
+          role="alert"
+          className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+        >
+          {error}
+        </p>
+      )}
 
       {!isSecretary && myRole !== 'kkg_member' && (
         <p className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
