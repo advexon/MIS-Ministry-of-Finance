@@ -1,32 +1,14 @@
-import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-
-/**
- * Route protection matrix
- * Maps dashboard routes to required permissions
- */
-const ROUTE_PERMISSIONS: Record<string, { resource: string; permission: string }> = {
-  '/dashboard/users': { resource: 'users', permission: 'view' },
-  '/dashboard/users/.*': { resource: 'users', permission: 'view' },
-  '/dashboard/loans': { resource: 'loans', permission: 'view' },
-  '/dashboard/loans/.*': { resource: 'loans', permission: 'view' },
-  '/dashboard/claims': { resource: 'claims', permission: 'view' },
-  '/dashboard/claims/.*': { resource: 'claims', permission: 'view' },
-  '/dashboard/fees': { resource: 'fees', permission: 'view' },
-  '/dashboard/banks': { resource: 'banks', permission: 'view' },
-  '/dashboard/audit': { resource: 'audit_logs', permission: 'view' },
-  '/dashboard/access': { resource: 'access_logs', permission: 'view' },
-}
 
 export async function proxy(request: NextRequest) {
   // Dynamically import to avoid loading @supabase/ssr for excluded routes
   const { updateSession } = await import('@/lib/supabase/proxy')
-  const response = await updateSession(request)
-  
-  // Route permission checking is handled by individual pages/components via usePermissions hook
-  // This proxy just ensures session is up to date
-  
-  return response
+
+  // updateSession refreshes the auth cookies AND enforces access control:
+  // authentication for /dashboard, admin-only /auth/sign-up, and the
+  // per-route permission matrix in `lib/utils/route-permissions.ts`.
+  // Client-side `usePermissions` checks remain, but only to hide UI.
+  return await updateSession(request)
 }
 
 export const config = {

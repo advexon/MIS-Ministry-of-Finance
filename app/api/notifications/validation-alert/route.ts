@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email/service'
-import { hasPermission, type PermissionOverrides } from '@/lib/utils/permissions'
-import type { Role } from '@/lib/types/database'
+import { withPermission } from '@/lib/middleware/api-protection'
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
@@ -18,58 +17,17 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
-export async function POST(request: NextRequest) {
+/**
+ * Sending a validation alert is a loan review action. Previously ANY
+ * authenticated user (including a bank_officer from an unrelated bank) could
+ * trigger PRSF-branded emails and notifications for any loan. Authorization
+ * and access logging now run in withPermission.
+ */
+export const POST = withPermission(
+  { resource: 'loans', permission: 'update' },
+  async (request: NextRequest, { user }: { user: { id: string } }) => {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Sending a validation alert is a loan review action. Previously ANY
-    // authenticated user (including a bank_officer from an unrelated bank)
-    // could trigger PRSF-branded emails and notifications for any loan.
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_active, role:roles(*)')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.is_active === false) {
-      return NextResponse.json({ error: 'Account is disabled' }, { status: 403 })
-    }
-
-    const role = (profile?.role ?? null) as Role | null
-
-    let overrides: PermissionOverrides | null = null
-    if (role?.id) {
-      const { data: permRows } = await supabase
-        .from('role_permissions')
-        .select('resource, can_view, can_create, can_update, can_delete, can_approve')
-        .eq('role_id', role.id)
-
-      if (permRows && permRows.length > 0) {
-        overrides = {}
-        for (const row of permRows) {
-          overrides[row.resource] = {
-            resource: row.resource,
-            can_view: !!row.can_view,
-            can_create: !!row.can_create,
-            can_update: !!row.can_update,
-            can_delete: !!row.can_delete,
-            can_approve: !!row.can_approve,
-          }
-        }
-      }
-    }
-
-    if (!hasPermission(role, 'loans', 'update', overrides)) {
-      return NextResponse.json(
-        { error: 'Forbidden: loans:update permission required' },
-        { status: 403 },
-      )
-    }
 
     const body = await request.json()
     const {
@@ -213,4 +171,5 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+  },
+)
