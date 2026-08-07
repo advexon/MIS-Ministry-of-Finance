@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, FileText, Download, Loader2, RefreshCw } from "lucide-react"
+import { toCSV, downloadCSV } from "@/lib/utils/export"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import type { LoanApplication, Bank, Sector } from "@/lib/types/database"
 import { useColumnConfig } from "@/lib/contexts/column-config-context"
@@ -58,7 +60,7 @@ const statusLabels: Record<string, string> = {
 
 const PAGE_SIZE = 15
 
-export default function LoansPage() {
+function LoansContent() {
   const { t, locale } = useI18n()
   const supabase = useMemo(() => createClient(), [])
   const { isColumnVisible, getDisplayName } = useColumnConfig()
@@ -72,7 +74,10 @@ export default function LoansPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
 
-  const [searchTerm, setSearchTerm] = useState("")
+  // Seed the search box from ?search=, so links into this page (e.g. "view a
+  // borrower's loans") land with the filter already applied.
+  const querySearch = useSearchParams().get("search") ?? ""
+  const [searchTerm, setSearchTerm] = useState(querySearch)
   const [statusFilter, setStatusFilter] = useState("all")
   const [bankFilter, setBankFilter] = useState("all")
 
@@ -95,10 +100,38 @@ export default function LoansPage() {
 
     if (statusFilter !== "all") query = query.eq("status", statusFilter)
     if (bankFilter !== "all") query = query.eq("bank_id", bankFilter)
-    if (searchTerm) {
-      query = query.or(
-        `loan_number.ilike.%${searchTerm}%,borrower_id.in.(select id from borrowers where tin_number ilike '%${searchTerm}%' or name ilike '%${searchTerm}%')`
-      )
+    if (searchTerm.trim()) {
+      // PostgREST has no sub-SELECT support: the previous
+      // `borrower_id.in.(select id from borrowers ...)` was sent verbatim and
+      // rejected with `invalid input syntax for type uuid`, so EVERY search
+      // failed and the table came back empty. Resolve matching borrowers first,
+      // then filter by their ids.
+      //
+      // Commas and parentheses are stripped because PostgREST uses them as
+      // syntax separators inside .or(), and `%`/`_` are escaped so they are
+      // treated as literal characters rather than ILIKE wildcards.
+      const term = searchTerm.trim()
+      const safe = term.replace(/[(),]/g, '').replace(/[%_\\]/g, (ch) => `\\${ch}`)
+
+      // Dropping the separators can leave nothing to match on; searching for the
+      // empty string would return the whole table, so bail out instead.
+      if (!safe) {
+        setLoans([])
+        setTotal(0)
+        setLoading(false)
+        return
+      }
+
+      const { data: matches } = await supabase
+        .from('borrowers')
+        .select('id')
+        .or(`tin_number.ilike.%${safe}%,name.ilike.%${safe}%`)
+        .limit(200)
+
+      const borrowerIds = (matches ?? []).map((b) => b.id)
+      query = borrowerIds.length
+        ? query.or(`loan_number.ilike.%${safe}%,borrower_id.in.(${borrowerIds.join(',')})`)
+        : query.ilike('loan_number', `%${safe}%`)
     }
 
     const { data, count, error } = await query
@@ -127,6 +160,25 @@ export default function LoansPage() {
   const getBorrowerName = (loan: LoanApplication) => {
     if (!loan.borrower) return "—"
     return loan.borrower.name || "—"
+  }
+
+  // Single-loan export for the row action menu. Amounts stay unformatted so the
+  // file is spreadsheet-ready rather than carrying currency glyphs.
+  const exportLoan = (loan: LoanApplication) => {
+    const headers = ["Application #", "Borrower", "TIN", "Bank", "Branch", "Approved Amount", "Currency", "Guarantee Coverage (%)", "Status", "Created"]
+    const rows = [[
+      loan.loan_number || loan.id,
+      getBorrowerName(loan),
+      loan.borrower?.tin_number ?? "",
+      loan.bank ? getName(loan.bank) : "",
+      loan.branch?.name_en ?? "",
+      loan.approved_amount ?? "",
+      loan.currency ?? "",
+      loan.guarantee_coverage ?? "",
+      loan.status,
+      loan.created_at ?? "",
+    ]]
+    downloadCSV(toCSV(headers, rows), `loan-${loan.loan_number || loan.id.slice(0, 8)}.csv`)
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
@@ -305,12 +357,15 @@ export default function LoansPage() {
                                 <Eye className="mr-2 h-4 w-4" />View Details
                               </Link>
                             </DropdownMenuItem>
+                            {/* There is no /edit route in the app — loan changes are
+                                made through the workflow actions on the detail page —
+                                so this pointed at a non-existent page. */}
                             <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/loans/${loan.id}/edit`} className="flex items-center">
-                                <Edit className="mr-2 h-4 w-4" />Edit
+                              <Link href={`/dashboard/loans/${loan.id}`} className="flex items-center">
+                                <Edit className="mr-2 h-4 w-4" />Manage
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => exportLoan(loan)}>
                               <Download className="mr-2 h-4 w-4" />Export
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -334,5 +389,15 @@ export default function LoansPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// useSearchParams requires a Suspense boundary, matching the pattern already
+// used by the guarantee-reports page.
+export default function LoansPage() {
+  return (
+    <Suspense>
+      <LoansContent />
+    </Suspense>
   )
 }

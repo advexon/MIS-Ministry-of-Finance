@@ -270,13 +270,21 @@ export default function BorrowersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem className="text-xs">
-                              <Eye className="mr-2 h-4 w-4" />
-                              {t.common.view}
+                            {/* No /dashboard/borrowers/[id] route exists, and borrower
+                                fields are only writable through the loan application
+                                form, so both items lead to that borrower's loans
+                                rather than being inert. */}
+                            <DropdownMenuItem asChild className="text-xs">
+                              <Link href={`/dashboard/loans?search=${encodeURIComponent(b.tin_number || b.name || "")}`} className="flex items-center">
+                                <Eye className="mr-2 h-4 w-4" />
+                                {t.common.view}
+                              </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-xs">
-                              <Edit className="mr-2 h-4 w-4" />
-                              {t.common.edit}
+                            <DropdownMenuItem asChild className="text-xs">
+                              <Link href="/dashboard/loans/new" className="flex items-center">
+                                <Edit className="mr-2 h-4 w-4" />
+                                {t.common.edit}
+                              </Link>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

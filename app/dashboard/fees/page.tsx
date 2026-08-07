@@ -126,7 +126,7 @@ export default function FeesPage() {
   // Raw numerics are exported unformatted so the file stays spreadsheet-ready.
   const exportCSV = () => {
     if (!filteredFees.length) { showMessage("error", "There are no fee records to export"); return }
-    const headers = ["Loan", "Borrower", "Bank", "Type", "Period Start", "Period End", "Base Amount", "Rate (%)", "Fee Amount", "Currency", "Invoice No.", "Due Date", "Status", "Payment Date"]
+    const headers = ["Loan", "Borrower", "Bank", "Type", "Period Start", "Period End", "Base Amount", "Rate (%)", "Fee Amount", "Currency", "Invoice No.", "Invoice Date", "Due Date", "Status", "Payment Date"]
     const rows = filteredFees.map((fee) => {
       const la = (fee as any).loan_application
       return [
@@ -140,10 +140,11 @@ export default function FeesPage() {
         fee.fee_rate != null ? (fee.fee_rate * 100).toFixed(2) : "",
         fee.fee_amount ?? "",
         la?.currency ?? "",
-        (fee as any).invoice_number ?? "",
+        fee.invoice_number ?? "",
+        fee.invoice_date ?? "",
         fee.due_date ?? "",
         fee.status,
-        (fee as any).payment_date ?? "",
+        fee.payment_date ?? "",
       ]
     })
     downloadCSV(toCSV(headers, rows), `fees-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`)

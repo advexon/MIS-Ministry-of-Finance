@@ -403,6 +403,17 @@ export interface Fee {
   payment_reference: string | null
   created_at: string
   updated_at: string
+
+  // Present on public.fees but previously missing from this interface, so
+  // reading them was a type error even though the API returns them. `amount`,
+  // `due_date` and `paid_date` predate the base_amount/fee_amount columns and
+  // are still populated for existing rows.
+  loan_id: string | null
+  bank_id: string | null
+  amount: number | null
+  due_date: string | null
+  paid_date: string | null
+  notes: string | null
 }
 
 export interface Notification {
