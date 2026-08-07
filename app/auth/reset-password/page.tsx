@@ -106,12 +106,69 @@ export default function ResetPasswordPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Check if we have a valid session from the reset link
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setIsValidSession(!!session)
+    // Establish the recovery session from the reset link.
+    //
+    // This previously called getSession() alone, which always returned null on
+    // arrival, so every valid reset link rendered "Invalid Reset Link" and
+    // password reset was entirely unusable. Supabase delivers recovery
+    // credentials in the URL itself, and they must be exchanged for a session
+    // before updateUser() can work:
+    //   - implicit style: #access_token=...&refresh_token=...&type=recovery
+    //   - PKCE style:     ?code=...
+    // The browser client is created with the PKCE flow and does not consume
+    // the hash form on its own, so both are handled explicitly here.
+    const establishSession = async () => {
+      try {
+        // An already-valid session (e.g. the user reloaded the page after the
+        // URL credentials were consumed and cleared) needs no exchange.
+        const { data: { session: existing } } = await supabase.auth.getSession()
+        if (existing) {
+          setIsValidSession(true)
+          return
+        }
+
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        const query = new URLSearchParams(window.location.search)
+
+        // Surface an explicit error from Supabase (expired or already-used link)
+        // instead of reporting it as a generic invalid link.
+        const linkError = hash.get('error_description') ?? query.get('error_description')
+        if (linkError) {
+          setError(linkError)
+          setIsValidSession(false)
+          return
+        }
+
+        const accessToken = hash.get('access_token')
+        const refreshToken = hash.get('refresh_token')
+        const code = query.get('code')
+
+        if (accessToken && refreshToken) {
+          const { error: setErr } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (setErr) throw setErr
+        } else if (code) {
+          const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code)
+          if (exchangeErr) throw exchangeErr
+        } else {
+          setIsValidSession(false)
+          return
+        }
+
+        // Remove the credentials from the address bar so they are not left in
+        // history or leaked via a copied URL.
+        window.history.replaceState(null, '', window.location.pathname)
+
+        const { data: { session } } = await supabase.auth.getSession()
+        setIsValidSession(!!session)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Invalid or expired reset link')
+        setIsValidSession(false)
+      }
     }
-    checkSession()
+    establishSession()
   }, [supabase.auth])
 
   const validatePassword = (): string | null => {

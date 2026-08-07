@@ -30,10 +30,19 @@ export async function POST(request: Request) {
   // Verify caller has admin role
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role:roles(code)')
+    .select('is_active, role:roles(code, tier)')
     .eq('id', user.id)
     .single()
-  const roleCode = (profile?.role as { code?: string } | null)?.code ?? ''
+  const callerRole = (profile?.role as { code?: string; tier?: number } | null) ?? null
+  const roleCode = callerRole?.code ?? ''
+  const callerTier = callerRole?.tier ?? 99
+
+  // A deactivated account keeps a valid session cookie until it expires, so it
+  // has to be rejected here and not only at login.
+  if (profile?.is_active === false) {
+    return NextResponse.json({ error: 'Forbidden: Account is disabled' }, { status: 403 })
+  }
+
   const isAdmin = roleCode === 'prsf_admin' || roleCode === 'super_admin'
   if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
@@ -48,6 +57,28 @@ export async function POST(request: Request) {
   }
   if (password.length < 8) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+  }
+
+  // Privilege ceiling. Without this, a prsf_admin (tier 2) could pass the
+  // super_admin role id and mint a tier-1 account, then log into it — a
+  // straightforward privilege escalation. The equivalent check already guards
+  // role changes in PATCH /api/users; creation must enforce the same rule.
+  if (roleId) {
+    const { data: targetRole } = await supabase
+      .from('roles')
+      .select('code, tier')
+      .eq('id', roleId)
+      .single()
+
+    if (!targetRole) {
+      return NextResponse.json({ error: 'Unknown roleId' }, { status: 400 })
+    }
+    if (roleCode !== 'super_admin' && (targetRole.tier ?? 99) < callerTier) {
+      return NextResponse.json(
+        { error: 'You cannot create a user more privileged than your own role.' },
+        { status: 403 },
+      )
+    }
   }
 
   // Use service-role client to bypass RLS and create the auth user
@@ -100,6 +131,38 @@ export async function POST(request: Request) {
         { error: `Could not save the user profile: ${profileError.message}` },
         { status: 400 }
       )
+    }
+  }
+
+  // Record who created whom. Account creation is the most privileged action in
+  // the system and was previously the only user-administration operation that
+  // left no audit record at all (PATCH /api/users already writes one).
+  if (newUser.user) {
+    const { error: auditError } = await adminClient.from('audit_trail').insert({
+      table_name: 'profiles',
+      record_id: newUser.user.id,
+      action: 'INSERT',
+      changed_by: user.id,
+      old_data: null,
+      new_data: {
+        email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        role_id: roleId || null,
+        bank_id: bankId || null,
+        branch_id: branchId || null,
+      },
+      ip_address:
+        request.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+        request.headers.get('x-real-ip') ??
+        null,
+      user_agent: request.headers.get('user-agent'),
+    })
+
+    // A failed audit write must not hide a successful creation, but it should
+    // be visible rather than silently swallowed.
+    if (auditError) {
+      console.error('[v0] Audit write failed for created user:', auditError.message)
     }
   }
 
