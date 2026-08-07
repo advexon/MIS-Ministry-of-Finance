@@ -16,6 +16,7 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts'
 import { BarChart3, Download, FileSpreadsheet, TrendingUp, RefreshCw } from 'lucide-react'
+import { toCSV, downloadCSV } from '@/lib/utils/export'
 
 const COLORS = ['#1e3a8a', '#2d8c7e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16']
 
@@ -128,11 +129,7 @@ export default function ReportsPage() {
   const exportCSV = (data: any[], filename: string) => {
     if (!data.length) return
     const keys = Object.keys(data[0])
-    const csv = [keys.join(','), ...data.map(row => keys.map(k => `"${row[k]}"`).join(','))].join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = filename
-    a.click()
+    downloadCSV(toCSV(keys, data.map(row => keys.map(k => row[k]))), filename)
   }
 
   const ChartCard = ({ title, description, children, onExport }: any) => (

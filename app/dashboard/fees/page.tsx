@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import type { Fee } from "@/lib/types/database"
 import { one } from "@/lib/utils/supabase-relation"
+import { toCSV, downloadCSV } from "@/lib/utils/export"
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -120,6 +121,33 @@ export default function FeesPage() {
   const totalInvoiced = fees.filter((f) => f.status === "invoiced").reduce((s, f) => s + f.fee_amount, 0)
 
   const filteredFees = activeTab === "all" ? fees : fees.filter((f) => f.fee_type === activeTab)
+
+  // Mirrors the visible table columns and honours the active fee-type tab.
+  // Raw numerics are exported unformatted so the file stays spreadsheet-ready.
+  const exportCSV = () => {
+    if (!filteredFees.length) { showMessage("error", "There are no fee records to export"); return }
+    const headers = ["Loan", "Borrower", "Bank", "Type", "Period Start", "Period End", "Base Amount", "Rate (%)", "Fee Amount", "Currency", "Invoice No.", "Due Date", "Status", "Payment Date"]
+    const rows = filteredFees.map((fee) => {
+      const la = (fee as any).loan_application
+      return [
+        la?.loan_number ?? "",
+        getBorrowerName(fee),
+        la?.bank?.name_en ?? "",
+        fee.fee_type,
+        fee.period_start ?? "",
+        fee.period_end ?? "",
+        fee.base_amount ?? "",
+        fee.fee_rate != null ? (fee.fee_rate * 100).toFixed(2) : "",
+        fee.fee_amount ?? "",
+        la?.currency ?? "",
+        (fee as any).invoice_number ?? "",
+        fee.due_date ?? "",
+        fee.status,
+        (fee as any).payment_date ?? "",
+      ]
+    })
+    downloadCSV(toCSV(headers, rows), `fees-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`)
+  }
 
   const handleCreateFee = async () => {
     if (!newLoanId || !newBaseAmount) { showMessage("error", "Please select a loan and enter base amount"); return }
@@ -258,7 +286,7 @@ export default function FeesPage() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setReconcileOpen(true)} className="gap-2"><Calculator className="h-4 w-4" />Auto-Calculate Quarterly</Button>
           <Button onClick={() => setNewOpen(true)} className="gap-2"><Plus className="h-4 w-4" />New Fee Record</Button>
-          <Button variant="outline" className="gap-2"><Download className="h-4 w-4" />Export</Button>
+          <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" />Export</Button>
         </div>
       </div>
 

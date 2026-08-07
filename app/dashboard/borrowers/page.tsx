@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { one } from "@/lib/utils/supabase-relation"
@@ -136,9 +137,14 @@ export default function BorrowersPage() {
           <Button variant="outline" size="icon" onClick={fetchBorrowers} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            {t.borrowers.newBorrower}
+          {/* Borrower rows are created by TIN upsert inside the loan application
+              flow — there is no standalone borrower insert anywhere in the app —
+              so this routes to that form instead of being inert on click. */}
+          <Button asChild className="gap-2">
+            <Link href="/dashboard/loans/new">
+              <Plus className="h-4 w-4" />
+              {t.borrowers.newBorrower}
+            </Link>
           </Button>
         </div>
       </div>

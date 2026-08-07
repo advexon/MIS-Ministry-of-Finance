@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, Download, GitCompare } from 'lucide-react'
+import { toCSV, downloadCSV } from '@/lib/utils/export'
 
 type ReconciliationStatus = 'matched' | 'discrepancy' | 'missing'
 
@@ -134,12 +135,11 @@ export default function ReconciliationPage() {
 
   const exportCSV = () => {
     const headers = ['Bank', 'Code', 'PRSF Loans', 'Bank Loans', 'Loan Diff', 'PRSF Outstanding', 'Bank Outstanding', 'Outstanding Diff', 'Status']
-    const csvRows = rows.map(r => [r.bank_name, r.bank_code, r.prsf_loan_count, r.bank_loan_count ?? 'N/A', r.loan_discrepancy, fmt(r.prsf_outstanding), r.bank_outstanding !== null ? fmt(r.bank_outstanding) : 'N/A', fmt(r.outstanding_discrepancy), r.status])
-    const csv = [headers, ...csvRows].map(row => row.map(v => `"${v}"`).join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = `reconciliation-${period}.csv`
-    a.click()
+    // Export what the user is actually looking at. This previously mapped over
+    // `rows`, so filtering the table to e.g. only discrepancies still produced
+    // a download containing every bank.
+    const csvRows = filtered.map(r => [r.bank_name, r.bank_code, r.prsf_loan_count, r.bank_loan_count ?? 'N/A', r.loan_discrepancy, fmt(r.prsf_outstanding), r.bank_outstanding !== null ? fmt(r.bank_outstanding) : 'N/A', fmt(r.outstanding_discrepancy), r.status])
+    downloadCSV(toCSV(headers, csvRows), `reconciliation-${period}.csv`)
   }
 
   return (

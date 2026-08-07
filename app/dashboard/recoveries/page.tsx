@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Search, TrendingUp, Download, RefreshCw, DollarSign } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { toCSV, downloadCSV } from '@/lib/utils/export'
 
 interface Recovery {
   id: string
@@ -157,11 +158,7 @@ export default function RecoveriesPage() {
       METHOD_LABELS[r.recovery_method] || r.recovery_method,
       r.notes || '',
     ])
-    const csv = [headers, ...rows].map(row => row.map(v => `"${v}"`).join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = `recoveries-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
+    downloadCSV(toCSV(headers, rows), `recoveries-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
   return (

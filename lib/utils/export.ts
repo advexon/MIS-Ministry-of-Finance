@@ -233,25 +233,48 @@ export function exportToPDF(data: ReportData, reportMonth: string): void {
   URL.revokeObjectURL(url)
 }
 
-export function exportToCSV(data: any[], filename: string): void {
-  if (data.length === 0) return
+/**
+ * Quote a single CSV cell per RFC 4180.
+ *
+ * Always quoting (rather than only when a comma is present) plus doubling any
+ * embedded `"` is what keeps values intact. Legal entity names in this
+ * programme routinely carry quotes — ООО "Хилол" — and the previous
+ * conditional-quoting approach silently dropped them from the export, so the
+ * downloaded file disagreed with the register it was reconciled against.
+ * Newlines inside free-text fields (notes, addresses) also need the quoting.
+ */
+export function escapeCSVCell(value: unknown): string {
+  if (value === null || value === undefined) return '""'
+  return `"${String(value).replace(/"/g, '""')}"`
+}
 
-  const headers = Object.keys(data[0])
-  const csvContent = [
-    headers.join(','),
-    ...data.map(row => headers.map(header => {
-      const value = row[header]
-      return typeof value === 'string' && value.includes(',') ? `"${value}"` : value
-    }).join(','))
-  ].join('\n')
+/** Build an RFC 4180 CSV body from a header row plus data rows. */
+export function toCSV(headers: string[], rows: unknown[][]): string {
+  return [headers, ...rows].map(row => row.map(escapeCSVCell).join(',')).join('\r\n')
+}
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+/**
+ * Trigger a browser download for CSV text.
+ *
+ * The BOM makes Excel read the file as UTF-8; without it Cyrillic borrower
+ * names render as mojibake, which is the common case for this data.
+ */
+export function downloadCSV(csv: string, filename: string): void {
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `${filename}_${Date.now()}.csv`
+  link.download = filename.endsWith('.csv') ? filename : `${filename}.csv`
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
   URL.revokeObjectURL(url)
+}
+
+export function exportToCSV(data: any[], filename: string): void {
+  if (data.length === 0) return
+
+  const headers = Object.keys(data[0])
+  const csv = toCSV(headers, data.map(row => headers.map(header => row[header])))
+  downloadCSV(csv, `${filename}_${Date.now()}.csv`)
 }
