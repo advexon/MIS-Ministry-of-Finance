@@ -20,7 +20,9 @@ import {
   Download, Eye, FileCheck,
 } from "lucide-react"
 import Link from "next/link"
-import type { LoanApplication } from "@/lib/types/database"
+import type { LoanApplication, LoanStatus } from "@/lib/types/database"
+import { SchemeStepper } from "@/components/workflow/scheme-stepper"
+import { WorkflowPanel } from "@/components/workflow/workflow-panel"
 import { GuaranteeLetter } from "@/components/documents/guarantee-letter"
 import { downloadPDF, printElement } from "@/lib/utils/pdf-generator"
 import { WorkflowTester } from "@/components/admin/workflow-tester"
@@ -38,58 +40,31 @@ import { usePermissions } from "@/lib/contexts/permission-context"
 // Step7C: claim → Step8B: claim review → approved → payment → recoveries → END
 //                             → rejected → END
 
-type WorkflowStepKey =
-  | "initiation"
-  | "bank_approval"
-  | "prsf_receipt"
-  | "prsf_decision"
-  | "notification"
-  | "guarantee_issuance"
-  | "disbursement"
-  | "outcome"
-  | "claim_review"
-  | "recoveries"
-
-interface WorkflowStep {
-  key: WorkflowStepKey
-  label: string
-  substep?: string
-  statuses: string[]
-  terminalStatuses?: string[]
-}
-
-const WORKFLOW_STEPS: WorkflowStep[] = [
-  { key: "initiation",        label: "Step 1 · Loan Initiation",      statuses: ["draft"] },
-  { key: "bank_approval",     label: "Step 2 · Bank Approval",         statuses: ["submitted"] },
-  { key: "prsf_receipt",      label: "Step 3 · Received by PRSF",      statuses: ["under_review"] },
-  { key: "prsf_decision",     label: "Step 4 · PRSF Credit Decision",  statuses: ["approved", "rejected"] },
-  { key: "notification",      label: "Step 5 · Bank Notified",         statuses: ["approved", "rejected"] },
-  { key: "guarantee_issuance",label: "Step 6 · Guarantee / Cancellation", statuses: ["guarantee_issued", "cancelled"], terminalStatuses: ["cancelled"] },
-  { key: "disbursement",      label: "Step 7 (C) · Disbursement",      statuses: ["disbursed", "active"] },
-  { key: "outcome",           label: "Step 7 · Outcome",               statuses: ["settled", "rescheduled", "claim_pending", "claim_paid"] },
-  { key: "claim_review",      label: "Step 8 · Claim Review",          statuses: ["claim_pending", "claim_paid"] },
-  { key: "recoveries",        label: "Step 9 · Recoveries",            statuses: ["claim_paid", "closed"] },
-]
-
-function getActiveStep(status: string): number {
-  if (["draft"].includes(status)) return 0
-  if (["submitted"].includes(status)) return 1
-  if (["under_review"].includes(status)) return 2
-  if (["rejected"].includes(status)) return 3
-  if (["approved", "extension_pending"].includes(status)) return 4
-  if (["guarantee_issued", "cancelled"].includes(status)) return 5
-  if (["disbursed", "active", "defaulted"].includes(status)) return 6
-  if (["settled", "rescheduled", "claim_pending", "claim_rejected"].includes(status)) return 7
-  if (["claim_paid"].includes(status)) return 8
-  if (["closed"].includes(status)) return 9
-  return 0
-}
+// The 16-step ФКГ guarantee-issuance scheme now lives in lib/workflow/fkg-scheme.ts
+// and is rendered by <SchemeStepper>. The previous hardcoded 9-step model was
+// removed so the diagram and the transition engine cannot drift apart.
 
 // ─── Status badge helpers ─────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
   draft:              "bg-gray-100 text-gray-700 border-gray-200",
   submitted:          "bg-amber-100 text-amber-800 border-amber-200",
   under_review:       "bg-blue-100 text-blue-800 border-blue-200",
+  // ФКГ scheme: in-progress steps share the blue/indigo family, rework is amber,
+  // failure is red — so a status's colour signals its kind without reading it.
+  uko_registration:   "bg-blue-100 text-blue-800 border-blue-200",
+  docs_incomplete:    "bg-amber-100 text-amber-800 border-amber-200",
+  eligibility_review: "bg-blue-100 text-blue-800 border-blue-200",
+  ineligible:         "bg-red-100 text-red-800 border-red-200",
+  assessment:         "bg-blue-100 text-blue-800 border-blue-200",
+  risk_review:        "bg-violet-100 text-violet-800 border-violet-200",
+  kkg_scheduled:      "bg-indigo-100 text-indigo-800 border-indigo-200",
+  kkg_review:         "bg-indigo-100 text-indigo-800 border-indigo-200",
+  verification:       "bg-amber-100 text-amber-800 border-amber-200",
+  kkg_protocol:       "bg-indigo-100 text-indigo-800 border-indigo-200",
+  formal_application: "bg-blue-100 text-blue-800 border-blue-200",
+  uko_reconciliation: "bg-blue-100 text-blue-800 border-blue-200",
+  compliance_check:   "bg-violet-100 text-violet-800 border-violet-200",
+  management_review:  "bg-sky-100 text-sky-800 border-sky-200",
   approved:           "bg-sky-100 text-sky-800 border-sky-200",
   rejected:           "bg-red-100 text-red-800 border-red-200",
   guarantee_issued:   "bg-teal-100 text-teal-800 border-teal-200",
@@ -109,7 +84,22 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   draft:              "Draft",
   submitted:          "Submitted",
-  under_review:       "Under Review",
+  under_review:       "Under Review (legacy)",
+  // ФКГ scheme steps 2-15
+  uko_registration:   "УКО Registration",
+  docs_incomplete:    "Returned to Bank",
+  eligibility_review: "Eligibility / ESMS / KYC",
+  ineligible:         "Ineligible",
+  assessment:         "Assessment Note",
+  risk_review:        "Credit Risk Review",
+  kkg_scheduled:      "ККГ Scheduled",
+  kkg_review:         "ККГ Review",
+  verification:       "Verification",
+  kkg_protocol:       "ККГ Protocol",
+  formal_application: "Formal Application",
+  uko_reconciliation: "УКО Reconciliation",
+  compliance_check:   "Compliance Check",
+  management_review:  "Management Decision",
   approved:           "Approved",
   rejected:           "Rejected",
   guarantee_issued:   "Guarantee Issued",
@@ -126,64 +116,6 @@ const STATUS_LABELS: Record<string, string> = {
   closed:             "Closed",
 }
 
-// ─── Workflow Stepper component ───────────────────────────────────────────────
-function WorkflowStepper({ status }: { status: string }) {
-  const activeIdx = getActiveStep(status)
-  const isTerminal = ["rejected", "cancelled", "settled", "closed", "claim_paid", "claim_rejected"].includes(status)
-
-  const steps = [
-    { num: 1, label: "Initiation",     sub: "Bank submits loan" },
-    { num: 2, label: "Bank Approval",  sub: "Bank internal approval" },
-    { num: 3, label: "PRSF Receipt",   sub: "Received for processing" },
-    { num: 4, label: "Credit Decision",sub: "PRSF approve / reject" },
-    { num: 5, label: "Notification",   sub: "Bank notified of decision" },
-    { num: 6, label: "Guarantee",      sub: "Issued or cancelled" },
-    { num: 7, label: "Disbursement",   sub: "Loan disbursed to borrower" },
-    { num: 8, label: "Outcome",        sub: "Settled / Rescheduled / Claim" },
-    { num: 9, label: "Closure",        sub: "Claim paid / Recoveries" },
-  ]
-
-  return (
-    <div className="relative overflow-x-auto pb-2">
-      <div className="flex min-w-max items-start gap-0">
-        {steps.map((step, idx) => {
-          const done    = idx < activeIdx
-          const current = idx === activeIdx
-          const future  = idx > activeIdx
-          const isRed   = current && ["rejected", "cancelled"].includes(status)
-
-          return (
-            <div key={step.num} className="flex items-center">
-              <div className="flex flex-col items-center gap-1" style={{ minWidth: 88 }}>
-                {/* Circle */}
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-bold transition-all
-                  ${done    ? "border-primary bg-primary text-primary-foreground" : ""}
-                  ${current && !isRed ? "border-primary bg-primary text-primary-foreground ring-4 ring-primary/20" : ""}
-                  ${isRed   ? "border-red-500 bg-red-500 text-white ring-4 ring-red-200" : ""}
-                  ${future  ? "border-border bg-background text-muted-foreground" : ""}
-                `}>
-                  {done ? <CheckCircle2 className="h-4 w-4" /> : step.num}
-                </div>
-                {/* Labels */}
-                <span className={`text-center text-[10px] font-semibold leading-tight
-                  ${done || current ? "text-foreground" : "text-muted-foreground"}
-                `}>{step.label}</span>
-                <span className="text-center text-[9px] leading-tight text-muted-foreground">{step.sub}</span>
-              </div>
-              {/* Connector */}
-              {idx < steps.length - 1 && (
-                <div className={`h-0.5 w-8 flex-shrink-0 -mt-8 transition-all
-                  ${idx < activeIdx ? "bg-primary" : "bg-border"}
-                `} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 // ─── Action buttons based on current status ───────────────────────────────────
 function getAvailableActions(status: string, userRole: string): string[] {
   const isPrsf = ["super_admin", "prsf_admin", "prsf_analyst"].includes(userRole)
@@ -198,9 +130,13 @@ function getAvailableActions(status: string, userRole: string): string[] {
     case "submitted":
       return isPrsf ? ["mark_received"] : []
 
-    // Step 3 → Step 4A (reject) or Step 4B (approve)
+    // Approval is no longer a single click. Under the ФКГ scheme an application
+    // must pass УКО registration, the eligibility/ESMS/KYC gate, the assessment
+    // note, Credit Risk, ККГ with quorum, compliance and the Management decision.
+    // Those transitions are served by WorkflowPanel via the server-validated
+    // /api/loans/[id]/workflow route, so no approve/reject buttons here.
     case "under_review":
-      return isPrsf ? ["approve", "reject"] : []
+      return []
 
     // Step 4B → Step 5B (implicit) → Step 6: issue guarantee or cancel
     // Also allow bank to request an extension before guarantee issuance
@@ -593,13 +529,20 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
+      {/* ── ФКГ scheme: current step and its actions (steps 1-4 wired) ── */}
+      <div className="mb-6">
+        <WorkflowPanel loan={loan} roleCode={userRole} onDone={fetchLoan} />
+      </div>
+
       {/* ── Workflow Stepper ── */}
       <Card className="mb-6 shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Workflow Progress</CardTitle>
+          <CardTitle className="text-sm font-semibold">
+            Guarantee issuance progress — ФКГ scheme
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <WorkflowStepper status={loan.status} />
+          <SchemeStepper status={loan.status as LoanStatus} />
 
           {/* Branch indicators */}
           {loan.status === "rejected" && (

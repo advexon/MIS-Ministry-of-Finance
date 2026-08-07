@@ -217,6 +217,11 @@ export function getStepByNumber(step: number): SchemeStep | undefined {
 export const ALLOWED_TRANSITIONS: Partial<Record<LoanStatus, LoanStatus[]>> = {
   draft: ['submitted', 'cancelled'],
   submitted: ['uko_registration', 'cancelled'],
+  // Legacy bridge: applications created before the scheme was implemented sit in
+  // `under_review`, which is not a scheme status. Without this they would be
+  // stranded with no legal move. They re-enter at step 2 so the FX rate and the
+  // eligibility screening are captured rather than assumed.
+  under_review: ['uko_registration', 'rejected', 'cancelled'],
   // Step 2 either accepts the package or bounces it back to the bank.
   uko_registration: ['eligibility_review', 'docs_incomplete', 'rejected', 'cancelled'],
   // Step 3 loop: the bank completes the package and resubmits.
