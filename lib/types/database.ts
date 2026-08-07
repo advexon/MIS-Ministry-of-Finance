@@ -2,6 +2,21 @@ export type LoanStatus =
   | 'draft'
   | 'submitted'
   | 'under_review'
+  // --- ФКГ guarantee-issuance scheme, steps 2-15 ---
+  | 'uko_registration'    // step 2: УКО registers the request, checks the amount
+  | 'docs_incomplete'     // step 3: package returned to the bank for completion
+  | 'eligibility_review'  // gate D: eligibility / СЭСР (ESMS) / KYC
+  | 'ineligible'          // failed the eligibility gate; end of process
+  | 'assessment'          // step 5: assessment note (оценочная записка)
+  | 'risk_review'         // step 6: Credit Risk Department analysis
+  | 'kkg_scheduled'       // step 7: ККГ members assigned, quorum set
+  | 'kkg_review'          // step 8: ККГ reviewing the application
+  | 'verification'        // step 9: verification and borrower visit
+  | 'kkg_protocol'        // step 10: protocol being issued
+  | 'formal_application'  // step 11: formal application, Appendix 1.1
+  | 'uko_reconciliation'  // step 12: УКО decision vs ККГ recommendation
+  | 'compliance_check'    // step 13: compliance-check note
+  | 'management_review'   // step 15: ФКГ Management final decision
   | 'approved'
   | 'rejected'
   | 'guarantee_issued'
@@ -112,7 +127,15 @@ export interface RolePermission {
 export const ROLE_TIERS = {
   SUPER_ADMIN: 1,    // Full system access
   PRSF_ADMIN: 2,     // PRSF management
+  // ФКГ scheme lanes that decide (ККГ members, Management)
+  FKG_MANAGEMENT: 3,
+  KKG_MEMBER: 3,
   PRSF_ANALYST: 4,   // Loan analysis
+  // ФКГ scheme operational lanes
+  UKO_OFFICER: 4,
+  CREDIT_RISK_OFFICER: 4,
+  COMPLIANCE_OFFICER: 4,
+  KKG_SECRETARY: 4,
   AUDITOR: 5,        // Read-only compliance
   BANK_ADMIN: 6,     // Bank management
   BANK_OFFICER: 7,   // Loan submissions
@@ -125,6 +148,13 @@ export const ROLE_CODES = {
   AUDITOR: 'auditor',
   BANK_ADMIN: 'bank_admin',
   BANK_OFFICER: 'bank_officer',
+  // ФКГ guarantee-issuance scheme swimlanes
+  UKO_OFFICER: 'uko_officer',
+  CREDIT_RISK_OFFICER: 'credit_risk_officer',
+  COMPLIANCE_OFFICER: 'compliance_officer',
+  KKG_SECRETARY: 'kkg_secretary',
+  KKG_MEMBER: 'kkg_member',
+  FKG_MANAGEMENT: 'fkg_management',
 } as const
 
 export type RoleTier = typeof ROLE_TIERS[keyof typeof ROLE_TIERS]
@@ -224,10 +254,241 @@ export interface LoanApplication {
   extension_new_maturity: string | null
   // Defaulted
   defaulted_date: string | null
+
+  // --- ФКГ scheme workflow ---
+  /** Position on the 16-step issuance scheme. */
+  current_step: number | null
+  /** TJS per 1 USD, frozen at УКО registration so decisions stay reproducible. */
+  usd_rate: number | null
+  /** approved_amount converted at usd_rate; drives the 10,000 USD gates. */
+  amount_usd: number | null
+  fx_rate_date: string | null
+  fx_rate_source: string | null
+  /** True when amount_usd > 10,000, making the assessment note mandatory. */
+  requires_assessment: boolean | null
+  uko_reference_no: string | null
+  uko_registered_at: string | null
+  uko_registered_by: string | null
+
   bank?: Bank
   branch?: BankBranch
   borrower?: Borrower
   product?: LoanProduct
+}
+
+// --- ФКГ guarantee-issuance scheme ---
+
+/** One of the 16 scheme steps, seeded in public.workflow_steps. */
+export interface WorkflowStep {
+  id: string
+  step_no: number
+  code: string
+  name_en: string
+  name_ru: string | null
+  name_tj: string | null
+  lane: 'уко' | 'operations' | 'credit_risk' | 'kkg' | 'management' | 'bank'
+  status_code: LoanStatus | null
+  guideline_ref: string | null
+  sla_days: number | null
+  is_decision: boolean
+  created_at: string
+}
+
+export interface EligibilityCheck {
+  id: string
+  loan_id: string
+  is_eligible: boolean | null
+  esms_passed: boolean | null
+  esms_category: string | null
+  kyc_passed: boolean | null
+  sanctions_screened: boolean
+  docs_complete: boolean | null
+  missing_documents: string | null
+  findings: string | null
+  decision: 'pending' | 'passed' | 'returned_to_bank' | 'rejected'
+  checked_by: string | null
+  checked_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AssessmentNote {
+  id: string
+  loan_id: string
+  summary: string | null
+  borrower_background: string | null
+  financial_analysis: string | null
+  collateral_analysis: string | null
+  proposed_coverage: number | null
+  proposed_amount: number | null
+  recommendation: 'recommend' | 'recommend_with_conditions' | 'not_recommend' | null
+  conditions: string | null
+  started_at: string | null
+  /** started_at + SLA (1 day per the scheme); used to surface overdue notes. */
+  due_at: string | null
+  submitted_at: string | null
+  prepared_by: string | null
+  status: 'draft' | 'submitted' | 'returned'
+  created_at: string
+  updated_at: string
+}
+
+export interface RiskReview {
+  id: string
+  loan_id: string
+  risk_rating: 'low' | 'moderate' | 'elevated' | 'high' | null
+  risk_score: number | null
+  sector_risk: string | null
+  repayment_capacity: string | null
+  mitigating_measures: string | null
+  opinion: 'support' | 'support_with_conditions' | 'object' | null
+  conditions: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  status: 'draft' | 'submitted'
+  created_at: string
+  updated_at: string
+}
+
+export interface CommitteeMeeting {
+  id: string
+  meeting_no: string | null
+  scheduled_at: string | null
+  held_at: string | null
+  /** Quorum scales with the guarantee amount, so it is stored per meeting. */
+  required_quorum: number
+  chaired_by: string | null
+  secretary_id: string | null
+  protocol_no: string | null
+  protocol_date: string | null
+  protocol_notes: string | null
+  status: 'scheduled' | 'in_progress' | 'held' | 'protocol_issued' | 'cancelled'
+  created_at: string
+  updated_at: string
+  members?: CommitteeMeetingMember[]
+  agenda?: CommitteeAgendaItem[]
+}
+
+export interface CommitteeMeetingMember {
+  id: string
+  meeting_id: string
+  member_id: string
+  is_chair: boolean
+  attended: boolean | null
+  created_at: string
+  member?: Profile
+}
+
+export interface CommitteeAgendaItem {
+  id: string
+  meeting_id: string
+  loan_id: string
+  outcome: 'recommend_approve' | 'recommend_reject' | 'deferred' | 'needs_verification' | null
+  recommended_amount: number | null
+  recommended_coverage: number | null
+  conditions: string | null
+  decided_at: string | null
+  created_at: string
+  votes?: CommitteeVote[]
+  loan?: LoanApplication
+}
+
+export interface CommitteeVote {
+  id: string
+  agenda_item_id: string
+  member_id: string
+  vote: 'for' | 'against' | 'abstain'
+  comment: string | null
+  voted_at: string
+  member?: Profile
+}
+
+export interface Verification {
+  id: string
+  loan_id: string
+  assigned_to: string | null
+  assigned_by: string | null
+  assigned_at: string | null
+  visit_date: string | null
+  visit_location: string | null
+  findings: string | null
+  discrepancies: string | null
+  outcome: 'confirmed' | 'discrepancies_found' | 'not_confirmed' | null
+  completed_at: string | null
+  status: 'assigned' | 'in_progress' | 'completed'
+  created_at: string
+  updated_at: string
+}
+
+export interface ComplianceCheck {
+  id: string
+  loan_id: string
+  conditions_met: boolean | null
+  documents_verified: boolean | null
+  aml_cleared: boolean | null
+  findings: string | null
+  outcome: 'cleared' | 'cleared_with_conditions' | 'not_cleared' | null
+  checked_by: string | null
+  checked_at: string | null
+  status: 'draft' | 'submitted'
+  created_at: string
+  updated_at: string
+}
+
+export interface FormalApplication {
+  id: string
+  loan_id: string
+  appendix_ref: string | null
+  requested_amount: number | null
+  requested_coverage: number | null
+  signed_by: string | null
+  signed_date: string | null
+  document_url: string | null
+  submitted_by: string | null
+  created_at: string
+}
+
+export interface UkoReconciliation {
+  id: string
+  loan_id: string
+  uko_decision: string | null
+  kkg_recommendation: string | null
+  /** The purpose of step 12: surface disagreement between УКО and ККГ. */
+  is_consistent: boolean | null
+  discrepancy_notes: string | null
+  resolution: string | null
+  reconciled_by: string | null
+  reconciled_at: string | null
+  created_at: string
+}
+
+export interface ManagementDecision {
+  id: string
+  loan_id: string
+  decision: 'approved' | 'rejected' | 'deferred'
+  approved_amount: number | null
+  approved_coverage: number | null
+  conditions: string | null
+  rationale: string | null
+  decided_by: string | null
+  decided_at: string
+  created_at: string
+}
+
+export interface WorkflowTask {
+  id: string
+  loan_id: string
+  step_no: number
+  assigned_to: string | null
+  assigned_by: string | null
+  assigned_at: string | null
+  due_at: string | null
+  completed_at: string | null
+  completed_by: string | null
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'reassigned'
+  notes: string | null
+  created_at: string
+  assignee?: Profile
 }
 
 export interface PersonalGuarantor {
