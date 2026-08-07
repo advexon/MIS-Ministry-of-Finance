@@ -39,7 +39,7 @@ import {
 interface Props {
   meeting: CommitteeMeeting
   allMembers: CommitteeMember[]
-  awaiting: { id: string; application_number: string | null; loan_number: string | null }[]
+  awaiting: { id: string; loan_number: string | null }[]
   myId: string | null
   myRole: string | null
   onChanged: () => void | Promise<void>
@@ -247,7 +247,7 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
   }
 
   const label = (item: AgendaItem) =>
-    item.loan?.application_number ?? item.loan?.loan_number ?? item.loan_id.slice(0, 8)
+    item.loan?.loan_number ?? item.loan_id.slice(0, 8)
 
   const present = meeting.seats.filter((s) => s.attended).length
   const quorumShort = (meeting.required_quorum ?? 5) - present
@@ -482,7 +482,7 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
               <SelectContent>
                 {awaiting.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
-                    {l.application_number ?? l.loan_number ?? l.id.slice(0, 8)}
+                    {l.loan_number ?? l.id.slice(0, 8)}
                   </SelectItem>
                 ))}
               </SelectContent>

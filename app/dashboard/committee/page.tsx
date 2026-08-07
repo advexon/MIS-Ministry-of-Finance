@@ -84,7 +84,7 @@ export default function CommitteePage() {
       }),
     )
 
-    const { data: meetingRows } = await supabase
+    const { data: meetingRows, error: meetingErr } = await supabase
       .from('committee_meetings')
       .select(
         `id, meeting_no, scheduled_at, held_at, required_quorum, chaired_by, secretary_id,
@@ -92,18 +92,23 @@ export default function CommitteePage() {
          seats:committee_meeting_members(id, member_id, is_chair, attended),
          items:committee_agenda_items(
            id, loan_id, outcome, recommended_amount, recommended_coverage, conditions, decided_at,
-           loan:loan_applications(id, application_number, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd),
+           loan:loan_applications(id, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd),
            votes:committee_votes(id, member_id, vote, comment, voted_at)
          )`,
       )
       .order('scheduled_at', { ascending: false })
+
+    // A failed query and a genuinely empty register both render as "no meetings
+    // have been convened yet", which is how a just-created meeting appeared to
+    // vanish. Report the failure instead of showing a reassuring empty state.
+    if (meetingErr) setError(`Could not load meetings: ${meetingErr.message}`)
 
     setMeetings((meetingRows ?? []) as unknown as CommitteeMeeting[])
 
     // Applications that have cleared Credit Risk and are waiting to be tabled.
     const { data: loanRows } = await supabase
       .from('loan_applications')
-      .select('id, application_number, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd')
+      .select('id, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd')
       .in('status', ['kkg_scheduled'])
       .order('created_at', { ascending: true })
 
@@ -217,7 +222,7 @@ export default function CommitteePage() {
                   const usd = l.amount_usd ?? toUsd(l.guarantee_amount ?? l.approved_amount, l.usd_rate)
                   return (
                     <Badge key={l.id} variant="outline" className="font-normal">
-                      {l.application_number ?? l.loan_number ?? l.id.slice(0, 8)} · quorum{' '}
+                      {l.loan_number ?? l.id.slice(0, 8)} · quorum{' '}
                       {requiredQuorum(usd)}
                       {usd == null && ' (FX unknown)'}
                     </Badge>

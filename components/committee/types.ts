@@ -2,7 +2,9 @@
 
 export interface TabledLoan {
   id: string
-  application_number: string | null
+  // The live schema identifies an application by loan_number only. An
+  // `application_number` column exists in scripts/001_create_schema.sql but not
+  // in the database, so selecting it makes PostgREST fail the whole query.
   loan_number: string | null
   status: string
   guarantee_amount: number | null
