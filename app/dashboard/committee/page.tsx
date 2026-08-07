@@ -51,7 +51,6 @@ export default function CommitteePage() {
   const [form, setForm] = useState({ meeting_no: '', scheduled_at: '', quorum: '5' })
 
   const load = useCallback(async () => {
-    console.log('[v0] load start')
     setLoading(true)
     setError(null)
 
@@ -104,7 +103,6 @@ export default function CommitteePage() {
     // A failed query and a genuinely empty register both render as "no meetings
     // have been convened yet", which is how a just-created meeting appeared to
     // vanish. Report the failure instead of showing a reassuring empty state.
-    console.log('[v0] meetings', { rows: meetingRows?.length ?? null, err: meetingErr?.message ?? null })
     if (meetingErr) setError(`Could not load meetings: ${meetingErr.message}`)
 
     setMeetings((meetingRows ?? []) as unknown as CommitteeMeeting[])
@@ -123,8 +121,6 @@ export default function CommitteePage() {
   useEffect(() => {
     void load()
   }, [load])
-
-  console.log('[v0] render', { meetings: meetings.length, loading, myRole })
 
   const isSecretary = myRole === 'kkg_secretary' || myRole === 'super_admin' || myRole === 'prsf_admin'
 

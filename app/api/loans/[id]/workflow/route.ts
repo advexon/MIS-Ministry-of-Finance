@@ -304,6 +304,79 @@ async function checkPreconditions(
     }
   }
 
+  // Step 9 → 10 needs a completed verification. Steps 5, 6, 13 and 15 were all
+  // gated on their evidence but 9, 11 and 12 were not, so an application could
+  // reach ПВГ issuance with no recorded site visit, no signed formal application
+  // and no УКО/ККГ reconciliation — the three gates below close that hole.
+  if (from === 'verification' && to === 'kkg_protocol') {
+    const { data } = await supabase
+      .from('verifications')
+      .select('status, outcome')
+      .eq('loan_id', loanId)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (!data) {
+      return {
+        message: 'A completed verification (step 9) is required before the ККГ protocol is issued.',
+        code: 'VERIFICATION_MISSING',
+      }
+    }
+    // A visit that did not confirm the application belongs back at ККГ, not on
+    // the protocol. Mirrors how compliance 'not_cleared' is handled below.
+    if (data.outcome === 'not_confirmed') {
+      return {
+        message:
+          'The verification visit did not confirm this application, so it cannot proceed to the protocol. ' +
+          'Return it to ККГ review.',
+        code: 'VERIFICATION_NOT_CONFIRMED',
+      }
+    }
+  }
+
+  // Step 11 → 12 needs the signed formal application (Appendix 1.1).
+  if (from === 'formal_application' && to === 'uko_reconciliation') {
+    const { data } = await supabase
+      .from('formal_applications')
+      .select('id')
+      .eq('loan_id', loanId)
+      .limit(1)
+      .maybeSingle()
+    if (!data) {
+      return {
+        message: 'The signed formal application (Appendix 1.1, step 11) must be recorded before УКО reconciliation.',
+        code: 'FORMAL_APPLICATION_MISSING',
+      }
+    }
+  }
+
+  // Step 12 → 13 needs the reconciliation, and any disagreement between the УКО
+  // decision and the ККГ recommendation must carry a written resolution.
+  if (from === 'uko_reconciliation' && to === 'compliance_check') {
+    const { data } = await supabase
+      .from('uko_reconciliations')
+      .select('is_consistent, resolution')
+      .eq('loan_id', loanId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (!data) {
+      return {
+        message: 'The УКО reconciliation against the ККГ recommendation (step 12) must be recorded before compliance.',
+        code: 'RECONCILIATION_MISSING',
+      }
+    }
+    if (data.is_consistent === false && !data.resolution?.trim()) {
+      return {
+        message:
+          'The УКО decision differs from the ККГ recommendation, so a written resolution is required before ' +
+          'the application proceeds to compliance.',
+        code: 'RECONCILIATION_UNRESOLVED',
+      }
+    }
+  }
+
   // Step 13 → 15 needs a submitted compliance note.
   if (from === 'compliance_check' && to === 'management_review') {
     const { data } = await supabase

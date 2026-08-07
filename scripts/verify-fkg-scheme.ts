@@ -11,6 +11,7 @@
  * or simply: pnpm verify:scheme
  */
 
+import { readFileSync } from 'node:fs'
 import {
   SCHEME_STEPS,
   STEP_BY_STATUS,
@@ -147,6 +148,32 @@ for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
 // prompting this note to be removed.
 const missing = Array.from({ length: 16 }, (_, i) => i + 1).filter((n) => !stepNumbers.includes(n))
 check('the only unimplemented step is 14', missing.length === 1 && missing[0] === 14)
+
+// ── 10. Every evidence-bearing step must be gated server-side ────────────────
+// The checks above all read the registry, so they cannot see whether the API
+// actually enforces a step's evidence. Steps 9, 11 and 12 were fully built —
+// table, RLS and form — yet had no gate, so an application could advance past a
+// site visit, a signed formal application and the УКО/ККГ reconciliation without
+// any of them existing. This asserts against the route source so a future step
+// cannot ship its form and table while quietly skipping its gate.
+const routeSource = readFileSync(
+  new URL('../app/api/loans/[id]/workflow/route.ts', import.meta.url),
+  'utf8',
+)
+const requiredGateCodes = [
+  'ELIGIBILITY_MISSING',
+  'ASSESSMENT_NOT_SUBMITTED',
+  'RISK_REVIEW_MISSING',
+  'QUORUM_NOT_MET',
+  'VERIFICATION_MISSING',
+  'FORMAL_APPLICATION_MISSING',
+  'RECONCILIATION_MISSING',
+  'COMPLIANCE_MISSING',
+  'MGMT_DECISION_MISSING',
+]
+for (const code of requiredGateCodes) {
+  check(`workflow route enforces gate ${code}`, routeSource.includes(code))
+}
 
 // ── Report ───────────────────────────────────────────────────────────────────
 console.log(`\nФКГ scheme checks: ${passed} passed, ${failures.length} failed`)
