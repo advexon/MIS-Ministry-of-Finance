@@ -630,19 +630,34 @@ export default function NewLoanPage() {
       }
 
       // Identify an existing borrower by TIN — the actual identity of the
-      // customer. `limit(1)` rather than maybeSingle(): tin_number has no
-      // unique constraint, and maybeSingle() throws when more than one row
-      // matches, which would surface as an unrelated error.
-      let existingBorrower: { id: string } | null = null
+      // customer — and detect a customer_code already taken by someone else.
+      //
+      // These lookups go through find_borrower_for_intake (SECURITY DEFINER)
+      // rather than querying `borrowers` directly. Borrower rows are now
+      // RLS-scoped to the bank that has an application for them, so a direct
+      // query could not see a customer first registered by another bank: TIN
+      // matching would silently duplicate the customer, and the globally
+      // UNIQUE customer_code check below would miss the conflict and fail
+      // later with a raw constraint error. The function returns only the few
+      // fields needed to match and warn, not the borrower's full PII.
+      const { data: intakeMatches, error: intakeError } = await supabase.rpc(
+        "find_borrower_for_intake",
+        { p_tin: clientTin || null, p_customer_code: bankCustomerCode || null },
+      )
 
-      if (clientTin) {
-        const { data: byTin } = await supabase
-          .from("borrowers")
-          .select("id")
-          .eq("tin_number", clientTin)
-          .limit(1)
-        existingBorrower = byTin?.[0] ?? null
+      if (intakeError) {
+        throw intakeError
       }
+
+      const matches = (intakeMatches ?? []) as Array<{
+        id: string
+        name: string | null
+        tin_number: string | null
+        customer_code: string | null
+        matched_by: string
+      }>
+
+      const existingBorrower = matches.find((m) => m.matched_by === "tin") ?? null
 
       // customer_code is globally UNIQUE, so a code already used by a
       // DIFFERENT customer must not be reused. Previously this branch reused
@@ -650,12 +665,7 @@ export default function NewLoanPage() {
       // (name, TIN, address) with this applicant's data. Stop and explain
       // instead of silently overwriting.
       if (bankCustomerCode) {
-        const { data: byCode } = await supabase
-          .from("borrowers")
-          .select("id, name, tin_number")
-          .eq("customer_code", bankCustomerCode)
-          .limit(1)
-        const codeOwner = byCode?.[0]
+        const codeOwner = matches.find((m) => m.matched_by === "customer_code")
 
         if (codeOwner && codeOwner.id !== existingBorrower?.id) {
           setError(
@@ -671,23 +681,31 @@ export default function NewLoanPage() {
       let borrower: { id: string } | null = null
 
       if (existingBorrower) {
-        // Update existing borrower
+        // Refresh the existing customer's details.
+        //
+        // `maybeSingle()` rather than `single()`: when the customer was first
+        // registered by ANOTHER bank, borrowers_update RLS returns zero rows.
+        // That is intended — one bank must not overwrite another bank's record
+        // of a shared customer — so fall back to linking the application to
+        // the existing borrower rather than failing the whole submission.
         const { data: updatedBorrower, error: updateError } = await supabase
           .from("borrowers")
           .update(borrowerData)
           .eq("id", existingBorrower.id)
           .select("id")
-          .single()
+          .maybeSingle()
 
         if (updateError) {
           throw updateError
         }
-        borrower = updatedBorrower
+        borrower = updatedBorrower ?? { id: existingBorrower.id }
       } else {
-        // Insert new borrower
+        // Insert new borrower. created_by must be set: borrowers_insert RLS
+        // requires the row to be attributable to the caller, and it is what
+        // makes this row readable back by the .select() below.
         const { data: newBorrower, error: insertError } = await supabase
           .from("borrowers")
-          .insert(borrowerData)
+          .insert({ ...borrowerData, created_by: user?.id })
           .select("id")
           .single()
 

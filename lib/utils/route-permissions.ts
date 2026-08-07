@@ -25,6 +25,19 @@ const ROUTE_PERMISSIONS: Array<{ pattern: RegExp } & RouteRequirement> = [
   { pattern: /^\/dashboard\/reports(\/.*)?$/, resource: 'reports', permission: 'view' },
   { pattern: /^\/dashboard\/audit(\/.*)?$/, resource: 'audit_logs', permission: 'view' },
   { pattern: /^\/dashboard\/access(\/.*)?$/, resource: 'access_logs', permission: 'view' },
+
+  // These pages had no permission check of any kind. PERMISSION_MATRIX has no
+  // dedicated resource for them, so each maps to the resource whose data it
+  // actually shows — the same mapping the sidebar already uses (e.g. the
+  // Borrowers nav item is declared with resource: 'loans').
+  //
+  // 'guarantee-reports' must precede the broader 'guarantees' style prefixes
+  // and is treated as reporting, since it aggregates issued letters.
+  { pattern: /^\/dashboard\/guarantee-reports(\/.*)?$/, resource: 'reports', permission: 'view' },
+  { pattern: /^\/dashboard\/reconciliation(\/.*)?$/, resource: 'reports', permission: 'view' },
+  { pattern: /^\/dashboard\/borrowers(\/.*)?$/, resource: 'loans', permission: 'view' },
+  { pattern: /^\/dashboard\/documents(\/.*)?$/, resource: 'loans', permission: 'view' },
+  { pattern: /^\/dashboard\/recoveries(\/.*)?$/, resource: 'claims', permission: 'view' },
 ]
 
 /**
