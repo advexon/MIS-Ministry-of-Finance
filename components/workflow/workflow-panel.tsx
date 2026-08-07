@@ -28,6 +28,7 @@ import {
   STEP_BY_STATUS, canActOnStep, getNextStatuses, requiresAssessment, toUsd,
   ASSESSMENT_THRESHOLD_USD, statusLabel,
 } from '@/lib/workflow/fkg-scheme'
+import { STEP_FORMS, StepArtifactForm } from '@/components/workflow/step-forms'
 
 interface Props {
   loan: LoanApplication
@@ -45,6 +46,12 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const [dialog, setDialog] = useState<DialogKind>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Steps 5, 6, 9, 11, 12, 13 and 15 each record an artefact before moving on.
+  // They share one declarative renderer so the field and transition rules live
+  // in a single reviewable table rather than seven near-identical forms.
+  const [artifactOpen, setArtifactOpen] = useState(false)
+  const artifactForm = STEP_FORMS[status]
 
   // Step 2 fields
   const [ref, setRef] = useState('')
@@ -286,6 +293,18 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
                 Record eligibility / ESMS / KYC <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
+            {artifactForm && (
+              <Button size="sm" onClick={() => setArtifactOpen(true)} disabled={busy}>
+                {artifactForm.title.replace(/ — step \d+$/, '')} <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            )}
+            {/* Steps 7, 8 and 10 are a multi-party committee sitting rather than a
+                single officer's form, so they are handled on the ККГ meeting page. */}
+            {(status === 'kkg_scheduled' || status === 'kkg_review' || status === 'kkg_protocol') && (
+              <Button size="sm" variant="outline" asChild>
+                <a href="/dashboard/committee">Open ККГ meetings (steps 7-10)</a>
+              </Button>
+            )}
             {busy && <Loader2 className="h-4 w-4 animate-spin self-center text-muted-foreground" />}
           </div>
         )}
@@ -406,6 +425,21 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Steps 5, 6, 9, 11, 12, 13, 15: artefact-recording forms ── */}
+      {artifactForm && (
+        <StepArtifactForm
+          loan={loan}
+          config={artifactForm}
+          open={artifactOpen}
+          onOpenChange={setArtifactOpen}
+          onDone={() => {
+            setArtifactOpen(false)
+            onDone?.()
+            router.refresh()
+          }}
+        />
+      )}
     </Card>
   )
 }

@@ -44,6 +44,7 @@ import {
   TrendingUp,
   Shield,
   BookOpen,
+  Gavel,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
 import { NotificationsBell } from '@/components/dashboard/notifications-bell'
@@ -74,6 +75,9 @@ const navItems: NavItem[] = [
   { titleKey: 'documents', href: '/dashboard/documents', icon: FolderDown, resource: 'reports' },
   { titleKey: 'banks', href: '/dashboard/banks', icon: Building2, resource: 'banks' },
   { titleKey: 'users', href: '/dashboard/users', icon: Users, resource: 'users' },
+  // ККГ sittings (scheme steps 7-10). Bank users are excluded: the committee is
+  // internal to the Fund, and its deliberations are not the bank's to see.
+  { titleKey: 'committee', href: '/dashboard/committee', icon: Gavel, resource: 'loans', prsfOnly: true },
   { titleKey: 'reconciliation', href: '/dashboard/reconciliation', icon: GitCompare, resource: 'fees', prsfOnly: true },
   { titleKey: 'recoveries', href: '/dashboard/recoveries', icon: TrendingUp, resource: 'claims', prsfOnly: true },
   { titleKey: 'auditTrail', href: '/dashboard/audit', icon: Shield, resource: 'audit_logs' },
