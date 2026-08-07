@@ -111,7 +111,10 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       amount_usd: usd,
       fx_rate_date: new Date().toISOString().slice(0, 10),
       fx_rate_source: 'Manual entry at УКО registration',
-      requires_assessment: usd == null ? null : usd > ASSESSMENT_THRESHOLD_USD,
+      // Delegate to the engine rather than re-implementing the comparison, so
+      // the boundary at exactly 10,000 USD cannot be read one way here and
+      // another way on the server.
+      requires_assessment: requiresAssessment(usd),
     }, `Registered by УКО${ref ? ` as ${ref}` : ''}; rate ${parsedRate} TJS/USD`)
   }
 
@@ -339,7 +342,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
                 {previewUsd == null
                   ? 'Enter a rate to see the USD equivalent.'
                   : `${amount?.toLocaleString('en-US')} TJS = $${previewUsd.toFixed(2)} — assessment ${
-                      previewUsd > ASSESSMENT_THRESHOLD_USD ? 'mandatory' : 'not required'
+                      requiresAssessment(previewUsd) ? 'mandatory' : 'not required'
                     }.`}
               </p>
             </div>
@@ -413,8 +416,8 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
               {needsAssessment === null
                 ? 'The USD equivalent is unknown, so routing cannot be determined.'
                 : needsAssessment
-                  ? `Above $${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} — proceeds to the assessment note (step 5).`
-                  : `At or below $${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} — skips step 5, straight to Credit Risk (step 6).`}
+                  ? `At or above $${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} — proceeds to the assessment note (step 5).`
+                  : `Below $${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} — skips step 5, straight to Credit Risk (step 6).`}
             </p>
           </div>
           <DialogFooter>

@@ -21,6 +21,7 @@ import {
   getNextStatuses,
   getStepByNumber,
   requiresAssessment,
+  requiredQuorum,
   toUsd,
 } from '@/lib/workflow/fkg-scheme'
 import { ROLE_CODES } from '@/lib/types/database'
@@ -83,6 +84,20 @@ check('toUsd converts correctly', toUsd(109_500, 10.95) === 10_000)
 // Both routes out of the gate exist.
 check('gate D can route to assessment', canTransition('eligibility_review', 'assessment'))
 check('gate D can skip to risk_review', canTransition('eligibility_review', 'risk_review'))
+
+// ── 5b. Quorum bands read the same boundary the same way ─────────────────────
+// The 10,000 constant drives both routing and quorum. If the two disagreed, an
+// exposure of exactly 10,000 would need a full assessment yet sit in the
+// smallest quorum band, so the boundary is pinned in both directions.
+check('9,999 USD needs quorum of 3', requiredQuorum(9_999) === 3)
+check('10,000 USD needs quorum of 4 (inclusive)', requiredQuorum(10_000) === 4)
+check('99,999 USD needs quorum of 4', requiredQuorum(99_999) === 4)
+check('100,000 USD needs quorum of 5 (inclusive)', requiredQuorum(100_000) === 5)
+check('unknown exposure demands the strictest quorum', requiredQuorum(null) === 5)
+check(
+  'assessment and quorum agree at the boundary',
+  requiresAssessment(10_000) === true && requiredQuorum(10_000) > 3,
+)
 
 // ── 6. Role lanes ────────────────────────────────────────────────────────────
 const step2 = STEP_BY_STATUS['uko_registration']!

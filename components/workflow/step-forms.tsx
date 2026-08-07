@@ -93,7 +93,7 @@ export const STEP_FORMS: Partial<Record<LoanStatus, StepFormConfig>> = {
     step: 5,
     title: 'Assessment note — step 5',
     description:
-      'Mandatory for guarantees above 10,000 USD. The scheme allows one day, so the due time is recorded with the note.',
+      'Mandatory for guarantees at or above 10,000 USD. The scheme allows one day, so the due time is recorded with the note.',
     table: 'assessment_notes',
     fields: [
       { name: 'summary', label: 'Summary', type: 'textarea', required: true, rows: 3 },

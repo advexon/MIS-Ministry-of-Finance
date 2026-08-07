@@ -158,7 +158,11 @@ export async function POST(
           { status: 409 }
         )
       }
-      if (decision.decision !== 'approve') {
+      // 'approved' — not 'approve'. This is the value the
+      // management_decisions_decision_check constraint permits and the value the
+      // step 15 form writes. Comparing against the wrong spelling would refuse
+      // every legitimate issuance while looking like a working control.
+      if (decision.decision !== 'approved') {
         return NextResponse.json(
           {
             error: `The Management decision is "${decision.decision}", so no ПВГ may be issued.`,
