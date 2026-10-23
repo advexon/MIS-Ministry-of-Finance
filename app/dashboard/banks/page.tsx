@@ -15,6 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Building2, MapPin, TrendingUp, Plus, Search, ChevronRight, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
+import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
+import { RequiredMark, missingFieldsMessage } from '@/components/forms/required-mark'
 
 interface Bank {
   id: string
@@ -45,6 +47,7 @@ export default function BanksPage() {
   const { t, locale } = useI18n()
   const supabase = createClient()
   const { toast } = useToast()
+  const { isRequired, missingFields } = useFieldRequirements('bank')
 
   const [banks, setBanks] = useState<Bank[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,8 +81,9 @@ export default function BanksPage() {
   useEffect(() => { fetchBanks() }, [])
 
   const handleCreate = async () => {
-    if (!form.code || !form.name_en) {
-      toast({ title: 'Bank code and name are required', variant: 'destructive' })
+    const missing = missingFields(form)
+    if (missing.length) {
+      toast({ title: missingFieldsMessage(missing), variant: 'destructive' })
       return
     }
     setSaving(true)
@@ -134,21 +138,21 @@ export default function BanksPage() {
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Bank Code *</Label>
+                  <Label>Bank Code<RequiredMark show={isRequired('code')} /></Label>
                   <Input placeholder="e.g. AIB" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase() }))} maxLength={10} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Bank Name (English) *</Label>
+                  <Label>Bank Name (English)<RequiredMark show={isRequired('name_en')} /></Label>
                   <Input placeholder="Full legal name" value={form.name_en} onChange={e => setForm(p => ({ ...p, name_en: e.target.value }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Bank Name (Russian)</Label>
+                  <Label>Bank Name (Russian)<RequiredMark show={isRequired('name_ru')} /></Label>
                   <Input placeholder="Название банка" value={form.name_ru} onChange={e => setForm(p => ({ ...p, name_ru: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Bank Name (Tajik)</Label>
+                  <Label>Bank Name (Tajik)<RequiredMark show={isRequired('name_tj')} /></Label>
                   <Input placeholder="Номи бонк" value={form.name_tj} onChange={e => setForm(p => ({ ...p, name_tj: e.target.value }))} />
                 </div>
               </div>

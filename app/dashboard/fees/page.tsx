@@ -21,6 +21,8 @@ import {
 import type { Fee } from "@/lib/types/database"
 import { one } from "@/lib/utils/supabase-relation"
 import { toCSV, downloadCSV } from "@/lib/utils/export"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -150,8 +152,19 @@ export default function FeesPage() {
     downloadCSV(toCSV(headers, rows), `fees-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
+  const createReq = useFieldRequirements("fee_create")
+  const invoiceReq = useFieldRequirements("fee_invoice")
+  const paymentReq = useFieldRequirements("fee_payment")
+
   const handleCreateFee = async () => {
-    if (!newLoanId || !newBaseAmount) { showMessage("error", "Please select a loan and enter base amount"); return }
+    const missing = createReq.missingFields({
+      loan_id: newLoanId,
+      fee_type: newFeeType,
+      ...(newFeeType === "quarterly" ? { period_start: newPeriodStart, period_end: newPeriodEnd } : {}),
+      base_amount: newBaseAmount,
+      fee_rate: newFeeRate,
+    })
+    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     const base = parseFloat(newBaseAmount)
@@ -182,7 +195,9 @@ export default function FeesPage() {
   }
 
   const handleGenerateInvoice = async () => {
-    if (!selectedFee || !invoiceDate) return
+    if (!selectedFee) return
+    const missing = invoiceReq.missingFields({ invoice_date: invoiceDate })
+    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
     setSaving(true)
     const { error } = await supabase.from("fees").update({ status: "invoiced", invoice_date: invoiceDate }).eq("id", selectedFee.id)
     if (error) { showMessage("error", error.message); setSaving(false); return }
@@ -193,7 +208,9 @@ export default function FeesPage() {
   }
 
   const handleMarkPaid = async () => {
-    if (!selectedFee || !paymentDate) return
+    if (!selectedFee) return
+    const missing = paymentReq.missingFields({ payment_date: paymentDate, payment_reference: paymentRef })
+    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
     setSaving(true)
     const { error } = await supabase.from("fees").update({ status: "paid", payment_date: paymentDate, payment_reference: paymentRef || null }).eq("id", selectedFee.id)
     if (error) { showMessage("error", error.message); setSaving(false); return }
@@ -413,7 +430,7 @@ export default function FeesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Loan Application *</Label>
+              <Label>Loan Application<RequiredMark show={createReq.isRequired("loan_id")} /></Label>
               <Select value={newLoanId} onValueChange={(v) => { setNewLoanId(v); const l = loans.find((x) => x.id === v); if (l) setNewBaseAmount(String(((l.approved_amount || 0) * (l.guarantee_coverage || 50) / 100).toFixed(0))) }}>
                 <SelectTrigger><SelectValue placeholder="Select loan" /></SelectTrigger>
                 <SelectContent>
@@ -426,7 +443,7 @@ export default function FeesPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Fee Type *</Label>
+              <Label>Fee Type<RequiredMark show={createReq.isRequired("fee_type")} /></Label>
               <Select value={newFeeType} onValueChange={(v) => setNewFeeType(v as "upfront" | "quarterly")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -438,22 +455,22 @@ export default function FeesPage() {
             {newFeeType === "quarterly" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Period Start</Label>
+                  <Label>Period Start<RequiredMark show={createReq.isRequired("period_start")} /></Label>
                   <Input type="date" value={newPeriodStart} onChange={(e) => setNewPeriodStart(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Period End</Label>
+                  <Label>Period End<RequiredMark show={createReq.isRequired("period_end")} /></Label>
                   <Input type="date" value={newPeriodEnd} onChange={(e) => setNewPeriodEnd(e.target.value)} />
                 </div>
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Base Amount (Guarantee Amount) *</Label>
+                <Label>Base Amount (Guarantee Amount)<RequiredMark show={createReq.isRequired("base_amount")} /></Label>
                 <Input type="number" value={newBaseAmount} onChange={(e) => setNewBaseAmount(e.target.value)} placeholder="Auto-filled from loan" />
               </div>
               <div className="space-y-2">
-                <Label>Fee Rate (%)</Label>
+                <Label>Fee Rate (%)<RequiredMark show={createReq.isRequired("fee_rate")} /></Label>
                 <Input type="number" step="0.1" value={newFeeRate} onChange={(e) => setNewFeeRate(e.target.value)} />
               </div>
             </div>
@@ -480,7 +497,7 @@ export default function FeesPage() {
             <DialogDescription>Issue a fee invoice for {selectedFee ? formatCurrency(selectedFee.fee_amount) : ""}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Invoice Date *</Label>
+            <Label>Invoice Date<RequiredMark show={invoiceReq.isRequired("invoice_date")} /></Label>
             <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
           </div>
           <DialogFooter>
@@ -501,11 +518,11 @@ export default function FeesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Payment Date *</Label>
+              <Label>Payment Date<RequiredMark show={paymentReq.isRequired("payment_date")} /></Label>
               <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Payment Reference</Label>
+              <Label>Payment Reference<RequiredMark show={paymentReq.isRequired("payment_reference")} /></Label>
               <Input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="Bank transfer / receipt number" />
             </div>
           </div>

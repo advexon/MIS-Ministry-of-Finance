@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import type { Bank, BankBranch, Sector, LoanProduct } from "@/lib/types/database"
 import { useLoanFormValidation, type FormStep } from "@/lib/hooks/use-loan-form-validation"
+import { RequiredMark } from "@/components/forms/required-mark"
 import { useLoanDraft } from "@/lib/hooks/use-loan-draft"
 import { usePermissions } from "@/lib/contexts/permission-context"
 import { getDatabaseErrorMessage } from "@/lib/utils/db-error"
@@ -179,6 +180,7 @@ export default function NewLoanPage() {
     canProceedToStep,
     allErrors,
     isFormValid,
+    isRequired,
   } = useLoanFormValidation(formData)
 
   // Draft management hook
@@ -1000,7 +1002,7 @@ export default function NewLoanPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label className={hasFieldError("legalEntityType") ? "text-destructive" : ""}>
-                      Legal Entity Type *
+                      Legal Entity Type<RequiredMark show={isRequired("legalEntityType")} />
                     </Label>
                     <Select 
                       value={legalEntityType} 
@@ -1038,7 +1040,7 @@ export default function NewLoanPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className={hasFieldError("sectorId") ? "text-destructive" : ""}>
-                      Business Sector *
+                      Business Sector<RequiredMark show={isRequired("sectorId")} />
                     </Label>
                     <Select 
                       value={sectorId} 
@@ -1061,7 +1063,7 @@ export default function NewLoanPage() {
                      in parts here, which also fills the Legal Representative step. */
                   <div className="space-y-2">
                     <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
-                      Client Name *
+                      Client Name<RequiredMark show={isRequired("clientName")} />
                     </Label>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div className="space-y-1.5">
@@ -1107,7 +1109,7 @@ export default function NewLoanPage() {
                 ) : (
                   <div className="space-y-2">
                     <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
-                      Client / Company Name *
+                      Client / Company Name<RequiredMark show={isRequired("clientName")} />
                     </Label>
                     <Input 
                       value={clientName} 
@@ -1123,7 +1125,7 @@ export default function NewLoanPage() {
                 )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>TIN Number *</Label>
+                    <Label>TIN Number<RequiredMark show={isRequired("clientTin")} /></Label>
                     <div className="relative">
                       <Input 
                         value={clientTin} 
@@ -1192,12 +1194,12 @@ export default function NewLoanPage() {
                 <Separator />
                   <h4 className="font-medium text-sm">Address *</h4>
                 <div className="space-y-2">
-                  <Label>Street Address (Legal Address)</Label>
+                  <Label>Street Address (Legal Address)<RequiredMark show={isRequired("addressStreet")} /></Label>
                   <Input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} placeholder="Street, building" />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>City</Label>
+                    <Label>City<RequiredMark show={isRequired("city")} /></Label>
                     <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Dushanbe" />
                   </div>
                   <div className="space-y-2">
@@ -1209,18 +1211,18 @@ export default function NewLoanPage() {
                 <h4 className="font-medium text-sm">Contact & Business</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Phone *</Label>
+                    <Label>Phone<RequiredMark show={isRequired("phone")} /></Label>
                     <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+992XXXXXXXXX" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email</Label>
+                    <Label>Email<RequiredMark show={isRequired("email")} /></Label>
                     <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="contact@company.tj" />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Number of Employees *</Label>
-                    <Input type="number" value={workforce} onChange={(e) => setWorkforce(e.target.value)} placeholder="10" min="1" required />
+                    <Label>Number of Employees<RequiredMark show={isRequired("workforce")} /></Label>
+                    <Input type="number" value={workforce} onChange={(e) => setWorkforce(e.target.value)} placeholder="10" min="1" />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1279,7 +1281,7 @@ export default function NewLoanPage() {
                 )}
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Surname *</Label>
+                    <Label>Surname<RequiredMark show={isRequired("legalRepSurname")} /></Label>
                     <Input
                       value={legalRepSurname}
                       onChange={(e) => setLegalRepSurname(e.target.value)}
@@ -1290,7 +1292,7 @@ export default function NewLoanPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>First Name *</Label>
+                    <Label>First Name<RequiredMark show={isRequired("legalRepName")} /></Label>
                     <Input
                       value={legalRepName}
                       onChange={(e) => setLegalRepName(e.target.value)}
@@ -1313,8 +1315,8 @@ export default function NewLoanPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Gender *</Label>
-                    <Select value={legalRepGender} onValueChange={setLegalRepGender} required>
+                    <Label>Gender<RequiredMark show={isRequired("legalRepGender")} /></Label>
+                    <Select value={legalRepGender} onValueChange={setLegalRepGender}>
                       <SelectTrigger className={!legalRepGender ? "border-destructive" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="male">Male</SelectItem>
@@ -1323,7 +1325,7 @@ export default function NewLoanPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Date of Birth</Label>
+                    <Label>Date of Birth<RequiredMark show={isRequired("legalRepBirthdate")} /></Label>
                     <Input type="date" value={legalRepBirthdate} onChange={(e) => setLegalRepBirthdate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
@@ -1333,7 +1335,7 @@ export default function NewLoanPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>TIN Number *</Label>
+                    <Label>TIN Number<RequiredMark show={isRequired("legalRepTin")} /></Label>
                     <Input 
                       value={legalRepTin} 
                       onChange={(e) => {
@@ -1354,7 +1356,7 @@ export default function NewLoanPage() {
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Passport / ID Number</Label>
+                    <Label>Passport / ID Number<RequiredMark show={isRequired("passportNumber")} /></Label>
                     <Input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} placeholder="AA1234567" />
                   </div>
                 </div>
@@ -1377,8 +1379,8 @@ export default function NewLoanPage() {
               <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Partner Bank *</Label>
-                    <Select value={bankId} onValueChange={setBankId} required>
+                    <Label>Partner Bank<RequiredMark show={isRequired("bankId")} /></Label>
+                    <Select value={bankId} onValueChange={setBankId}>
                       <SelectTrigger><SelectValue placeholder="Select bank" /></SelectTrigger>
                       <SelectContent>
                         {banks.map((b) => <SelectItem key={b.id} value={b.id}>{getName(b)}</SelectItem>)}
@@ -1386,7 +1388,7 @@ export default function NewLoanPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Branch *</Label>
+                    <Label>Branch<RequiredMark show={isRequired("branchId")} /></Label>
                     <Select value={branchId} onValueChange={setBranchId} disabled={!bankId || branches.length === 0}>
                       <SelectTrigger><SelectValue placeholder={bankId ? (branches.length === 0 ? "No branches" : "Select branch") : "Select bank first"} /></SelectTrigger>
                       <SelectContent>
@@ -1398,11 +1400,11 @@ export default function NewLoanPage() {
                 <Separator />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Loan Amount *</Label>
-                    <Input type="number" value={requestedAmount} onChange={(e) => setRequestedAmount(e.target.value)} placeholder="500000" required min="0" />
+                    <Label>Loan Amount<RequiredMark show={isRequired("requestedAmount")} /></Label>
+                    <Input type="number" value={requestedAmount} onChange={(e) => setRequestedAmount(e.target.value)} placeholder="500000" min="0" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Loan Currency *</Label>
+                    <Label>Loan Currency<RequiredMark show={isRequired("currency")} /></Label>
                     <Select value={currency} onValueChange={setCurrency}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1415,8 +1417,8 @@ export default function NewLoanPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Loan Term (months) *</Label>
-                    <Input type="number" value={loanTerm} onChange={(e) => setLoanTerm(e.target.value)} placeholder="36" required min="1" />
+                    <Label>Loan Term (months)<RequiredMark show={isRequired("loanTerm")} /></Label>
+                    <Input type="number" value={loanTerm} onChange={(e) => setLoanTerm(e.target.value)} placeholder="36" min="1" />
                   </div>
                   <div className="space-y-2">
                     <Label>Loan Grace Period (months)</Label>
@@ -1447,8 +1449,8 @@ export default function NewLoanPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Guarantee Coverage (%) *</Label>
-                    <Input type="number" value={guaranteeCoverage} onChange={(e) => setGuaranteeCoverage(e.target.value)} placeholder="50" min="0" max="100" required />
+                    <Label>Guarantee Coverage (%)<RequiredMark show={isRequired("guaranteeCoverage")} /></Label>
+                    <Input type="number" value={guaranteeCoverage} onChange={(e) => setGuaranteeCoverage(e.target.value)} placeholder="50" min="0" max="100" />
                     {requestedAmount && guaranteeCoverage && (
                       <p className="text-xs text-muted-foreground">
                         Guarantee amount: {new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(parseFloat(requestedAmount) * parseFloat(guaranteeCoverage) / 100)}
@@ -1456,8 +1458,8 @@ export default function NewLoanPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Guarantee Product *</Label>
-                    <Select value={guaranteeType} onValueChange={setGuaranteeType} required>
+                    <Label>Guarantee Product<RequiredMark show={isRequired("guaranteeType")} /></Label>
+                    <Select value={guaranteeType} onValueChange={setGuaranteeType}>
                       <SelectTrigger><SelectValue placeholder="Select guarantee type" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="individual">Individual Guarantee</SelectItem>
@@ -1470,8 +1472,8 @@ export default function NewLoanPage() {
                 <h4 className="text-sm font-medium">Dates</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Application Date *</Label>
-                    <Input type="date" value={applicationDate} onChange={(e) => setApplicationDate(e.target.value)} required />
+                    <Label>Application Date<RequiredMark show={isRequired("applicationDate")} /></Label>
+                    <Input type="date" value={applicationDate} onChange={(e) => setApplicationDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label>Bank Approval Date</Label>
@@ -1504,8 +1506,8 @@ export default function NewLoanPage() {
                 <Separator />
                 <h4 className="text-sm font-medium">Loan Purpose</h4>
                 <div className="space-y-2">
-                  <Label>Purpose *</Label>
-                  <Select value={purpose} onValueChange={setPurpose} required>
+                  <Label>Purpose<RequiredMark show={isRequired("purpose")} /></Label>
+                  <Select value={purpose} onValueChange={setPurpose}>
                     <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="working_capital">Working Capital</SelectItem>
@@ -1567,7 +1569,7 @@ export default function NewLoanPage() {
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-2">
-                  <Label>Collateral Description</Label>
+                  <Label>Collateral Description<RequiredMark show={isRequired("collateralDescription")} /></Label>
                   <Textarea value={collateralDescription} onChange={(e) => setCollateralDescription(e.target.value)} placeholder="Type and description of collateral (real estate, equipment, inventory...)" rows={3} />
                 </div>
                 <Separator />
@@ -1598,7 +1600,7 @@ export default function NewLoanPage() {
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-2">
-                  <Label>Internal Notes</Label>
+                  <Label>Internal Notes<RequiredMark show={isRequired("notes")} /></Label>
                   <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for PRSF reviewers..." rows={4} />
                 </div>
                 <Separator />

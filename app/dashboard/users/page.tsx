@@ -59,6 +59,8 @@ import {
   Lock,
 } from "lucide-react"
 import type { Profile, Role, Bank, BankBranch } from "@/lib/types/database"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 
 interface UserWithRelations extends Profile {
   role?: Role
@@ -240,7 +242,22 @@ export default function UsersPage() {
     }
   }
 
+  const userReq = useFieldRequirements("user_create")
+  const newUserMissing = userReq.missingFields({
+    first_name: newFirstName,
+    last_name: newLastName,
+    email: newEmail,
+    password: newPassword,
+    phone: newPhone,
+    role: newRoleId,
+    bank: newBankId === "none" ? "" : newBankId,
+  })
+
   const handleCreateUser = async () => {
+    if (newUserMissing.length) {
+      showMessage("error", missingFieldsMessage(newUserMissing))
+      return
+    }
     setCreating(true)
     try {
       const res = await fetch('/api/admin/create-user', {
@@ -551,29 +568,29 @@ export default function UsersPage() {
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>{t.auth.firstName}</Label>
+                <Label>{t.auth.firstName}<RequiredMark show={userReq.isRequired("first_name")} /></Label>
                 <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="First name" />
               </div>
               <div className="space-y-2">
-                <Label>{t.auth.lastName}</Label>
+                <Label>{t.auth.lastName}<RequiredMark show={userReq.isRequired("last_name")} /></Label>
                 <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Last name" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{t.auth.email} <span className="text-destructive">*</span></Label>
+              <Label>{t.auth.email}<RequiredMark show={userReq.isRequired("email")} /></Label>
               <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@bank.tj" required />
             </div>
             <div className="space-y-2">
-              <Label>{t.auth.password} <span className="text-destructive">*</span></Label>
+              <Label>{t.auth.password}<RequiredMark show={userReq.isRequired("password")} /></Label>
               <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 characters" required />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
+              <Label>Phone<RequiredMark show={userReq.isRequired("phone")} /></Label>
               <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+992 XX XXX XXXX" />
             </div>
             <Separator />
             <div className="space-y-2">
-              <Label>{t.users.role}</Label>
+              <Label>{t.users.role}<RequiredMark show={userReq.isRequired("role")} /></Label>
               <Select value={newRoleId} onValueChange={setNewRoleId}>
                 <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                 <SelectContent>
@@ -585,7 +602,7 @@ export default function UsersPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>{t.loans.bank}</Label>
+                <Label>{t.loans.bank}<RequiredMark show={userReq.isRequired("bank")} /></Label>
                 <Select value={newBankId} onValueChange={(v) => { setNewBankId(v); setNewBranchId("") }}>
                   <SelectTrigger><SelectValue placeholder="Select bank (optional)" /></SelectTrigger>
                   <SelectContent>
@@ -602,7 +619,7 @@ export default function UsersPage() {
             <Button variant="outline" className="bg-transparent" onClick={() => setCreateDialogOpen(false)}>
               {t.common.cancel}
             </Button>
-            <Button onClick={handleCreateUser} disabled={creating || !newEmail || !newPassword} className="gap-2">
+            <Button onClick={handleCreateUser} disabled={creating || newUserMissing.length > 0} className="gap-2">
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Create User
             </Button>

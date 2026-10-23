@@ -20,6 +20,8 @@ import {
 } from "lucide-react"
 import type { Claim } from "@/lib/types/database"
 import { one } from "@/lib/utils/supabase-relation"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -128,9 +130,36 @@ export default function ClaimsPage() {
   const totalClaimed = claims.reduce((s, c) => s + (c.claim_amount || 0), 0)
   const totalApproved = claims.filter((c) => c.approved_amount).reduce((s, c) => s + (c.approved_amount || 0), 0)
 
+  const createReq = useFieldRequirements("claim_create")
+  const reviewReq = useFieldRequirements("claim_review")
+  const recoveryReq = useFieldRequirements("claim_recovery")
+
+  const newClaimValues = {
+    loan_id: newLoanId,
+    claim_date: newClaimDate,
+    principal_claimed: newPrincipal,
+    interest_claimed: newInterest,
+    penalties_claimed: newPenalties,
+  }
+  const reviewValues = {
+    ...(reviewAction === "approve"
+      ? { approved_amount: reviewApprovedAmount, payment_date: paymentDate, ...(paymentDate ? { payment_reference: paymentRef } : {}) }
+      : {}),
+    review_notes: reviewNotes,
+  }
+  const recoveryValues = {
+    recovery_date: recoveryDate,
+    total_recovered: recoveryTotal,
+    prsf_share: recoveryPrsfShare,
+    notes: recoveryNotes,
+  }
+  const reviewMissing = reviewReq.missingFields(reviewValues)
+  const recoveryMissing = recoveryReq.missingFields(recoveryValues)
+
   const handleSubmitNewClaim = async () => {
-    if (!newLoanId || !newClaimDate || !newPrincipal) {
-      showMessage("error", "Please fill in all required fields"); return
+    const missing = createReq.missingFields(newClaimValues)
+    if (missing.length) {
+      showMessage("error", missingFieldsMessage(missing)); return
     }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -175,6 +204,7 @@ export default function ClaimsPage() {
 
   const handleReview = async () => {
     if (!selectedClaim) return
+    if (reviewMissing.length) { showMessage("error", missingFieldsMessage(reviewMissing)); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -208,7 +238,8 @@ export default function ClaimsPage() {
   }
 
   const handleRecovery = async () => {
-    if (!selectedClaim || !recoveryTotal) return
+    if (!selectedClaim) return
+    if (recoveryMissing.length) { showMessage("error", missingFieldsMessage(recoveryMissing)); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     const total = parseFloat(recoveryTotal) || 0
@@ -385,7 +416,7 @@ export default function ClaimsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Loan Application *</Label>
+              <Label>Loan Application<RequiredMark show={createReq.isRequired("loan_id")} /></Label>
               <Select value={newLoanId} onValueChange={setNewLoanId}>
                 <SelectTrigger><SelectValue placeholder="Select loan" /></SelectTrigger>
                 <SelectContent>
@@ -398,21 +429,21 @@ export default function ClaimsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Claim Date *</Label>
+              <Label>Claim Date<RequiredMark show={createReq.isRequired("claim_date")} /></Label>
               <Input type="date" value={newClaimDate} onChange={(e) => setNewClaimDate(e.target.value)} />
             </div>
             <Separator />
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label>Principal Claimed *</Label>
+                <Label>Principal Claimed<RequiredMark show={createReq.isRequired("principal_claimed")} /></Label>
                 <Input type="number" value={newPrincipal} onChange={(e) => setNewPrincipal(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Interest Claimed</Label>
+                <Label>Interest Claimed<RequiredMark show={createReq.isRequired("interest_claimed")} /></Label>
                 <Input type="number" value={newInterest} onChange={(e) => setNewInterest(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Penalties</Label>
+                <Label>Penalties<RequiredMark show={createReq.isRequired("penalties_claimed")} /></Label>
                 <Input type="number" value={newPenalties} onChange={(e) => setNewPenalties(e.target.value)} placeholder="0" />
               </div>
             </div>
@@ -475,34 +506,34 @@ export default function ClaimsPage() {
             {reviewAction === "approve" && (
               <>
                 <div className="space-y-2">
-                  <Label>Approved Amount *</Label>
+                  <Label>Approved Amount<RequiredMark show={reviewReq.isRequired("approved_amount")} /></Label>
                   <Input type="number" value={reviewApprovedAmount} onChange={(e) => setReviewApprovedAmount(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Payment Date (leave blank to mark as Approved only)</Label>
+                  <Label>Payment Date (leave blank to mark as Approved only)<RequiredMark show={reviewReq.isRequired("payment_date")} /></Label>
                   <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
                 </div>
                 {paymentDate && (
                   <div className="space-y-2">
-                    <Label>Payment Reference</Label>
+                    <Label>Payment Reference<RequiredMark show={reviewReq.isRequired("payment_reference")} /></Label>
                     <Input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="Bank transfer reference" />
                   </div>
                 )}
               </>
             )}
             <div className="space-y-2">
-              <Label>Review Notes *</Label>
+              <Label>Review Notes<RequiredMark show={reviewReq.isRequired("review_notes")} /></Label>
               <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="Justification for this decision..." rows={3} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReviewOpen(false)}>Cancel</Button>
             {reviewAction === "approve" ? (
-              <Button onClick={handleReview} disabled={saving || !reviewNotes} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button onClick={handleReview} disabled={saving || reviewMissing.length > 0} className="bg-emerald-600 hover:bg-emerald-700">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="mr-2 h-4 w-4" />Approve</>}
               </Button>
             ) : (
-              <Button onClick={handleReview} disabled={saving || !reviewNotes} variant="destructive">
+              <Button onClick={handleReview} disabled={saving || reviewMissing.length > 0} variant="destructive">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><XCircle className="mr-2 h-4 w-4" />Reject</>}
               </Button>
             )}
@@ -519,27 +550,27 @@ export default function ClaimsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Recovery Date *</Label>
+              <Label>Recovery Date<RequiredMark show={recoveryReq.isRequired("recovery_date")} /></Label>
               <Input type="date" value={recoveryDate} onChange={(e) => setRecoveryDate(e.target.value)} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Total Recovered *</Label>
+                <Label>Total Recovered<RequiredMark show={recoveryReq.isRequired("total_recovered")} /></Label>
                 <Input type="number" value={recoveryTotal} onChange={(e) => setRecoveryTotal(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>PRSF Share</Label>
+                <Label>PRSF Share<RequiredMark show={recoveryReq.isRequired("prsf_share")} /></Label>
                 <Input type="number" value={recoveryPrsfShare} onChange={(e) => setRecoveryPrsfShare(e.target.value)} placeholder="Auto-calculated" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Notes</Label>
+              <Label>Notes<RequiredMark show={recoveryReq.isRequired("notes")} /></Label>
               <Textarea value={recoveryNotes} onChange={(e) => setRecoveryNotes(e.target.value)} rows={2} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecoveryOpen(false)}>Cancel</Button>
-            <Button onClick={handleRecovery} disabled={saving || !recoveryTotal}>
+            <Button onClick={handleRecovery} disabled={saving || recoveryMissing.length > 0}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Recovery"}
             </Button>
           </DialogFooter>

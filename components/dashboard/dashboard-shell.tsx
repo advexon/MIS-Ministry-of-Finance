@@ -45,6 +45,7 @@ import {
   Shield,
   BookOpen,
   Gavel,
+  Asterisk,
 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n/translations'
 import { NotificationsBell } from '@/components/dashboard/notifications-bell'
@@ -83,6 +84,7 @@ const navItems: NavItem[] = [
   { titleKey: 'auditTrail', href: '/dashboard/audit', icon: Shield, resource: 'audit_logs' },
   { titleKey: 'roles' as any, href: '/dashboard/roles', icon: Shield, resource: 'roles', adminOnly: true },
   { titleKey: 'columnConfig' as any, href: '/dashboard/column-config', icon: Settings, adminOnly: true },
+  { titleKey: 'formRequirements' as any, href: '/dashboard/form-requirements', icon: Asterisk, adminOnly: true },
   { titleKey: 'settings', href: '/dashboard/settings', icon: Settings, adminOnly: true },
   { titleKey: 'manual', href: '/dashboard/manual', icon: BookOpen },
 ]

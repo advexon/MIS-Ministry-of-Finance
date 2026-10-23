@@ -27,6 +27,8 @@ import { GuaranteeLetter } from "@/components/documents/guarantee-letter"
 import { downloadPDF, printElement } from "@/lib/utils/pdf-generator"
 import { WorkflowTester } from "@/components/admin/workflow-tester"
 import { usePermissions } from "@/lib/contexts/permission-context"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+import { RequiredMark } from "@/components/forms/required-mark"
 
 // ─── Workflow definition ──────────────────────────────────────────────────────
 // Mirrors the 9-step diagram exactly:
@@ -213,6 +215,14 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const [dateField, setDateField]     = useState(new Date().toISOString().split("T")[0])
   const [dateField2, setDateField2]   = useState("")
   const [reason, setReason]           = useState("")
+
+  const rejectReq = useFieldRequirements("loan_reject")
+  const cancelReq = useFieldRequirements("loan_cancel")
+  const rescheduleReq = useFieldRequirements("loan_reschedule")
+  const claimRejectReq = useFieldRequirements("loan_claim_reject")
+  const extendRequestReq = useFieldRequirements("loan_extend_request")
+  const extendGrantReq = useFieldRequirements("loan_extend_grant")
+  const declineReq = useFieldRequirements("loan_decline")
   const [claimPrincipal, setClaimPrincipal] = useState("")
   const [claimInterest, setClaimInterest]   = useState("")
 
@@ -872,10 +882,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "reject"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Step 4A · Reject Application</DialogTitle><DialogDescription>PRSF credit decision: Reject. Bank will be notified (Step 5A). This is end of process.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Rejection Reason *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Provide detailed reason..." className="mt-1" /></div>
+          <div><Label className="text-xs">Rejection Reason<RequiredMark show={rejectReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Provide detailed reason..." className="mt-1" /></div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleReject} disabled={saving || !reason.trim()}>
+            <Button variant="destructive" onClick={handleReject} disabled={saving || rejectReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reject Application
             </Button>
           </DialogFooter>
@@ -939,10 +949,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "cancel"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Step 6A · Cancel Guarantee</DialogTitle><DialogDescription>Cancel the guarantee before disbursement. This is end of process.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Cancellation Reason *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
+          <div><Label className="text-xs">Cancellation Reason<RequiredMark show={cancelReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={saving || !reason.trim()}>
+            <Button variant="destructive" onClick={handleCancel} disabled={saving || cancelReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Cancel Guarantee
             </Button>
           </DialogFooter>
@@ -989,13 +999,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent>
           <DialogHeader><DialogTitle>Step 7B · Reschedule Loan</DialogTitle><DialogDescription>Extend the loan maturity. After rescheduling the loan can still be settled (Step 8A) or proceed to claim (Step 7C).</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Reschedule Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">New Maturity Date</Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Reason for Rescheduling *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
+            <div><Label className="text-xs">Reschedule Date<RequiredMark show={rescheduleReq.isRequired("reschedule_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">New Maturity Date<RequiredMark show={rescheduleReq.isRequired("new_maturity_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">Reason for Rescheduling<RequiredMark show={rescheduleReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={handleReschedule} disabled={saving || !reason.trim()}>
+            <Button onClick={handleReschedule} disabled={saving || rescheduleReq.missingFields({ reschedule_date: dateField, new_maturity_date: dateField2, reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reschedule
             </Button>
           </DialogFooter>
@@ -1045,10 +1055,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "reject_claim"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Step 8B1 · Reject Claim</DialogTitle><DialogDescription>Reject the guarantee claim. This is end of process for this claim.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Rejection Reason *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
+          <div><Label className="text-xs">Rejection Reason<RequiredMark show={claimRejectReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleRejectClaim} disabled={saving || !reason.trim()}>
+            <Button variant="destructive" onClick={handleRejectClaim} disabled={saving || claimRejectReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reject Claim
             </Button>
           </DialogFooter>
@@ -1084,11 +1094,11 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           </DialogHeader>
           <div className="space-y-3">
             <div><Label className="text-xs">Request Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Reason for Extension *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Explain why additional time is needed before disbursement..." className="mt-1" /></div>
+            <div><Label className="text-xs">Reason for Extension<RequiredMark show={extendRequestReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Explain why additional time is needed before disbursement..." className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button className="bg-yellow-600 hover:bg-yellow-700 text-white" onClick={handleRequestExtension} disabled={saving || !reason.trim()}>
+            <Button className="bg-yellow-600 hover:bg-yellow-700 text-white" onClick={handleRequestExtension} disabled={saving || extendRequestReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit Extension Request
             </Button>
           </DialogFooter>
@@ -1107,13 +1117,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               <p className="text-xs text-muted-foreground">Extension requested on {fmtDate(loan?.extension_requested_date)}</p>
               <p className="mt-1 font-medium">{loan?.extension_reason ?? "—"}</p>
             </div>
-            <div><Label className="text-xs">Grant Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">New Guarantee Validity / Maturity Date *</Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Notes (optional)</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" /></div>
+            <div><Label className="text-xs">Grant Date<RequiredMark show={extendGrantReq.isRequired("grant_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">New Guarantee Validity / Maturity Date<RequiredMark show={extendGrantReq.isRequired("new_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">Notes<RequiredMark show={extendGrantReq.isRequired("notes")} /></Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleGrantExtension} disabled={saving || !dateField2}>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleGrantExtension} disabled={saving || extendGrantReq.missingFields({ grant_date: dateField, new_date: dateField2, notes }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Grant Extension
             </Button>
           </DialogFooter>
@@ -1131,11 +1141,11 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
               Declining this request will cancel the guarantee. The bank will need to reapply if they still wish to proceed.
             </div>
-            <div><Label className="text-xs">Reason for Declining *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
+            <div><Label className="text-xs">Reason for Declining<RequiredMark show={declineReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDeclineExtension} disabled={saving || !reason.trim()}>
+            <Button variant="destructive" onClick={handleDeclineExtension} disabled={saving || declineReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Decline & Cancel
             </Button>
           </DialogFooter>

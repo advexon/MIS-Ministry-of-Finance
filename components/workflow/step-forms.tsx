@@ -36,6 +36,9 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import type { LoanApplication, LoanStatus } from '@/lib/types/database'
 import { ASSESSMENT_SLA_DAYS } from '@/lib/workflow/fkg-scheme'
+import type { FormDef } from '@/lib/forms/field-requirements'
+import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
+import { RequiredMark } from '@/components/forms/required-mark'
 
 type FieldType = 'text' | 'textarea' | 'number' | 'date' | 'select' | 'checkbox'
 
@@ -372,6 +375,27 @@ export const STEP_FORMS: Partial<Record<LoanStatus, StepFormConfig>> = {
   },
 }
 
+/**
+ * Requirement definitions for the step forms, derived from STEP_FORMS so the
+ * admin "Required fields" page lists them and the `required` flags above stay
+ * the defaults. Checkboxes are excluded: they are attestations, not inputs.
+ */
+export function stepFormDef(config: StepFormConfig): FormDef {
+  return {
+    id: `workflow_step_${config.step}`,
+    name: config.title,
+    group: 'Workflow steps',
+    fields: config.fields
+      .filter((field) => field.type !== 'checkbox')
+      .map((field) => ({ key: field.name, label: field.label, defaultRequired: !!field.required })),
+  }
+}
+
+export const STEP_FORM_DEFS: FormDef[] = Object.values(STEP_FORMS)
+  .filter((config): config is StepFormConfig => !!config)
+  .sort((a, b) => a.step - b.step)
+  .map(stepFormDef)
+
 interface Props {
   loan: LoanApplication
   config: StepFormConfig
@@ -425,11 +449,17 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
     setCheckedSod(true)
   }
 
+  const formDef = useMemo(() => stepFormDef(config), [config])
+  const requirements = useFieldRequirements(formDef)
+
+  const fieldRequired = (f: FieldDef) =>
+    f.type === 'checkbox' ? !!f.required : requirements.isRequired(f.name)
+
   function missingRequired(): string | null {
     for (const f of config.fields) {
-      if (!f.required) continue
+      if (!fieldRequired(f)) continue
       const v = values[f.name]
-      if (v == null || v === '' || v === false) return `"${f.label}" is required.`
+      if (v == null || (typeof v === 'string' && v.trim() === '') || v === false) return `"${f.label}" is required.`
     }
     return null
   }
@@ -521,7 +551,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                   <>
                     <Label htmlFor={f.name}>
                       {f.label}
-                      {f.required && <span className="ml-0.5 text-destructive">*</span>}
+                      <RequiredMark show={fieldRequired(f)} />
                     </Label>
                     {f.type === 'textarea' ? (
                       <Textarea

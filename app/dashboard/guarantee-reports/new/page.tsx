@@ -14,6 +14,8 @@ import Link from 'next/link'
 import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/hooks/use-toast'
+import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
+import { RequiredMark, missingFieldsMessage } from '@/components/forms/required-mark'
 
 interface Bank { id: string; name_en: string }
 
@@ -128,6 +130,8 @@ export default function NewGuaranteeReportPage() {
     }))
   }
 
+  const reportReq = useFieldRequirements('guarantee_report')
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -202,8 +206,9 @@ export default function NewGuaranteeReportPage() {
   }
 
   const handleSave = async (submitNow = false) => {
-    if (!bankId || !reportMonth) {
-      toast({ title: 'Missing fields', description: 'Select bank and report month', variant: 'destructive' })
+    const missing = reportReq.missingFields({ bank_id: bankId, report_month: reportMonth, report_type: reportType })
+    if (missing.length) {
+      toast({ title: 'Missing fields', description: missingFieldsMessage(missing), variant: 'destructive' })
       return
     }
     setSaving(true)
@@ -322,7 +327,7 @@ export default function NewGuaranteeReportPage() {
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium">{t.guaranteeReports.bank} *</Label>
+              <Label className="text-xs font-medium">{t.guaranteeReports.bank}<RequiredMark show={reportReq.isRequired('bank_id')} /></Label>
               <Select value={bankId} onValueChange={setBankId}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select bank..." /></SelectTrigger>
                 <SelectContent>
@@ -331,11 +336,11 @@ export default function NewGuaranteeReportPage() {
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium">{t.guaranteeReports.reportMonth} *</Label>
+              <Label className="text-xs font-medium">{t.guaranteeReports.reportMonth}<RequiredMark show={reportReq.isRequired('report_month')} /></Label>
               <Input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="h-9 text-sm" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium">{t.guaranteeReports.reportType}</Label>
+              <Label className="text-xs font-medium">{t.guaranteeReports.reportType}<RequiredMark show={reportReq.isRequired('report_type')} /></Label>
               <Select value={reportType} onValueChange={v => setReportType(v as typeof reportType)}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
