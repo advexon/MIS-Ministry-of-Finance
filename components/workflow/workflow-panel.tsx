@@ -103,18 +103,9 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       setError('Enter the TJS/USD rate. The 10,000 USD gate cannot be evaluated without it.')
       return
     }
-    const usd = toUsd(amount, parsedRate)
     await post('eligibility_review', {
       uko_reference_no: ref || null,
-      uko_registered_at: new Date().toISOString(),
       usd_rate: parsedRate,
-      amount_usd: usd,
-      fx_rate_date: new Date().toISOString().slice(0, 10),
-      fx_rate_source: 'Manual entry at УКО registration',
-      // Delegate to the engine rather than re-implementing the comparison, so
-      // the boundary at exactly 10,000 USD cannot be read one way here and
-      // another way on the server.
-      requires_assessment: requiresAssessment(usd),
     }, `Registered by УКО${ref ? ` as ${ref}` : ''}; rate ${parsedRate} TJS/USD`)
   }
 
@@ -169,7 +160,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const isLegacy = status === 'under_review'
   const isStaff =
     roleCode != null &&
-    ['super_admin', 'prsf_admin', 'prsf_analyst', 'uko_officer'].includes(roleCode)
+    ['prsf_analyst', 'uko_officer'].includes(roleCode)
 
   if (isLegacy) {
     return (

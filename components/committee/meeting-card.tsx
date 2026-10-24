@@ -5,7 +5,7 @@
  * protocol (step 10).
  *
  * The tallies rendered here mirror the engine, but the server re-evaluates
- * quorum and majority in /api/loans/[id]/workflow before it will allow the
+ * quorum and unanimity in /api/loans/[id]/workflow before it will allow the
  * protocol transition. A tampered client can therefore show a false "carried"
  * but cannot obtain a protocol the votes do not support.
  */
@@ -56,9 +56,10 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
   const [tableLoanId, setTableLoanId] = useState('')
   const [protocol, setProtocol] = useState({ no: meeting.protocol_no ?? '', notes: meeting.protocol_notes ?? '' })
 
-  const isSecretary =
-    myRole === 'kkg_secretary' || myRole === 'super_admin' || myRole === 'prsf_admin' ||
-    (myId != null && meeting.secretary_id === myId)
+  const readOnly = !myRole || ['super_admin', 'prsf_admin', 'auditor', 'bank_admin', 'bank_officer'].includes(myRole)
+  const isSecretary = !readOnly && (
+    myRole === 'kkg_secretary' || (myId != null && meeting.secretary_id === myId)
+  )
   const mySeat = meeting.seats.find((s) => s.member_id === myId)
   const closed = meeting.status === 'closed'
 
@@ -171,9 +172,13 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
   /** Step 8 → 10 (reject): the committee declines the application outright. */
   async function rejectItem(item: AgendaItem) {
     if (!item.loan) return
-    await supabase.from('committee_agenda_items').update({ outcome: 'rejected', decided_at: new Date().toISOString() }).eq('id', item.id)
-    const ok = await transition(item.loan.id, 'rejected', 'Declined by ККГ')
-    if (ok) await onChanged()
+    const ok = await transition(item.loan.id, 'rejected', 'Declined unanimously by ККГ')
+    if (ok) {
+      await run(
+        () => supabase.from('committee_agenda_items').update({ outcome: 'rejected', decided_at: new Date().toISOString() }).eq('id', item.id),
+        'Committee rejection recorded',
+      )
+    }
   }
 
   // ── Step 10: issue the protocol ──
@@ -184,16 +189,20 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
     }
     setBusy(true)
 
-    await supabase
+    const { error: protocolError } = await supabase
       .from('committee_meetings')
       .update({
         protocol_no: protocol.no.trim(),
         protocol_notes: protocol.notes || null,
         protocol_date: new Date().toISOString().slice(0, 10),
         held_at: meeting.held_at ?? new Date().toISOString(),
-        status: 'closed',
       })
       .eq('id', meeting.id)
+    if (protocolError) {
+      setBusy(false)
+      toast({ title: 'Could not save protocol', description: protocolError.message, variant: 'destructive' })
+      return
+    }
 
     // Each carried item advances. The server re-checks quorum for every one, so
     // an item whose votes do not support it stays put and is reported below.
@@ -201,12 +210,11 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
     for (const item of meeting.items) {
       if (!item.loan) continue
       const outcome = outcomeFor(item)
-      if (!outcome.carried) continue
-
-      await supabase
-        .from('committee_agenda_items')
-        .update({ outcome: 'recommended', decided_at: new Date().toISOString() })
-        .eq('id', item.id)
+      if (item.decided_at) continue
+      if (!outcome.carried) {
+        failures.push(`${label(item)}: unanimous consent from all assigned members is required`)
+        continue
+      }
 
       const res = await fetch(`/api/loans/${item.loan.id}/workflow`, {
         method: 'POST',
@@ -219,7 +227,17 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         failures.push(`${label(item)}: ${j.error ?? 'refused'}`)
+      } else {
+        const { error: decisionError } = await supabase
+          .from('committee_agenda_items')
+          .update({ outcome: 'recommended', decided_at: new Date().toISOString() })
+          .eq('id', item.id)
+        if (decisionError) failures.push(`${label(item)}: ${decisionError.message}`)
       }
+    }
+    if (!failures.length) {
+      const { error: closeError } = await supabase.from('committee_meetings').update({ status: 'closed' }).eq('id', meeting.id)
+      if (closeError) failures.push(closeError.message)
     }
 
     setBusy(false)
@@ -242,8 +260,12 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
     const usd =
       item.loan?.amount_usd ??
       toUsd(item.loan?.guarantee_amount ?? item.loan?.approved_amount ?? null, item.loan?.usd_rate ?? null)
-    const quorum = meeting.required_quorum ?? requiredQuorum(usd)
-    return { ...evaluateCommitteeOutcome(tallyVotes(item.votes), quorum), quorum }
+    const quorum = Math.max(meeting.required_quorum ?? 0, requiredQuorum(usd))
+    const assignedIds = new Set(meeting.seats.map((seat) => seat.member_id))
+    const votes = item.votes.filter((vote) => assignedIds.has(vote.member_id))
+    const outcome = evaluateCommitteeOutcome(tallyVotes(votes), quorum, meeting.seats.length)
+    const allPresent = meeting.seats.every((seat) => seat.attended)
+    return { ...outcome, carried: outcome.carried && allPresent, quorum }
   }
 
   const label = (item: AgendaItem) =>
@@ -353,7 +375,7 @@ export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onCha
               {meeting.items.map((item) => {
                 const o = outcomeFor(item)
                 const myVote = item.votes.find((v) => v.member_id === myId)?.vote
-                const canVote = !!mySeat?.attended && !closed && !item.decided_at
+                const canVote = !readOnly && !!mySeat?.attended && !closed && !item.decided_at
 
                 return (
                   <li key={item.id} className="rounded-md border p-3">

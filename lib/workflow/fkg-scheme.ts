@@ -305,38 +305,36 @@ export interface QuorumResult {
   reason: string
 }
 
-/**
- * A recommendation carries only when quorum is met AND a simple majority of the
- * members present vote in favour. Abstentions count toward quorum but never
- * toward the majority.
- */
+/** Every assigned member must vote in favour; an abstention is not consent. */
 export function evaluateCommitteeOutcome(
   tally: VoteTally,
   requiredQuorumCount: number,
+  assignedMemberCount = requiredQuorumCount,
 ): QuorumResult {
-  if (tally.total < requiredQuorumCount) {
+  if (requiredQuorumCount < 1 || assignedMemberCount < requiredQuorumCount || tally.total < requiredQuorumCount) {
     return {
       quorumMet: false,
       carried: false,
       reason: `Quorum not met: ${tally.total} of ${requiredQuorumCount} required members voted.`,
     }
   }
-  const majority = Math.floor(tally.total / 2) + 1
-  if (tally.for >= majority) {
-    return { quorumMet: true, carried: true, reason: `Carried: ${tally.for} of ${tally.total} in favour.` }
+  if (tally.total === assignedMemberCount && tally.for === assignedMemberCount) {
+    return { quorumMet: true, carried: true, reason: `Unanimous: all ${assignedMemberCount} assigned members voted in favour.` }
   }
   return {
     quorumMet: true,
     carried: false,
-    reason: `Not carried: ${tally.for} in favour, ${tally.against} against, ${tally.abstain} abstained (needed ${majority}).`,
+    reason: `Not unanimous: ${tally.for} in favour, ${tally.against} against, ${tally.abstain} abstained; all ${assignedMemberCount} assigned members must vote in favour.`,
   }
 }
 
+export function isWorkflowReadOnlyRole(roleCode: string | null | undefined): boolean {
+  return !roleCode || ['super_admin', 'prsf_admin', 'auditor'].includes(roleCode)
+}
+
 export function canActOnStep(roleCode: string | null | undefined, step: SchemeStep): boolean {
-  if (!roleCode) return false
-  // Admins can act anywhere; they are the break-glass path.
-  if (roleCode === ROLE_CODES.SUPER_ADMIN || roleCode === ROLE_CODES.PRSF_ADMIN) return true
-  return (step.actors as string[]).includes(roleCode)
+  if (isWorkflowReadOnlyRole(roleCode)) return false
+  return (step.actors as string[]).includes(roleCode!)
 }
 
 /**

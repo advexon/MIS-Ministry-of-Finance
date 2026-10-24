@@ -4,6 +4,7 @@ import {
   STEP_BY_STATUS, canActOnStep, canTransition, getStepByNumber,
 } from '@/lib/workflow/fkg-scheme'
 import type { LoanStatus } from '@/lib/types/database'
+import { one } from '@/lib/utils/supabase-relation'
 
 /** Postgres unique-violation SQLSTATE. */
 const UNIQUE_VIOLATION = '23505'
@@ -74,7 +75,7 @@ export async function POST(
     // Get user profile with role to check permissions
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, is_active, role:roles(code, tier)')
+      .select('id, is_active, role:roles(code, tier, is_active)')
       .eq('id', user.id)
       .single()
 
@@ -85,13 +86,11 @@ export async function POST(
       return NextResponse.json({ error: 'Account is inactive' }, { status: 403 })
     }
 
-    // Issuance is step 16 of the ФКГ scheme, reserved to ФКГ Management (and
-    // admins as the break-glass path). The previous `tier <= 4` test let any
-    // mid-tier staff member issue a ПВГ, which is a wider grant than the
-    // Guideline allows.
-    const roleCode = (profile.role as { code?: string } | null)?.code ?? null
+    // Issuance is step 16, reserved to active ФКГ Management, never IT administrators.
+    const role = one<{ code?: string; is_active?: boolean }>(profile.role)
+    const roleCode = role?.code ?? null
     const step16 = getStepByNumber(16)!
-    if (!canActOnStep(roleCode, step16)) {
+    if (role?.is_active !== true || !canActOnStep(roleCode, step16)) {
       return NextResponse.json(
         {
           error: `Role "${roleCode ?? 'unknown'}" may not issue a ПВГ. Step 16 is reserved to ФКГ Management.`,

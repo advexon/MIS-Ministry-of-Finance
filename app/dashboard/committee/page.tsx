@@ -9,7 +9,7 @@
  *   step 8  — seated members vote on each tabled application
  *   step 10 — the secretary issues the protocol, releasing the application onward
  *
- * Quorum and majority are re-evaluated server-side by
+ * Quorum and unanimity are re-evaluated server-side by
  * /api/loans/[id]/workflow before the protocol transition is allowed, so nothing
  * here is the security boundary — the tallies shown are an honest preview of a
  * decision the server makes again on its own.
@@ -82,7 +82,7 @@ export default function CommitteePage() {
     setMembers(
       ((memberRows ?? []) as unknown as CommitteeMember[]).filter((m) => {
         const code = (m.role as { code?: string } | null)?.code ?? ''
-        return code.startsWith('kkg_') || code.startsWith('prsf_') || code === 'super_admin'
+        return ['kkg_member', 'kkg_secretary', 'prsf_analyst', 'fkg_management', 'compliance_officer', 'credit_risk_officer'].includes(code)
       }),
     )
 
@@ -122,7 +122,7 @@ export default function CommitteePage() {
     void load()
   }, [load])
 
-  const isSecretary = myRole === 'kkg_secretary' || myRole === 'super_admin' || myRole === 'prsf_admin'
+  const isSecretary = myRole === 'kkg_secretary'
 
   async function createMeeting() {
     if (!form.meeting_no.trim() || !form.scheduled_at) {

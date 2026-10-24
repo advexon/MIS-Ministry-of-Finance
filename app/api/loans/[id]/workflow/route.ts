@@ -22,7 +22,10 @@ import {
   tallyVotes,
   evaluateCommitteeOutcome,
   toUsd,
+  isWorkflowReadOnlyRole,
 } from '@/lib/workflow/fkg-scheme'
+import { workflowRequestSchema } from '@/lib/workflow/transition-input'
+import { one } from '@/lib/utils/supabase-relation'
 import type { LoanStatus } from '@/lib/types/database'
 
 function supabaseFromCookies(cookieStore: Awaited<ReturnType<typeof cookies>>) {
@@ -55,22 +58,20 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { to?: string; reason?: string; payload?: Record<string, unknown> }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  const parsed = await request.json().then(
+    (value: unknown) => workflowRequestSchema.safeParse(value),
+    () => null,
+  )
+  if (!parsed?.success) {
+    return NextResponse.json({ error: 'Invalid workflow request', code: 'INVALID_REQUEST' }, { status: 400 })
   }
-
-  const to = body.to as LoanStatus | undefined
-  if (!to) {
-    return NextResponse.json({ error: 'Target status ("to") is required' }, { status: 400 })
-  }
+  const body = parsed.data
+  const to = body.to as LoanStatus
 
   // Caller's role.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, is_active, role:roles(code, tier)')
+    .select('id, is_active, role:roles(code, tier, is_active)')
     .eq('id', user.id)
     .single()
 
@@ -80,7 +81,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       { status: 403 },
     )
   }
-  const roleCode = (profile.role as { code?: string } | null)?.code ?? null
+  const role = one<{ code?: string; is_active?: boolean }>(profile.role)
+  const roleCode = role?.code ?? null
+  if (role?.is_active !== true || isWorkflowReadOnlyRole(roleCode)) {
+    return NextResponse.json({ error: 'This role cannot change application decisions', code: 'READ_ONLY_ROLE' }, { status: 403 })
+  }
 
   // Current application state.
   const { data: loan, error: loanError } = await supabase
@@ -106,15 +111,18 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     )
   }
 
-  // 2. Is the caller in the right swimlane for the step being left?
-  //    Cancellation is exempt: it is an administrative action, not a scheme step.
+  // Cancellation changes a decision too, so it requires the same lane authority.
   const currentStep = STEP_BY_STATUS[from]
 
   // `draft` and the legacy `under_review` have no scheme step, so the lane check
   // below would not fire for them. Restrict them explicitly instead of letting
   // an absent step definition become an open door.
-  if (!currentStep && to !== 'cancelled') {
-    const allowedLegacyRoles = ['super_admin', 'prsf_admin', 'prsf_analyst', 'uko_officer', 'bank_officer', 'bank_admin']
+  if (!currentStep) {
+    const allowedLegacyRoles = from === 'draft'
+      ? ['bank_officer', 'bank_admin']
+      : from === 'approved'
+        ? ['fkg_management']
+        : ['prsf_analyst', 'uko_officer']
     if (!roleCode || !allowedLegacyRoles.includes(roleCode)) {
       return NextResponse.json(
         { error: `Role "${roleCode ?? 'unknown'}" may not move an application out of "${from}".`, code: 'WRONG_LANE' },
@@ -123,7 +131,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     }
   }
 
-  if (to !== 'cancelled' && currentStep && !canActOnStep(roleCode, currentStep)) {
+  if (currentStep && !canActOnStep(roleCode, currentStep)) {
     return NextResponse.json(
       {
         error:
@@ -141,35 +149,62 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: precondition.message, code: precondition.code }, { status: 422 })
   }
 
-  // 4. Apply the transition.
+  if (body.payload && (from !== 'uko_registration' || to !== 'eligibility_review')) {
+    return NextResponse.json({ error: 'Registration fields are only accepted during registration', code: 'INVALID_PAYLOAD' }, { status: 400 })
+  }
+  if (from === 'uko_registration' && to === 'eligibility_review' && !body.payload) {
+    return NextResponse.json({ error: 'A positive exchange rate is required', code: 'FX_MISSING' }, { status: 422 })
+  }
+
+  // Server-derived amounts and actor stamps cannot be supplied by the browser.
+  const now = new Date().toISOString()
   const nextStep = STEP_BY_STATUS[to]?.step ?? loan.current_step ?? null
   const update: Record<string, unknown> = {
     status: to,
     current_step: nextStep,
-    updated_at: new Date().toISOString(),
-    ...(body.payload ?? {}),
+    updated_at: now,
+  }
+  if (body.payload) {
+    const amountUsd = toUsd(loan.guarantee_amount ?? loan.approved_amount, body.payload.usd_rate)
+    update.uko_reference_no = body.payload.uko_reference_no ?? null
+    update.usd_rate = body.payload.usd_rate
+    update.amount_usd = amountUsd
+    update.requires_assessment = requiresAssessment(amountUsd)
+    update.uko_registered_at = now
+    update.uko_registered_by = user.id
+    update.fx_rate_date = now.slice(0, 10)
+    update.fx_rate_source = 'Manual entry at УКО registration'
   }
 
-  const { error: updateError } = await supabase
+  const { data: changed, error: updateError } = await supabase
     .from('loan_applications')
     .update(update)
     .eq('id', loanId)
     // Optimistic concurrency: if someone else moved the application while this
     // request was in flight, this matches zero rows rather than overwriting.
     .eq('status', from)
+    .select('id')
+    .maybeSingle()
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
+  if (!changed) {
+    return NextResponse.json({ error: 'The application changed or is no longer writable. Refresh before retrying.', code: 'TRANSITION_CONFLICT' }, { status: 409 })
+  }
 
   // 5. Audit trail.
-  await supabase.from('loan_application_history').insert({
-    loan_application_id: loanId,
-    previous_status: from,
+  const { error: historyError } = await supabase.from('loan_application_history').insert({
+    loan_id: loanId,
+    action: 'status_change',
+    old_status: from,
     new_status: to,
-    changed_by: user.id,
+    performed_by: user.id,
     notes: body.reason ?? null,
   })
+  if (historyError) {
+    return NextResponse.json({ error: 'The status changed, but its audit record could not be saved. Refresh and contact an administrator.', code: 'AUDIT_WRITE_FAILED', transitionApplied: true }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true, from, to, step: nextStep })
 }
@@ -268,11 +303,11 @@ async function checkPreconditions(
     }
   }
 
-  // Step 8/10: the protocol may only be issued once quorum and a majority exist.
-  if (to === 'kkg_protocol') {
+  // A recommendation or rejection needs unanimous votes from the assigned seats.
+  if (to === 'kkg_protocol' || (from === 'kkg_review' && to === 'rejected')) {
     const { data: item } = await supabase
       .from('committee_agenda_items')
-      .select('id, outcome, meeting:committee_meetings(required_quorum)')
+      .select('id, meeting_id, outcome, meeting:committee_meetings(required_quorum)')
       .eq('loan_id', loanId)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -285,22 +320,34 @@ async function checkPreconditions(
       }
     }
 
-    const { data: votes } = await supabase
-      .from('committee_votes')
-      .select('vote')
-      .eq('agenda_item_id', item.id)
+    const [{ data: votes, error: votesError }, { data: seats, error: seatsError }] = await Promise.all([
+      supabase.from('committee_votes').select('member_id, vote').eq('agenda_item_id', item.id),
+      supabase.from('committee_meeting_members').select('member_id, attended').eq('meeting_id', item.meeting_id),
+    ])
+    if (votesError || seatsError || !seats?.length) {
+      return { message: 'Committee membership and votes could not be verified.', code: 'COMMITTEE_UNVERIFIED' }
+    }
+    const seatedIds = new Set(seats.map((seat) => seat.member_id))
+    const voterIds = new Set((votes ?? []).map((vote) => vote.member_id))
+    if (voterIds.size !== (votes ?? []).length || (votes ?? []).some((vote) => !seatedIds.has(vote.member_id))) {
+      return { message: 'Every vote must come from a distinct assigned member.', code: 'INVALID_COMMITTEE_VOTES' }
+    }
 
-    const meeting = item.meeting as { required_quorum?: number } | null
-    const quorum =
-      meeting?.required_quorum ??
-      requiredQuorum(loan.amount_usd ?? toUsd(loan.approved_amount, loan.usd_rate))
-
-    const outcome = evaluateCommitteeOutcome(
-      tallyVotes((votes ?? []) as { vote: 'for' | 'against' | 'abstain' }[]),
-      quorum,
+    const meeting = one<{ required_quorum?: number }>(item.meeting)
+    const quorum = Math.max(
+      meeting?.required_quorum ?? 0,
+      requiredQuorum(loan.amount_usd ?? toUsd(loan.guarantee_amount ?? loan.approved_amount, loan.usd_rate)),
     )
+    const tally = tallyVotes((votes ?? []) as { vote: 'for' | 'against' | 'abstain' }[])
+    const outcome = evaluateCommitteeOutcome(tally, quorum, seats.length)
     if (!outcome.quorumMet) {
       return { message: outcome.reason, code: 'QUORUM_NOT_MET' }
+    }
+    const unanimous = to === 'rejected'
+      ? tally.total === seats.length && tally.against === seats.length
+      : outcome.carried
+    if (!unanimous || seats.some((seat) => !seat.attended)) {
+      return { message: 'Every assigned member must be present and vote unanimously for this decision.', code: 'UNANIMOUS_DECISION_REQUIRED' }
     }
   }
 

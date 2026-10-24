@@ -24,7 +24,10 @@ import {
   requiresAssessment,
   requiredQuorum,
   toUsd,
+  evaluateCommitteeOutcome,
+  tallyVotes,
 } from '@/lib/workflow/fkg-scheme'
+import { workflowRequestSchema } from '@/lib/workflow/transition-input'
 import { ROLE_CODES } from '@/lib/types/database'
 import type { LoanStatus } from '@/lib/types/database'
 
@@ -111,8 +114,20 @@ check('УКО officer may not act on step 6', !canActOnStep(ROLE_CODES.UKO_OFFIC
 check('management may issue the ПВГ', canActOnStep(ROLE_CODES.FKG_MANAGEMENT, step16))
 check('compliance officer may not issue the ПВГ', !canActOnStep(ROLE_CODES.COMPLIANCE_OFFICER, step16))
 check('an unknown role may act nowhere', !canActOnStep(null, step2))
-// Admin break-glass is deliberate and should stay visible.
-check('super admin retains break-glass on step 6', canActOnStep(ROLE_CODES.SUPER_ADMIN, step6))
+for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR]) {
+  check(`${code} cannot complete any workflow step`, SCHEME_STEPS.every((step) => !canActOnStep(code, step)))
+}
+const unanimous = tallyVotes([{ vote: 'for' }, { vote: 'for' }, { vote: 'for' }])
+check('all assigned members in favour carries', evaluateCommitteeOutcome(unanimous, 3, 3).carried)
+check('majority is not unanimity', !evaluateCommitteeOutcome(tallyVotes([{ vote: 'for' }, { vote: 'for' }, { vote: 'against' }]), 3, 3).carried)
+check('abstention prevents consent', !evaluateCommitteeOutcome(tallyVotes([{ vote: 'for' }, { vote: 'for' }, { vote: 'abstain' }]), 3, 3).carried)
+check('missing assigned vote prevents consent', !evaluateCommitteeOutcome(unanimous, 3, 4).carried)
+check('extra votes cannot create consent', !evaluateCommitteeOutcome(unanimous, 2, 2).carried)
+check('empty committee cannot carry', !evaluateCommitteeOutcome(tallyVotes([]), 0, 0).carried)
+check('valid registration payload accepted', workflowRequestSchema.safeParse({ to: 'eligibility_review', payload: { usd_rate: 10.95 } }).success)
+for (const value of [null, [], { to: 'approved', payload: { status: 'approved' } }, { to: 'approved', payload: { usd_rate: 1, bank_id: 'other-bank' } }, { to: 'eligibility_review', payload: { usd_rate: 0 } }, { to: 'eligibility_review', payload: { usd_rate: -1 } }]) {
+  check(`unsafe request rejected: ${JSON.stringify(value)}`, !workflowRequestSchema.safeParse(value).success)
+}
 
 // ── 7. Cancellation is always available, terminal states are terminal ────────
 for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
@@ -170,6 +185,12 @@ const requiredGateCodes = [
   'RECONCILIATION_MISSING',
   'COMPLIANCE_MISSING',
   'MGMT_DECISION_MISSING',
+  'UNANIMOUS_DECISION_REQUIRED',
+  'INVALID_COMMITTEE_VOTES',
+  'READ_ONLY_ROLE',
+  'INVALID_PAYLOAD',
+  'TRANSITION_CONFLICT',
+  'AUDIT_WRITE_FAILED',
 ]
 for (const code of requiredGateCodes) {
   check(`workflow route enforces gate ${code}`, routeSource.includes(code))

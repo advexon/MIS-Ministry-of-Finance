@@ -14,7 +14,9 @@ Generated reference map of the application. ~32,500 lines across app/, component
 | i18n | Custom — 3 locales: `en`, `ru`, `tj` |
 | Middleware | `proxy.ts` (Next.js 16 naming) |
 
-## Routes (30 pages, 4 API endpoints)
+## Routes
+
+Route lists below are the navigation index; use `app/**/page.tsx` and `app/**/route.ts` to confirm additions rather than relying on a fixed page count.
 
 ### Auth — `app/auth/`
 `login` · `sign-up` · `sign-up-success` · `forgot-password` · `reset-password` · `error`
@@ -30,11 +32,13 @@ Generated reference map of the application. ~32,500 lines across app/, component
 | `guarantee-reports` · `[id]` · `new` | Guarantee reporting (+ `actions.ts` server actions) |
 | `recoveries` · `reconciliation` | Recovery tracking, reconciliation |
 | `reports` · `documents` · `audit` | Reporting, document center, audit trail |
+| `committee` | Committee sittings, seats, votes, protocols |
+| `form-requirements` | Configurable required fields |
 | `users` · `roles` · `column-config` · `settings` · `profile` · `manual` | Admin & config |
 | `banks` · `banks/[id]` | Bank/branch management |
 
 ### API — `app/api/`
-`admin/create-user` · `users` · `loans/[id]/generate-guarantee` · `notifications/validation-alert`
+`admin/create-user` · `users` · `loans/[id]/generate-guarantee` · `loans/[id]/workflow` · `notifications/validation-alert`
 
 ## Key Library Modules — `lib/`
 
@@ -44,7 +48,12 @@ Generated reference map of the application. ~32,500 lines across app/, component
 | `i18n/translations.ts` (1307 L) | en/ru/tj strings; `i18n/context.tsx` provider |
 | `hooks/use-loan-draft.ts` | Autosave/restore loan drafts |
 | `hooks/use-loan-form-validation.ts` | Field-level loan form rules |
-| `contexts/permission-context.tsx` | Client-side permission gating |
+| `contexts/permission-context.tsx` | Client-side permission gating; user/role state from dashboard layout |
+| `workflow/fkg-scheme.ts` | Transition graph, actor lanes, assessment gate, unanimity evaluator |
+| `workflow/transition-input.ts` | Strict workflow request schema; only reference and FX rate are client-supplied |
+| `employee-flags.ts` | Employee-flag validation and administrator-only update authorization |
+| `forms/field-requirements.ts` · `hooks/use-field-requirements.ts` | Shared configurable field rules |
+| `utils/route-permissions.ts` | Dashboard route-to-resource permission map |
 | `contexts/column-config-context.tsx` | User-configurable table columns |
 | `utils/permissions.ts` · `utils/roles.ts` | RBAC logic, tier comparison |
 | `utils/document-engine.ts` (691 L) | Document generation engine |
@@ -63,11 +72,17 @@ Generated reference map of the application. ~32,500 lines across app/, component
 - `error-boundary.tsx`, `theme-provider.tsx`
 - `ui/` — 50 shadcn primitives
 
-## Database — 27 tables (public schema)
+## Database — public schema
+
+This section is a domain map, not authoritative live metadata. Workflow artifact tables and committee tables have been added since the original inventory; inspect `information_schema` and `pg_policies` through Supabase MCP before changing queries.
 
 **Core:** `loan_applications` (42 cols) · `borrowers` (23) · `banks` · `bank_branches` · `loan_products` · `sectors` · `profiles`
 
 **Workflow:** `loan_application_history` · `loan_documents` · `loan_drafts` · `payment_schedules` · `guarantee_letters`
+
+**Committee:** `committee_meetings` · `committee_meeting_members` · `committee_agenda_items` · `committee_votes`
+
+**Step artifacts:** `eligibility_checks` · `assessment_notes` · `risk_reviews` · `verifications` · `formal_applications` · `uko_reconciliations` · `compliance_checks` · `management_decisions`
 
 **Financial:** `claims` (27) · `fees` · `recoveries` · `monthly_reports`
 
@@ -85,16 +100,19 @@ Generated reference map of the application. ~32,500 lines across app/, component
 
 ## RBAC
 
-Tier-based (`lib/utils/roles.ts`): lower tier = higher authority. Approval thresholds — >500K requires PRSF Admin, >100K requires PRSF Analyst, ≤100K Bank Admin. Route protection matrix in `proxy.ts` maps each dashboard route to a `{resource, permission}` pair. See `docs/RBAC.md`.
+Lower tier means greater administrative authority, not permission to decide applications. `lib/utils/permissions.ts` combines the static matrix and database overrides with non-overridable prohibitions: auditors cannot write; `super_admin` and `prsf_admin` cannot approve loans/claims. `lib/workflow/fkg-scheme.ts` separately rejects those roles for every workflow step. `proxy.ts` and `lib/utils/route-permissions.ts` protect navigation; RLS remains necessary for direct Data API access. Older threshold descriptions in `docs/RBAC.md` must not override the approved CGF role document.
 
 ## Loan status values
+
+The authoritative type is `LoanStatus` in `lib/types/database.ts`; issuance steps and transitions are in `lib/workflow/fkg-scheme.ts`. The original lifecycle list below omits intermediate scheme states such as `uko_registration`, `eligibility_review`, `assessment`, `risk_review`, `kkg_scheduled`, `kkg_review`, `verification`, `kkg_protocol`, `formal_application`, `uko_reconciliation`, `compliance_check`, and `management_review`.
+
 `draft` `submitted` `under_review` `approved` `rejected` `guarantee_issued` `disbursed` `active` `extension_pending` `rescheduled` `claim_pending` `claim_paid` `claim_rejected` `defaulted` `settled` `closed` `cancelled`
 
 ---
 
-## Audit findings — all RESOLVED
+## Historic audit findings
 
-`tsc --noEmit` is now clean (0 errors, down from 30).
+The entries below describe earlier fixes, not a guarantee that the current repository is error-free. The latest full type-check reports 51 implicit-any errors in other dashboard modules; focused workflow, role-prohibition, and employee-flag checks pass.
 
 ### Security — RLS gap [FIXED]
 `access_logs` and `guarantee_letters` were the only tables with `relrowsecurity = false`. Fixed in `scripts/018_enable_rls_access_logs_guarantee_letters.sql`. Note **every** Supabase client here (browser, server, proxy) uses the anon key — there is no service-role bypass, so RLS is the only gate.
@@ -127,3 +145,23 @@ Two related problems fixed in the same pass:
 
 ### Draft completion never reached 100% [FIXED]
 Hardcoded list counted 5 optional fields (`addressStreet`, `city`, `phone`, `legalRepBirthdate`, `passportNumber`) as required and missed `legalRepTin`, capping completion near 72%. Now derived from `REQUIRED_FIELD_NAMES` in `use-loan-form-validation.ts`, so it cannot drift from the form's own validation.
+
+## Active data flow and verification map
+
+- `app/dashboard/layout.tsx` provides the dashboard shell and permission context. `proxy.ts` refreshes sessions and checks route access; navigation checks do not replace database authorization.
+- Loan detail state lives in `app/dashboard/loans/[id]/page.tsx`. The workflow panel and artifact forms submit to `app/api/loans/[id]/workflow/route.ts`; `lib/workflow/fkg-scheme.ts` defines valid transitions and actors.
+- The workflow route rejects administrators/auditors and inactive roles, validates a strict request schema, computes registration FX metadata on the server, checks committee unanimity, detects zero-row updates, and writes history using the live columns `loan_id`, `action`, `old_status`, `new_status`, `performed_by`.
+- Committee state lives in `app/dashboard/committee/page.tsx`; meeting writes and vote controls live in `components/committee/meeting-card.tsx`. These still issue direct Supabase writes, so protocol immutability and all decision invariants ultimately need database enforcement, not just API/UI checks.
+- `scripts/020_cgf_protect_profile_privileged_fields.sql` and `021_cgf_add_employee_flags.sql` record profile protection/flags. `022_cgf_non_overridable_write_prohibitions.sql` records the applied database restrictions: active-role writers only, auditor write denial, administrator committee write denial, and administrator decision-field guards on loans/claims.
+- Focused checks: `pnpm verify:scheme`; run `scripts/verify-role-prohibitions.ts` and `scripts/verify-employee-flags.ts` with the same Node strip-types/alias-loader options used by that script. Latest results: 156 workflow checks, 68 role assertions, 15 employee-flag assertions passed. Full TypeScript checking has 51 implicit-any diagnostics outside the changed workflow files. Authenticated browser checks require a valid login session; the fresh browser only verified redirection to login.
+
+## Unfinished CGF document implementation
+
+Do not treat these as completed based on the earlier audit section:
+
+1. **Role and user migration:** employee flags exist, but legacy `kkg_member`, `kkg_secretary`, and `uko_officer` assignments still need coordinated conversion to base roles plus flags. Wire those flags through actor checks, member selection, user labels, and permission policies before retiring legacy codes. Add the remaining document roles consistently.
+2. **Committee redesign:** API/evaluator now require unanimous consent of all assigned seats, but legacy 3/4/5 quorum bands and manual seating remain. Implement auto-selection of 2–3 operations staff, configurable director threshold, claims committee composition, senior-chair selection, one-working-day deadlines/escalation, all-member protocol signatures, immutable closed protocols, and new sittings for reconsideration. Enforce these in database transactions/RLS to cover direct Data API writes too.
+3. **Deputy/director signing:** add recorded deputy confirmation before director signing, with temporary authorized delegation. Step 14 remains absent in the legacy issuance registry and its verification explicitly reports the gap.
+4. **Admin settings/features:** configurable thresholds and feature switches for the document's requested capabilities, including direct officer submission, bank-system reporting, business development, stage notes, fee/portfolio tools, and bulk portfolio guarantees. A switch alone must not claim an unimplemented backend capability works.
+5. **Remaining hard-boundary audit:** verify cross-bank isolation, fund-only borrower credit history/audit access, invited-case lawyer visibility, administrator deletion paths, service-role API paths, and authenticated allow/deny behavior end to end.
+6. **Atomicity and verification:** status update and history insertion are separate operations (failures are now surfaced); protocol/agenda/status updates are also separate. Move them to authorized transactional RPCs. Resolve remaining TypeScript diagnostics and complete authenticated end-to-end tests before declaring the whole CGF pass finished.
