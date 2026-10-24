@@ -17,7 +17,7 @@ import type { LoanStatus, RoleCode } from '@/lib/types/database'
 import { ROLE_CODES } from '@/lib/types/database'
 import { canServeAsSecretary, canServeOnLoanCommittee, type EmployeeFlags } from '@/lib/employee-flags'
 
-/** Guideline threshold that decides whether a full assessment is required. */
+/** Exposure threshold that requires a separate Credit Risk opinion. */
 export const ASSESSMENT_THRESHOLD_USD = 10_000
 
 /** Assessment note SLA from the scheme (step 5). */
@@ -266,17 +266,7 @@ export function toUsd(amount: number | null, usdRate: number | null): number | n
   return amount / usdRate
 }
 
-/**
- * Gate D routing. Returns null when the USD amount is unknown, which the caller
- * must treat as "cannot decide yet" rather than as "no assessment needed" —
- * silently skipping the assessment would be an audit finding.
- *
- * The threshold is INCLUSIVE: an exposure of exactly 10,000.00 USD requires the
- * full assessment note. Confirmed against the Guideline's "from 10,000 USD and
- * above" reading. Do not weaken this to `>` without a documented basis — it is
- * the difference between a round-number case getting a full review or skipping
- * straight to Credit Risk.
- */
+/** Every application needs an assessment; exposure and rating govern the separate risk review. */
 export function requiresAssessment(_amountUsd: number | null): boolean {
   return true
 }
@@ -293,9 +283,7 @@ export function requiresRiskReview(amountUsd: number | null, riskRating: string 
 export function requiredQuorum(amountUsd: number | null): number {
   if (amountUsd == null) return 5 // unknown exposure: demand the stricter quorum
   if (amountUsd >= 100_000) return 5
-  // Inclusive, to match requiresAssessment above. If this stayed exclusive, an
-  // exposure of exactly 10,000 USD would require the full assessment note yet
-  // sit in the smallest quorum band — the same boundary read two ways.
+  // Inclusive, matching the separate Credit Risk routing threshold.
   if (amountUsd >= ASSESSMENT_THRESHOLD_USD) return 4
   return 3
 }

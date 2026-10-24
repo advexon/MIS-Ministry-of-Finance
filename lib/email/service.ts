@@ -8,6 +8,7 @@ export interface EmailOptions {
   html: string
   text?: string
   replyTo?: string
+  idempotencyKey?: string
 }
 
 export interface EmailResult {
@@ -25,22 +26,27 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
     return { success: false, error: 'Email service not configured' }
   }
 
+  const domain = process.env.RESEND_EMAIL_DOMAIN?.trim()
+  const from = process.env.EMAIL_FROM?.trim() || (domain ? `CGF MIS <notifications@${domain}>` : null)
+  if (!from) return { success: false, error: 'A verified sender domain must be configured before sending email' }
+
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'PRSF MIS <noreply@prsf.tj>',
+      from,
       to: Array.isArray(options.to) ? options.to : [options.to],
       subject: options.subject,
       html: options.html,
       text: options.text,
       replyTo: options.replyTo,
-    })
+    }, options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : undefined)
 
     if (error) {
-      console.error('Email send error:', error)
+      console.error('Email send error:', error.name)
       return { success: false, error: error.message }
     }
 
-    return { success: true, id: data?.id }
+    if (!data?.id) return { success: false, error: 'Email provider did not acknowledge the message' }
+    return { success: true, id: data.id }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error'
     console.error('Email exception:', errorMsg)
