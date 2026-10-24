@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { withPermission } from "@/lib/middleware/api-protection"
+import { employeeFlagKeys, employeeFlagUpdateError, userUpdateSchema } from "@/lib/employee-flags"
 
 /**
  * Caller identity resolved by `withPermission`. Every handler in this file is
@@ -111,20 +112,21 @@ export const PATCH = withPermission(
   async (request: NextRequest, { caller }: { caller: Caller }) => {
     try {
       const supabase = getAdminClient()
-      const body = await request.json()
-
-      const { userId, first_name, last_name, phone, role_id, bank_id, is_active } = body
-
-      if (!userId) {
-        return NextResponse.json({ error: "userId is required" }, { status: 400 })
+      const parsed = userUpdateSchema.safeParse(await request.json().catch(() => null))
+      if (!parsed.success) {
+        return NextResponse.json({ error: "Invalid profile update", details: parsed.error.flatten() }, { status: 400 })
       }
+      const body = parsed.data
+      const { userId, first_name, last_name, phone, role_id, bank_id, is_active } = body
+      const flagError = employeeFlagUpdateError(body, caller, userId)
+      if (flagError) return NextResponse.json({ error: flagError }, { status: 403 })
 
       // Load the target once, for bank-isolation, privilege checks, and the
       // before-image recorded in the audit trail.
       const { data: targetProfile } = await supabase
         .from("profiles")
         .select(
-          "first_name, last_name, phone, role_id, bank_id, is_active, role:roles(tier)",
+          "first_name, last_name, phone, role_id, bank_id, is_active, specialist_level, department, is_department_head, is_loan_committee_member, is_claims_committee_member, is_committee_secretary, product_tags, role:roles(tier)",
         )
         .eq("id", userId)
         .single()
@@ -208,6 +210,9 @@ export const PATCH = withPermission(
       if (role_id !== undefined) updateData.role_id = role_id || null
       if (bank_id !== undefined) updateData.bank_id = bank_id || null
       if (is_active !== undefined) updateData.is_active = is_active
+      for (const key of employeeFlagKeys) {
+        if (body[key] !== undefined) updateData[key] = body[key]
+      }
 
       const { data, error } = await supabase
         .from("profiles")

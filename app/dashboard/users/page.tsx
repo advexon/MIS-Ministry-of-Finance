@@ -221,8 +221,8 @@ export default function UsersPage() {
           first_name: editFirstName,
           last_name: editLastName,
           phone: editPhone,
-          role_id: editRoleId,
-          bank_id: editBankId,
+          ...(editRoleId && editRoleId !== selectedUser.role_id ? { role_id: editRoleId } : {}),
+          bank_id: editBankId && editBankId !== "none" ? editBankId : null,
           is_active: editIsActive,
         }),
       })
