@@ -49,15 +49,15 @@ BEGIN
       'Audit lost zero/null report amounts';
 
     EXECUTE 'set local role authenticated';
-    BEGIN
-      UPDATE public.guarantee_reports SET status='submitted' WHERE id=report;
-      RAISE EXCEPTION 'Bank submission unexpectedly bypassed the unresolved status WITH CHECK';
-    EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+    UPDATE public.guarantee_reports SET status='submitted',submission_date=now() WHERE id=report;
+    GET DIAGNOSTICS expected=ROW_COUNT;
+    ASSERT expected=1, 'Authenticated bank submission did not update one report';
     EXECUTE 'reset role';
-    PERFORM set_config('request.jwt.claim.sub',actor::text,true);
-    EXECUTE 'set local role authenticated';
-    UPDATE public.guarantee_reports SET status='submitted' WHERE id=report;
-    EXECUTE 'reset role';
+    ASSERT (SELECT status='submitted' FROM public.guarantee_reports WHERE id=report),
+      'Bank submission did not persist the submitted status';
+    ASSERT EXISTS(SELECT 1 FROM public.guarantee_report_audit WHERE report_id=report
+      AND old_status='draft' AND new_status='submitted' AND performed_by=bank_user),
+      'Bank submission audit actor/status incorrect';
     SELECT count(*) INTO expected FROM public.profiles p JOIN public.roles r ON r.id=p.role_id
       WHERE p.is_active IS TRUE AND r.is_active IS TRUE AND r.code IN ('prsf_admin','prsf_analyst');
     ASSERT (SELECT count(*)=expected FROM public.notifications n WHERE n.link=report_link AND n.type='info'),
@@ -91,9 +91,10 @@ BEGIN
     IF outcome='revision_requested' THEN
       UPDATE public.profiles SET is_active=false WHERE id=actor;
       PERFORM set_config('request.jwt.claim.sub',bank_user::text,true);
-      -- Trusted execution isolates trigger behavior from the known bank submission RLS blocker.
-      EXECUTE 'set local role service_role';
-      UPDATE public.guarantee_reports SET status='submitted' WHERE id=report;
+      EXECUTE 'set local role authenticated';
+      UPDATE public.guarantee_reports SET status='submitted',submission_date=now() WHERE id=report;
+      GET DIAGNOSTICS expected=ROW_COUNT;
+      ASSERT expected=1, 'Authenticated bank resubmission did not update one report';
       EXECUTE 'reset role';
       ASSERT (SELECT count(*)=1 FROM public.notifications n WHERE n.link=report_link AND n.user_id=actor AND n.type='info'),
         'Inactive administrator received resubmission';
@@ -134,4 +135,4 @@ BEGIN
 END;
 $test$;
 ROLLBACK;
-SELECT 'Report trigger regressions passed through authenticated admin and trusted resubmission paths; all fixtures and temporary identity changes rolled back. Bank submission RLS and delete-audit FK remain unresolved.' AS result;
+SELECT 'Report trigger regressions passed through authenticated bank submission/resubmission and admin review; all fixtures and temporary identity changes rolled back. Delete-audit FK remains unresolved.' AS result;
