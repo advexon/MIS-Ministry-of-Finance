@@ -278,18 +278,6 @@ export function requiresRiskReview(amountUsd: number | null, riskRating: string 
     !riskRating || riskRating === 'elevated' || riskRating === 'high'
 }
 
-/**
- * ККГ quorum. The scheme ties committee composition to exposure, so larger
- * guarantees need more members present.
- */
-export function requiredQuorum(amountUsd: number | null): number {
-  if (amountUsd == null) return 5 // unknown exposure: demand the stricter quorum
-  if (amountUsd >= 100_000) return 5
-  // Inclusive, matching the separate Credit Risk routing threshold.
-  if (amountUsd >= ASSESSMENT_THRESHOLD_USD) return 4
-  return 3
-}
-
 export interface VoteTally {
   for: number
   against: number
@@ -301,35 +289,6 @@ export function tallyVotes(votes: { vote: 'for' | 'against' | 'abstain' }[]): Vo
   const t: VoteTally = { for: 0, against: 0, abstain: 0, total: votes.length }
   for (const v of votes) t[v.vote] += 1
   return t
-}
-
-export interface QuorumResult {
-  quorumMet: boolean
-  carried: boolean
-  reason: string
-}
-
-/** Every assigned member must vote in favour; an abstention is not consent. */
-export function evaluateCommitteeOutcome(
-  tally: VoteTally,
-  requiredQuorumCount: number,
-  assignedMemberCount = requiredQuorumCount,
-): QuorumResult {
-  if (requiredQuorumCount < 1 || assignedMemberCount < requiredQuorumCount || tally.total < requiredQuorumCount) {
-    return {
-      quorumMet: false,
-      carried: false,
-      reason: `Quorum not met: ${tally.total} of ${requiredQuorumCount} required members voted.`,
-    }
-  }
-  if (tally.total === assignedMemberCount && tally.for === assignedMemberCount) {
-    return { quorumMet: true, carried: true, reason: `Unanimous: all ${assignedMemberCount} assigned members voted in favour.` }
-  }
-  return {
-    quorumMet: true,
-    carried: false,
-    reason: `Not unanimous: ${tally.for} in favour, ${tally.against} against, ${tally.abstain} abstained; all ${assignedMemberCount} assigned members must vote in favour.`,
-  }
 }
 
 export function isWorkflowReadOnlyRole(roleCode: string | null | undefined): boolean {

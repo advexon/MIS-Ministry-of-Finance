@@ -23,11 +23,10 @@ import {
   getStepByNumber,
   requiresAssessment,
   requiresRiskReview,
-  requiredQuorum,
   toUsd,
-  evaluateCommitteeOutcome,
   tallyVotes,
 } from '@/lib/workflow/fkg-scheme'
+import * as scheme from '@/lib/workflow/fkg-scheme'
 import { workflowRequestSchema } from '@/lib/workflow/transition-input'
 import { ROLE_CODES } from '@/lib/types/database'
 import type { LoanStatus } from '@/lib/types/database'
@@ -96,19 +95,8 @@ check('eligibility cannot bypass the assessment', !canTransition('eligibility_re
 check('assessment can route small low-risk cases to committee', canTransition('assessment', 'kkg_scheduled'))
 check('committee clarification returns to assessment', canTransition('docs_incomplete', 'assessment'))
 
-// ── 5b. Quorum bands read the same boundary the same way ─────────────────────
-// The 10,000 constant drives both routing and quorum. If the two disagreed, an
-// exposure of exactly 10,000 would need a full assessment yet sit in the
-// smallest quorum band, so the boundary is pinned in both directions.
-check('9,999 USD needs quorum of 3', requiredQuorum(9_999) === 3)
-check('10,000 USD needs quorum of 4 (inclusive)', requiredQuorum(10_000) === 4)
-check('99,999 USD needs quorum of 4', requiredQuorum(99_999) === 4)
-check('100,000 USD needs quorum of 5 (inclusive)', requiredQuorum(100_000) === 5)
-check('unknown exposure demands the strictest quorum', requiredQuorum(null) === 5)
-check(
-  'assessment and quorum agree at the boundary',
-  requiresAssessment(10_000) === true && requiredQuorum(10_000) > 3,
-)
+check('legacy exposure-based quorum calculator is not exported', !('requiredQuorum' in scheme))
+check('legacy client-side committee evaluator is not exported', !('evaluateCommitteeOutcome' in scheme))
 
 // ── 6. Role lanes ────────────────────────────────────────────────────────────
 const step2 = STEP_BY_STATUS['uko_registration']!
@@ -139,13 +127,19 @@ for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AU
 for (const code of [ROLE_CODES.KKG_MEMBER, ROLE_CODES.KKG_SECRETARY, ROLE_CODES.UKO_OFFICER]) {
   check(`${code} retired role has no workflow authority`, SCHEME_STEPS.every((step) => !canActOnStep(code, step, committeeFlags)))
 }
-const unanimous = tallyVotes([{ vote: 'for' }, { vote: 'for' }, { vote: 'for' }])
-check('all assigned members in favour carries', evaluateCommitteeOutcome(unanimous, 3, 3).carried)
-check('majority is not unanimity', !evaluateCommitteeOutcome(tallyVotes([{ vote: 'for' }, { vote: 'for' }, { vote: 'against' }]), 3, 3).carried)
-check('abstention prevents consent', !evaluateCommitteeOutcome(tallyVotes([{ vote: 'for' }, { vote: 'for' }, { vote: 'abstain' }]), 3, 3).carried)
-check('missing assigned vote prevents consent', !evaluateCommitteeOutcome(unanimous, 3, 4).carried)
-check('extra votes cannot create consent', !evaluateCommitteeOutcome(unanimous, 2, 2).carried)
-check('empty committee cannot carry', !evaluateCommitteeOutcome(tallyVotes([]), 0, 0).carried)
+for (const [label, votes, expected] of [
+  ['empty', [], { for: 0, against: 0, abstain: 0, total: 0 }],
+  ['all for', [{ vote: 'for' }, { vote: 'for' }, { vote: 'for' }], { for: 3, against: 0, abstain: 0, total: 3 }],
+  ['all against', [{ vote: 'against' }, { vote: 'against' }], { for: 0, against: 2, abstain: 0, total: 2 }],
+  ['mixed', [{ vote: 'for' }, { vote: 'against' }, { vote: 'abstain' }], { for: 1, against: 1, abstain: 1, total: 3 }],
+  ['abstentions', [{ vote: 'abstain' }, { vote: 'abstain' }], { for: 0, against: 0, abstain: 2, total: 2 }],
+] as const) {
+  const input = votes.map(vote => Object.freeze({ ...vote }))
+  const before = JSON.stringify(input)
+  const actual = tallyVotes(input)
+  check(`${label} display tally counts every category`, JSON.stringify(actual) === JSON.stringify(expected))
+  check(`${label} display tally preserves its input`, JSON.stringify(input) === before)
+}
 check('valid registration payload accepted', workflowRequestSchema.safeParse({ to: 'eligibility_review', payload: { usd_rate: 10.95 } }).success)
 for (const value of [null, [], { to: 'approved', payload: { status: 'approved' } }, { to: 'approved', payload: { usd_rate: 1, bank_id: 'other-bank' } }, { to: 'eligibility_review', payload: { usd_rate: 0 } }, { to: 'eligibility_review', payload: { usd_rate: -1 } }]) {
   check(`unsafe request rejected: ${JSON.stringify(value)}`, !workflowRequestSchema.safeParse(value).success)
