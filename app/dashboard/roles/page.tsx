@@ -4,7 +4,7 @@ import { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
 import { useI18n } from "@/lib/i18n/context"
-import { usePermissions, AdminOnly } from "@/lib/contexts/permission-context"
+import { usePermissions } from "@/lib/contexts/permission-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -16,9 +16,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -34,7 +31,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { Separator } from "@/components/ui/separator"
 import {
   Shield,
   Lock,
@@ -94,7 +90,7 @@ const tierColors: Record<number, string> = {
 }
 
 export default function RolesPage() {
-  const { t, locale } = useI18n()
+  const { locale } = useI18n()
   const { role: userRole, user, refreshPermissions } = usePermissions()
 
   const [saving, setSaving] = useState(false)

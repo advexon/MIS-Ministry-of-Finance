@@ -5,7 +5,7 @@ import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { getLocalizedName } from '@/lib/utils/localized-name'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -95,9 +95,6 @@ export default function BanksPage() {
     }
     setSaving(false)
   }
-
-  const fmt = (v: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 }).format(v)
 
   const filtered = banks.filter(b => {
     const name = getBankName(b)

@@ -45,7 +45,7 @@ export default function NewLoanPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set())
-  const [showValidationSummary, setShowValidationSummary] = useState(false)
+  const [, setShowValidationSummary] = useState(false)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
 
   const { data: referenceData, isLoading: loading } = usePageQuery<{ banks: Bank[]; sectors: Sector[]; products: LoanProduct[] }>(["loan-form-options"], async () => {
@@ -98,7 +98,7 @@ export default function NewLoanPage() {
   // Loan fields
   const [bankId, setBankId] = useState("")
   const [branchId, setBranchId] = useState("")
-  const [productId, setProductId] = useState("")
+  const [productId] = useState("")
   const [requestedAmount, setRequestedAmount] = useState("")
   const [currency, setCurrency] = useState("TJS")
   const [loanTerm, setLoanTerm] = useState("")
@@ -123,7 +123,7 @@ export default function NewLoanPage() {
   const [collateralDescription, setCollateralDescription] = useState("")
   const [covenantBank, setCovenantBank] = useState("")
   const [covenantPrsf, setCovenantPrsf] = useState("")
-  const [guarantors, setGuarantors] = useState<Guarantor[]>([{ name: "", id_number: "", relationship: "" }])
+  const [guarantors] = useState<Guarantor[]>([{ name: "", id_number: "", relationship: "" }])
 
   const [notes, setNotes] = useState("")
 
@@ -171,7 +171,6 @@ export default function NewLoanPage() {
     validateField,
     validateStep,
     stepsStatus,
-    canProceedToStep,
     allErrors,
     isFormValid,
     isRequired,
@@ -187,7 +186,6 @@ export default function NewLoanPage() {
     startAutoSave,
     stopAutoSave,
     updateFormData,
-    clearCurrentDraft,
     calculateCompletion,
   } = useLoanDraft({
     autoSaveInterval: 30000,
@@ -435,14 +433,6 @@ export default function NewLoanPage() {
     // Mark as loaded and close dialog
     setBorrowerLoaded(true)
     setShowDuplicateDialog(false)
-  }
-
-  const addGuarantor = () => setGuarantors([...guarantors, { name: "", id_number: "", relationship: "" }])
-  const removeGuarantor = (i: number) => setGuarantors(guarantors.filter((_, idx) => idx !== i))
-  const updateGuarantor = (i: number, field: keyof Guarantor, value: string) => {
-    const updated = [...guarantors]
-    updated[i] = { ...updated[i], [field]: value }
-    setGuarantors(updated)
   }
 
   // Step navigation with validation

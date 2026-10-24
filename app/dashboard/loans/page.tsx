@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, FileText, Download, Loader2, RefreshCw } from "lucide-react"
 import { toCSV, downloadCSV } from "@/lib/utils/export"
@@ -175,7 +175,6 @@ function LoansContent() {
   // Summary stats
   const activeLoans = loans.filter((l) => ["active", "disbursed", "rescheduled", "defaulted"].includes(l.status)).length
   const pendingLoans = loans.filter((l) => l.status === "submitted" || l.status === "under_review").length
-  const totalAmount = loans.reduce((s, l) => s + (l.approved_amount || 0), 0)
 
   return (
     <div className="p-6 lg:p-8">

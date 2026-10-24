@@ -3,8 +3,6 @@
 import { use, useState, useRef } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { usePermissions } from "@/lib/contexts/permission-context"
-import { useRouter } from "next/navigation"
-import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
   ArrowLeft, Printer, CheckCircle2, XCircle, Shield, Banknote,
-  RefreshCw, AlertTriangle, TrendingDown, Loader2, ChevronRight,
+  RefreshCw, AlertTriangle, TrendingDown, Loader2,
   Building2, User, Calendar, DollarSign, FileText, Clock,
   Download, Eye, FileCheck,
 } from "lucide-react"
@@ -182,7 +180,6 @@ function getAvailableActions(status: string, userRole: string): string[] {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
-  const router = useRouter()
   const supabase = createClient()
 
   const { role } = usePermissions()
@@ -398,7 +395,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         quality: 2,
       })
       showToast("PDF downloaded successfully")
-    } catch (error) {
+    } catch {
       showToast("Failed to generate PDF", "error")
     } finally {
       setDownloadingPDF(false)

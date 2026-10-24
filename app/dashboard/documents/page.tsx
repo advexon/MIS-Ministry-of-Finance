@@ -3,14 +3,13 @@
 import { useState, useMemo } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -36,8 +35,6 @@ import {
   FileDown,
   Layers,
   Search,
-  Clock,
-  CheckCircle2,
   AlertCircle,
   RefreshCw,
   GripVertical,
@@ -87,15 +84,6 @@ const COND_STYLES = [
   { value: 'green',     label: 'Green row' },
   { value: 'yellow',    label: 'Yellow row' },
 ]
-
-const condStyleClass: Record<string, string> = {
-  red:    'bg-red-50',
-  green:  'bg-green-50',
-  yellow: 'bg-yellow-50',
-  bold:   'font-bold',
-  italic: 'italic',
-  highlight: 'bg-primary/10',
-}
 
 const badgeVariantMap: Record<string, string> = {
   active:          'bg-green-100 text-green-800',

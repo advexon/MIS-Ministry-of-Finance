@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
-import { usePermissions, CanAccess } from "@/lib/contexts/permission-context"
+import { usePermissions } from "@/lib/contexts/permission-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -129,7 +129,7 @@ function UserManagement() {
   const [newPhone, setNewPhone] = useState("")
   const [newRoleId, setNewRoleId] = useState("")
   const [newBankId, setNewBankId] = useState("")
-  const [newBranchId, setNewBranchId] = useState("")
+  const [, setNewBranchId] = useState("")
   const [creating, setCreating] = useState(false)
 
   // Edit form state
@@ -160,7 +160,6 @@ function UserManagement() {
   const users = directory?.users ?? []
   const roles = directory?.roles ?? []
   const banks = directory?.banks ?? []
-  const branches = directory?.branches ?? []
   const loading = isLoading || isValidating
   const fetchData = () => mutate()
 

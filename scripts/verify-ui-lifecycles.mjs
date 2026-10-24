@@ -73,6 +73,57 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   console.log('Dashboard activity formatter checks passed: minute/hour/day boundaries and existing future/invalid-date behavior')
 }
 
+{
+  const filename = 'app/auth/login/page.tsx'
+  const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let loginHandler
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === 'handleLogin') loginHandler = node
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(loginHandler, 'Login submission handler must exist')
+  const compiled = ts.transpileModule(`const ${loginHandler.getText(source)}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const email = 'login-regression@example.invalid'
+  const password = 'test-only-not-a-real-password'
+  for (const scenario of ['success', 'credentials', 'unexpected']) {
+    const events = []
+    const submit = runInNewContext(`${compiled}\nhandleLogin`, {
+      email,
+      password,
+      Error,
+      createClient: () => ({
+        auth: {
+          signInWithPassword: async input => {
+            assert.equal(input.email, email)
+            assert.equal(input.password, password)
+            events.push('authenticate')
+            if (scenario === 'unexpected') throw new Error('Service unavailable')
+            return { error: scenario === 'credentials' ? new Error('Invalid login credentials') : null }
+          },
+        },
+      }),
+      setIsLoading: value => events.push(['loading', value]),
+      setError: value => events.push(['error', value]),
+      router: {
+        push: path => events.push(['navigate', path]),
+        refresh: () => events.push('refresh'),
+      },
+    })
+    await submit({ preventDefault: () => events.push('preventDefault') })
+    assert.deepEqual(events, [
+      'preventDefault', ['loading', true], ['error', null], 'authenticate',
+      ...(scenario === 'success'
+        ? [['navigate', '/dashboard'], 'refresh']
+        : [['error', scenario === 'credentials' ? 'Incorrect email or password. Please try again.' : 'Service unavailable']]),
+      ['loading', false],
+    ], `Login ${scenario}: authenticate before navigation, refresh only on success, and clear loading`)
+  }
+  console.log('Login handler checks passed: successful navigation/refresh, credential errors and rejected auth requests')
+}
+
 const navigationSource = ts.createSourceFile(
   'dashboard-shell.tsx',
   readFileSync(resolve(root, 'components/dashboard/dashboard-shell.tsx'), 'utf8'),

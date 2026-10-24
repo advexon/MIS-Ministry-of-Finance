@@ -34,7 +34,6 @@ import {
   Users,
   Building2,
   UserCheck,
-  Loader2,
   RefreshCw,
 } from "lucide-react"
 import type { Borrower } from "@/lib/types/database"
@@ -81,13 +80,6 @@ export default function BorrowersPage() {
     }
   })
   const { totalCount = 0, activeCount = 0, entityCount = 0 } = summary ?? {}
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "TJS",
-      minimumFractionDigits: 0,
-    }).format(val)
 
   // Borrowers are stored using the database vocabulary (llc / sole_proprietor / ...),
   // so map those to labels as well as the legacy form values.

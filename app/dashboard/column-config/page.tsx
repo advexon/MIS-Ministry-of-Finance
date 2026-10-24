@@ -21,8 +21,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { 
   Settings2, Eye, EyeOff, Lock, Unlock, Save, RotateCcw, 
   GripVertical, AlertTriangle, CheckCircle2, FileText, 
-  Users, Building2, Shield, Package, ClipboardList, Loader2,
-  ArrowUpDown, Search
+  Users, Shield, Package, ClipboardList, Loader2,
+  Search
 } from "lucide-react"
 import type { ColumnConfiguration, ColumnFieldGroup, ColumnInputType } from "@/lib/types/database"
 
@@ -81,7 +81,7 @@ const defaultColumns: Partial<ColumnConfiguration>[] = [
 ]
 
 export default function ColumnConfigPage() {
-  const { t, locale } = useI18n()
+  const { locale } = useI18n()
   const { role } = usePermissions()
   const supabase = useMemo(() => createClient(), [])
 
@@ -90,7 +90,6 @@ export default function ColumnConfigPage() {
   const [saving, setSaving] = useState(false)
   const [selectedColumn, setSelectedColumn] = useState<Partial<ColumnConfiguration> | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [previewMode, setPreviewMode] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)

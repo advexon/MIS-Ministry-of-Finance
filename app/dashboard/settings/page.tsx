@@ -48,7 +48,7 @@ export default function SettingsPage() {
       }
       setLoading(false)
     })
-  }, [])
+  }, [supabase])
 
   const getVal = (key: string, field: string, fallback: unknown) => {
     return (settings[key]?.value?.[field] ?? fallback) as string | number | boolean

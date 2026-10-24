@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -96,7 +96,6 @@ const STATUS_CONFIG: Record<string, { label: string; className: string; icon: Re
 
 export default function GuaranteeReportDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const { t } = useI18n()
   const { toast } = useToast()
   const supabase = createClient()

@@ -267,7 +267,9 @@ export function toUsd(amount: number | null, usdRate: number | null): number | n
 }
 
 /** Every application needs an assessment; exposure and rating govern the separate risk review. */
-export function requiresAssessment(_amountUsd: number | null): boolean {
+export function requiresAssessment(amountUsd: number | null): boolean {
+  // Retain the exposure argument for callers; assessment is mandatory at every amount.
+  void amountUsd
   return true
 }
 

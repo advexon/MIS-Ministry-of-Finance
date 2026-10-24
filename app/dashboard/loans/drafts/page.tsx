@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   FileEdit,
   Trash2,
@@ -57,7 +56,7 @@ import { usePermissions } from "@/lib/contexts/permission-context"
 
 export default function DraftsPage() {
   const now = useCurrentTime()
-  const { t, locale } = useI18n()
+  const { locale } = useI18n()
   const router = useRouter()
   const supabase = createClient()
   const { can } = usePermissions()
