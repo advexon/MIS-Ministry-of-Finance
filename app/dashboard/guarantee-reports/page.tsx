@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useState, Suspense } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -103,16 +104,13 @@ function GuaranteeReportsContent() {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  const [reports, setReports] = useState<GuaranteeReport[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [selected, setSelected] = useState<string[]>([])
   const [batchLoading, setBatchLoading] = useState(false)
 
-  const fetchReports = useCallback(async () => {
-    setLoading(true)
+  const { data: reports = [], isLoading, isValidating, mutate } = usePageQuery<GuaranteeReport[]>(['guarantee-reports', statusFilter, typeFilter], async () => {
     let query = supabase
       .from('guarantee_reports')
       .select('*, banks(name_en, code)')
@@ -121,13 +119,13 @@ function GuaranteeReportsContent() {
     if (statusFilter !== 'all') query = query.eq('status', statusFilter)
     if (typeFilter !== 'all') query = query.eq('report_type', typeFilter)
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) throw error
     // PostgREST returns embedded relations as arrays; flatten to one record.
-    setReports((data || []).map((r) => ({ ...r, banks: one(r.banks) })))
-    setLoading(false)
-  }, [supabase, statusFilter, typeFilter])
-
-  useEffect(() => { fetchReports() }, [fetchReports])
+    return (data ?? []).map((report) => ({ ...report, banks: one(report.banks) }))
+  })
+  const loading = isLoading || isValidating
+  const fetchReports = () => mutate()
 
   const filtered = reports.filter(r => {
     const bankName = r.banks?.name_en?.toLowerCase() || ''

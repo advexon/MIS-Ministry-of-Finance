@@ -161,12 +161,11 @@ console.log('Permission wrapper checks passed: denial, hiding, disabled props, c
     { column_key: 'hidden', is_required: true, is_visible_in_form: false },
   ].map(column => ({ field_group: 'loan', is_visible_in_form: true, ...column }))
   let context
-  let stateIndex = 0
   const columnModule = loadSource('lib/contexts/column-config-context.tsx', {
     '@/lib/supabase/client': { createClient() { throw new Error('Validation checks must not query the database') } },
+    '@/lib/hooks/use-page-query': { usePageQuery: () => ({ data: columns, isLoading: false, isValidating: false, mutate: async () => columns }) },
     react: {
       ...React,
-      useState: initial => [stateIndex++ === 0 ? columns : initial, () => {}],
       useEffect: () => {},
       useCallback: callback => callback,
       useMemo: factory => factory(),
@@ -215,6 +214,174 @@ console.log('Permission wrapper checks passed: denial, hiding, disabled props, c
   assert.deepEqual(Array.from(grouped.getRequiredFieldsForGroup('loan'), column => column.column_key), ['amount', 'system'])
   assert.equal(Object.values(missing).flat().length, 2)
   console.log('Column validation checks passed: required/optional values, numeric bounds/coercion, formats, lengths, regex and grouped errors')
+}
+
+{
+  let identity = { user: { id: 'user-a' }, role: { id: 'role-a' } }
+  const requests = []
+  const response = { data: 'cached', mutate: async () => 'refreshed' }
+  const { usePageQuery: queryHarness } = loadSource('lib/hooks/use-page-query.ts', {
+    '@/lib/contexts/permission-context': { usePermissions: () => identity },
+    swr: (key, fetcher, options) => { requests.push({ key, fetcher, options }); return response },
+  })
+  const fetcher = async () => ['record']
+  assert.equal(queryHarness(['loans', 0, 'active'], fetcher), response)
+  assert.deepEqual(Array.from(requests[0].key), ['dashboard', 'user-a', 'role-a', 'loans', 0, 'active'])
+  assert.equal(requests[0].fetcher, fetcher)
+  assert.equal(requests[0].options.revalidateOnFocus, false)
+  assert.equal(requests[0].options.shouldRetryOnError, false)
+  queryHarness(['loans', 1, 'active'], fetcher)
+  identity = { ...identity, user: { id: 'user-b' } }
+  queryHarness(['loans', 0, 'active'], fetcher)
+  identity = { ...identity, role: { id: 'role-b' } }
+  queryHarness(['loans', 0, 'active'], fetcher)
+  assert.equal(new Set(requests.map(request => JSON.stringify(request.key))).size, 4)
+  queryHarness(null, fetcher)
+  assert.equal(requests.at(-1).key, null)
+  assert.equal(await response.mutate(), 'refreshed')
+  console.log('Dashboard query contract checks passed: user/role isolation, filter/page keys, disabled queries and refresh forwarding')
+}
+
+{
+  let loadedRole = 'role-a'
+  let observedOverrides
+  let refreshes = 0
+  const storedOverrides = { loans: { can_view: true } }
+  const provider = loadSource('lib/contexts/permission-context.tsx', {
+    react: { ...React, useCallback: callback => callback },
+    swr: key => ({
+      data: key[2] === loadedRole ? storedOverrides : undefined,
+      isLoading: key[2] !== loadedRole,
+      isValidating: false,
+      mutate: async () => { refreshes++ },
+    }),
+    '@/lib/utils/permissions': {
+      hasPermission: (_role, _resource, _permission, overrides) => { observedOverrides = overrides; return true },
+      getResourcePermissions: () => null,
+    },
+  })
+  const valueFor = roleId => provider.PermissionProvider({ user: { id: 'user-a' }, role: { id: roleId }, children: null }).props.value
+  const loaded = valueFor('role-a')
+  loaded.can('loans', 'view')
+  assert.equal(observedOverrides, storedOverrides)
+  assert.equal(loaded.permissionsLoading, false)
+  const changed = valueFor('role-b')
+  changed.can('loans', 'view')
+  assert.equal(observedOverrides, null, 'A different role must never inherit the previous role overrides')
+  assert.equal(changed.permissionsLoading, true)
+  loadedRole = 'role-b'
+  assert.equal(valueFor('role-b').permissionsLoading, false)
+  await changed.refreshPermissions()
+  assert.equal(refreshes, 1)
+  console.log('Permission loader contract checks passed: loaded overrides, role-change isolation, loading fallback and awaited refresh')
+}
+
+function sourceTree(relativePath) {
+  return ts.createSourceFile(relativePath, readFileSync(resolve(root, relativePath), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+}
+
+function findNode(source, predicate) {
+  let result
+  function visit(node) {
+    if (result) return
+    if (predicate(node)) result = node
+    else ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(result, `Expected source node in ${source.fileName}`)
+  return result
+}
+
+function sourceExpression(relativePath, name, bindings) {
+  const source = sourceTree(relativePath)
+  const declaration = findNode(source, node => ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name)
+  const compiled = ts.transpileModule(`const result = ${declaration.initializer.getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  return runInNewContext(`${compiled}\nresult`, { ...bindings })
+}
+
+function pageFetcher(relativePath, keyName, bindings) {
+  const source = sourceTree(relativePath)
+  const call = findNode(source, node => {
+    if (!ts.isCallExpression(node) || node.expression.getText(source) !== 'usePageQuery') return false
+    let matches = false
+    function visitKey(child) {
+      if (ts.isStringLiteral(child) && child.text === keyName) matches = true
+      ts.forEachChild(child, visitKey)
+    }
+    visitKey(node.arguments[0])
+    return matches
+  })
+  const compiled = ts.transpileModule(`const fetcher = ${call.arguments[1].getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  return runInNewContext(`${compiled}\nfetcher`, bindings)
+}
+
+function queryFixture(data, error = null) {
+  const operations = []
+  const query = { then: (fulfilled, rejected) => Promise.resolve({ data, error }).then(fulfilled, rejected) }
+  for (const method of ['select', 'order', 'eq', 'in', 'limit']) {
+    query[method] = (...args) => { operations.push([method, ...args]); return query }
+  }
+  return { client: { from: table => { operations.push(['from', table]); return query } }, operations }
+}
+
+{
+  const { one } = loadSource('lib/utils/supabase-relation.ts')
+  for (const relation of [
+    { loan_number: 'L-1', bank: { name_en: 'Bank' }, borrower: { name: 'Borrower' } },
+    [{ loan_number: 'L-1', bank: [{ name_en: 'Bank' }], borrower: [{ name: 'Borrower' }] }],
+    null,
+    [],
+  ]) {
+    const fixture = queryFixture([{ id: 'fee-1', loan_application: relation }])
+    const fetcher = pageFetcher('app/dashboard/fees/page.tsx', 'fees', { supabase: fixture.client, one })
+    const rows = await fetcher()
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].id, 'fee-1')
+    if (relation && !Array.isArray(relation) || Array.isArray(relation) && relation.length) {
+      assert.equal(rows[0].loan_application.borrower.name, 'Borrower')
+      assert.equal(rows[0].loan_application.bank.name_en, 'Bank')
+    } else assert.equal(rows[0].loan_application, null)
+    assert.equal(fixture.operations[0][1], 'fees')
+  }
+  const failure = queryFixture(null, new Error('Unavailable'))
+  await assert.rejects(pageFetcher('app/dashboard/fees/page.tsx', 'fees', { supabase: failure.client, one })(), /Unavailable/)
+
+  const fixture = queryFixture([{ id: 'recovery-1', claims: [{ claim_number: 'C-1', bank_id: 'bank-a', banks: [{ name_en: 'Bank', code: 'A' }], loan_applications: [{ loan_number: 'L-1' }] }] }])
+  const recoveries = await pageFetcher('app/dashboard/recoveries/page.tsx', 'recoveries', { supabase: fixture.client, one })()
+  assert.equal(recoveries[0].claims.bank_id, 'bank-a')
+  assert.equal(recoveries[0].claims.banks.name_en, 'Bank')
+  assert.equal(recoveries[0].claims.loan_applications.loan_number, 'L-1')
+  assert.match(fixture.operations.find(operation => operation[0] === 'select')[1], /claim_amount, bank_id/)
+  const filter = (bankFilter, search = '', methodFilter = 'all') => sourceExpression('app/dashboard/recoveries/page.tsx', 'filtered', { recoveries, bankFilter, search, methodFilter })
+  assert.equal(filter('all').length, 1)
+  assert.equal(filter('bank-a').length, 1)
+  assert.equal(filter('bank-b').length, 0)
+  assert.equal(filter('all', 'c-1').length, 1)
+  assert.equal(filter('all', 'missing').length, 0)
+  assert.equal(filter('all', '', 'cash').length, 0)
+  const empty = queryFixture([{ id: 'recovery-2', claims: [] }])
+  const emptyRows = await pageFetcher('app/dashboard/recoveries/page.tsx', 'recoveries', { supabase: empty.client, one })()
+  assert.equal(emptyRows[0].claims, undefined)
+  console.log('Financial query regressions passed: object/array/null joins, nested normalization, query errors and recovery bank/search/method filtering')
+}
+
+{
+  const form = 'app/dashboard/loans/new/page.tsx'
+  const identity = { isIndividualEntrepreneur: true, legalRepSurname: '  Family ', legalRepName: ' Given ', legalRepPatronymic: ' ', companyName: 'Company', clientTin: '123456789', representativeTin: '987654321' }
+  assert.equal(sourceExpression(form, 'clientName', identity), 'Family Given')
+  assert.equal(sourceExpression(form, 'legalRepTin', identity), '123456789')
+  assert.equal(sourceExpression(form, 'clientName', { ...identity, isIndividualEntrepreneur: false }), 'Company')
+  assert.equal(sourceExpression(form, 'legalRepTin', { ...identity, isIndividualEntrepreneur: false }), '987654321')
+  assert.equal(sourceExpression(form, 'clientName', { ...identity, legalRepSurname: '', legalRepName: '', legalRepPatronymic: '' }), '')
+  for (const [coverageOverride, product, expected] of [[undefined, undefined, ''], [undefined, { guarantee_coverage: 50 }, '50'], ['', { guarantee_coverage: 50 }, ''], ['0', { guarantee_coverage: 50 }, '0']]) {
+    assert.equal(sourceExpression(form, 'guaranteeCoverage', { coverageOverride, product }), expected)
+  }
+  const unavailable = queryFixture(null, new Error('Live data unavailable'))
+  const fetcher = pageFetcher('app/dashboard/documents/page.tsx', 'document-preview', { supabase: unavailable.client, template: { dataSource: 'loan_applications' } })
+  await assert.rejects(fetcher(), /Live data unavailable/)
+  const unsupported = pageFetcher('app/dashboard/documents/page.tsx', 'document-preview', { template: { dataSource: 'unsupported' } })
+  await assert.rejects(unsupported(), /not supported/)
+  console.log('Form/report regressions passed: derived sole-proprietor identity, separate company identity, explicit coverage overrides and no synthetic rows on live-query failure')
 }
 
 const testTranslations = {

@@ -1,6 +1,7 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import React, { createContext, useContext, ReactNode } from 'react'
+import useSWR from 'swr'
 import { type Role, type Profile } from '@/lib/types/database'
 import type { User } from '@supabase/supabase-js'
 import {
@@ -41,30 +42,13 @@ export function PermissionProvider({ children, user, role, profile = null }: Per
   // page can actually change access. Until they load (or if they cannot be
   // read), `hasPermission` falls back to the static matrix, which the table
   // was seeded from — so access is never wrongly granted or blanket-denied.
-  const [overrides, setOverrides] = useState<PermissionOverrides | null>(null)
-  const [permissionsLoading, setPermissionsLoading] = useState(true)
-
-  const loadPermissions = React.useCallback(async () => {
-    if (!role?.id) {
-      setOverrides(null)
-      setPermissionsLoading(false)
-      return
-    }
-    const perms = await fetchRolePermissions(role.id)
-    setOverrides(perms)
-    setPermissionsLoading(false)
-  }, [role])
-
-  useEffect(() => {
-    let active = true
-    setPermissionsLoading(true)
-    fetchRolePermissions(role?.id).then((perms) => {
-      if (!active) return
-      setOverrides(perms)
-      setPermissionsLoading(false)
-    })
-    return () => { active = false }
-  }, [role?.id])
+  const { data: overrides = null, isLoading, isValidating, mutate } = useSWR<PermissionOverrides | null>(
+    ['permissions', user.id, role?.id],
+    () => fetchRolePermissions(role?.id),
+    { revalidateOnFocus: false, shouldRetryOnError: false },
+  )
+  const permissionsLoading = isLoading || isValidating
+  const loadPermissions = React.useCallback(async () => { await mutate() }, [mutate])
 
   const can = (resource: string, permission: Permission | Permission[]): boolean => {
     if (Array.isArray(permission)) {

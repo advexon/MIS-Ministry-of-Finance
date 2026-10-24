@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
 import { useI18n } from "@/lib/i18n/context"
 import { usePermissions, AdminOnly } from "@/lib/contexts/permission-context"
@@ -96,12 +97,10 @@ export default function RolesPage() {
   const { t, locale } = useI18n()
   const { role: userRole, user, refreshPermissions } = usePermissions()
 
-  const [roles, setRoles] = useState<RoleWithPermissions[]>([])
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(null)
   const [editDialog, setEditDialog] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [actionToast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   // Permission edit state
   const [editedPermissions, setEditedPermissions] = useState<Record<string, RolePermission>>({})
@@ -111,8 +110,7 @@ export default function RolesPage() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  const fetchRoles = useCallback(async () => {
-    setLoading(true)
+  const { data: result, error: queryError, isLoading, isValidating, mutate } = usePageQuery<{ roles: RoleWithPermissions[]; permissionsFailed: boolean }>(['role-directory'], async () => {
     const supabase = createClient()
 
     // Fetch roles with user counts
@@ -121,11 +119,7 @@ export default function RolesPage() {
       .select('*')
       .order('tier', { ascending: true })
 
-    if (error) {
-      showToast('Failed to load roles', 'error')
-      setLoading(false)
-      return
-    }
+    if (error) throw error
 
     // Fetch user counts per role
     const { data: userCounts } = await supabase
@@ -148,8 +142,7 @@ export default function RolesPage() {
     if (permsError) {
       // Previously silent, so a failed load looked identical to "no permissions
       // granted" — every checkbox rendered unchecked with no explanation.
-      console.error('[v0] Failed to load role permissions:', permsError)
-      showToast('Could not load permissions. Showing roles only.', 'error')
+      console.error('Failed to load role permissions:', permsError)
     }
 
     // Merge permissions into roles
@@ -159,13 +152,13 @@ export default function RolesPage() {
       permissions: permsData?.filter((p) => p.role_id === role.id) || [],
     }))
 
-    setRoles(rolesWithPerms)
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    fetchRoles()
-  }, [fetchRoles])
+    return { roles: rolesWithPerms, permissionsFailed: !!permsError }
+  })
+  const roles = result?.roles ?? []
+  const loading = isLoading || isValidating
+  const fetchRoles = () => mutate()
+  const loadMessage = queryError ? 'Failed to load roles' : result?.permissionsFailed ? 'Could not load permissions. Showing roles only.' : null
+  const toast = actionToast ?? (loadMessage ? { msg: loadMessage, type: 'error' as const } : null)
 
   // Access check runs after all hooks so the hook order stays stable while
   // `userRole` resolves from null to a loaded role (Rules of Hooks).

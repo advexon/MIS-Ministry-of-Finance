@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { Card, CardContent } from '@/components/ui/card'
@@ -31,24 +32,13 @@ export default function ReportsPage() {
   const { t } = useI18n()
   const supabase = useMemo(() => createClient(), [])
 
-  const [loading, setLoading] = useState(true)
-  const [banks, setBanks] = useState<ReportBank[]>([])
   const [bankFilter, setBankFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 6); return d.toISOString().slice(0, 10)
   })
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
 
-  // Report data states
-  const [sectorData, setSectorData] = useState<PortfolioReport['sectorData']>([])
-  const [bankData, setBankData] = useState<PortfolioReport['bankData']>([])
-  const [monthlyData, setMonthlyData] = useState<PortfolioReport['monthlyData']>([])
-  const [statusData, setStatusData] = useState<PortfolioReport['statusData']>([])
-  const [summaryStats, setSummaryStats] = useState({ totalLoans: 0, totalAmount: 0, totalClaims: 0, totalFees: 0, totalOutstanding: 0 })
-
-  const fetchReports = useCallback(async () => {
-    setLoading(true)
-    try {
+  const { data: report, isLoading, isValidating, mutate } = usePageQuery<PortfolioReport>(['portfolio-report', bankFilter, dateFrom, dateTo], async () => {
       let loanQuery = supabase
         .from('loan_applications')
         .select('id, status, approved_amount, disbursed_amount, sector_id, disbursement_date, bank_id, banks(name_en, code), sectors(name_en)')
@@ -63,23 +53,17 @@ export default function ReportsPage() {
         supabase.from('fees').select('id, amount, status').gte('created_at', dateFrom).lte('created_at', dateTo + 'T23:59:59'),
       ])
 
-      const report = aggregatePortfolioReport(loans || [], claims || [], fees || [])
-      setSummaryStats(report.summaryStats)
-      setSectorData(report.sectorData)
-      setBankData(report.bankData)
-      setMonthlyData(report.monthlyData)
-      setStatusData(report.statusData)
+      return aggregatePortfolioReport(loans || [], claims || [], fees || [])
+  })
+  const { sectorData, bankData, monthlyData, statusData, summaryStats } = report ?? aggregatePortfolioReport([], [], [])
+  const loading = isLoading || isValidating
+  const fetchReports = () => mutate()
 
-    } finally {
-      setLoading(false)
-    }
-  }, [bankFilter, dateFrom, dateTo, supabase])
-
-  useEffect(() => {
-    supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
-  }, [supabase])
-
-  useEffect(() => { fetchReports() }, [fetchReports])
+  const { data: banks = [] } = usePageQuery<ReportBank[]>(['report-bank-options'], async () => {
+    const { data, error } = await supabase.from('banks').select('id, name_en, code').order('name_en')
+    if (error) throw error
+    return data ?? []
+  })
 
   const exportCSV = <T extends object,>(data: readonly T[], filename: string) => {
     if (!data.length) return

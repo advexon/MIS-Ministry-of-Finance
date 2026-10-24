@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +26,17 @@ import { toCSV, downloadCSV } from "@/lib/utils/export"
 import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
 import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 
+interface FeeRow extends Fee {
+  loan_application?: {
+    id: string
+    loan_number: string | null
+    currency: string | null
+    bank_id: string | null
+    borrower: { name: string } | null
+    bank: { name_en: string } | null
+  } | null
+}
+
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
   invoiced: "bg-blue-100 text-blue-800",
@@ -45,9 +57,6 @@ export default function FeesPage() {
     borrower: { name: string } | null
   }
 
-  const [fees, setFees] = useState<Fee[]>([])
-  const [loans, setLoans] = useState<LoanOption[]>([])
-  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("all")
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -64,7 +73,7 @@ export default function FeesPage() {
 
   // Mark paid dialog
   const [payOpen, setPayOpen] = useState(false)
-  const [selectedFee, setSelectedFee] = useState<Fee | null>(null)
+  const [selectedFee, setSelectedFee] = useState<FeeRow | null>(null)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
   const [paymentRef, setPaymentRef] = useState("")
 
@@ -81,36 +90,37 @@ export default function FeesPage() {
     setTimeout(() => { setSuccessMsg(null); setErrorMsg(null) }, 5000)
   }
 
-  const fetchFees = useCallback(async () => {
-    setLoading(true)
+  const { data: fees = [], isLoading, isValidating, mutate } = usePageQuery<FeeRow[]>(["fees"], async () => {
     const { data, error } = await supabase
       .from("fees")
       .select(`*, loan_application:loan_applications!loan_application_id(id,loan_number,currency,bank_id,bank:banks(name_en),borrower:borrowers(name))`)
       .order("created_at", { ascending: false })
-    if (!error && data) setFees(data)
-    setLoading(false)
-  }, [supabase])
+    if (error) throw error
+    return (data ?? []).map((fee) => {
+      const loan = one(fee.loan_application)
+      return { ...fee, loan_application: loan ? { ...loan, bank: one(loan.bank), borrower: one(loan.borrower) } : null }
+    })
+  })
+  const loading = isLoading || isValidating
+  const fetchFees = () => mutate()
 
-  useEffect(() => {
-    fetchFees()
-    supabase
+  const { data: loans = [] } = usePageQuery<LoanOption[]>(["fee-loan-options"], async () => {
+    const { data, error } = await supabase
       .from("loan_applications")
       .select("id,loan_number,approved_amount,currency,guarantee_coverage,bank_id,borrower:borrowers(name)")
       .in("status", ["approved", "disbursed", "active"])
       .order("loan_number")
-      .then(({ data }) => {
-        // PostgREST returns embedded relations as arrays; flatten to one record.
-        if (data) setLoans(data.map((l) => ({ ...l, borrower: one(l.borrower) })))
-      })
-  }, [fetchFees, supabase])
+    if (error) throw error
+    return (data ?? []).map((loan) => ({ ...loan, borrower: one(loan.borrower) }))
+  })
 
   const formatCurrency = (val: number | null | undefined, cur = "TJS") => {
     if (!val && val !== 0) return "—"
     return new Intl.NumberFormat("en-US", { style: "currency", currency: cur, minimumFractionDigits: 0 }).format(val)
   }
 
-  const getBorrowerName = (fee: Fee) => {
-    const b = (fee as any).loan_application?.borrower
+  const getBorrowerName = (fee: FeeRow) => {
+    const b = fee.loan_application?.borrower
     if (!b) return "—"
     return b.name || "—"
   }
@@ -131,7 +141,7 @@ export default function FeesPage() {
     if (!filteredFees.length) { showMessage("error", "There are no fee records to export"); return }
     const headers = ["Loan", "Borrower", "Bank", "Type", "Period Start", "Period End", "Base Amount", "Rate (%)", "Fee Amount", "Currency", "Invoice No.", "Invoice Date", "Due Date", "Status", "Payment Date"]
     const rows = filteredFees.map((fee) => {
-      const la = (fee as any).loan_application
+      const la = fee.loan_application
       return [
         la?.loan_number ?? "",
         getBorrowerName(fee),
@@ -221,16 +231,16 @@ export default function FeesPage() {
     setSaving(false)
   }
 
-  const printInvoice = (fee: Fee) => {
-    const borrower = (fee as any).loan_application?.borrower
+  const printInvoice = (fee: FeeRow) => {
+    const borrower = fee.loan_application?.borrower
     const borrowerName = borrower?.name || "—"
-    const bank = (fee as any).loan_application?.bank?.name_en || "—"
+    const bank = fee.loan_application?.bank?.name_en || "—"
     const today = new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" })
     const invoiceNum = fee.invoice_number || `INV-PENDING-${fee.id.substring(0, 8)}`
     const html = renderFeeInvoice({
       invoiceNumber: invoiceNum,
       date: today,
-      loanReference: (fee as any).loan_application?.loan_number || "—",
+      loanReference: fee.loan_application?.loan_number || "—",
       bank,
       borrower: borrowerName,
       description: fee.fee_type === "upfront" ? "Upfront Guarantee Fee" : `Quarterly Guarantee Commission${fee.period_start ? ` (${new Date(fee.period_start).toLocaleDateString()} – ${fee.period_end ? new Date(fee.period_end).toLocaleDateString() : ""})` : ""}`,
@@ -366,7 +376,7 @@ export default function FeesPage() {
                       ) : (
                         filteredFees.map((fee) => (
                           <TableRow key={fee.id}>
-                            <TableCell className="font-medium text-primary text-sm">{(fee as any).loan_application?.loan_number || "—"}</TableCell>
+                            <TableCell className="font-medium text-primary text-sm">{fee.loan_application?.loan_number || "—"}</TableCell>
                             <TableCell className="text-sm">{getBorrowerName(fee)}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="capitalize">{fee.fee_type === "upfront" ? "Upfront" : "Quarterly"}</Badge>

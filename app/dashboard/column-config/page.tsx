@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { usePermissions } from "@/lib/contexts/permission-context"
@@ -84,11 +85,9 @@ export default function ColumnConfigPage() {
   const { role } = usePermissions()
   const supabase = useMemo(() => createClient(), [])
 
-  const [columns, setColumns] = useState<Partial<ColumnConfiguration>[]>([])
-  const [originalColumns, setOriginalColumns] = useState<Partial<ColumnConfiguration>[]>([])
-  const [loading, setLoading] = useState(true)
+  const [editedColumns, setEditedColumns] = useState<Partial<ColumnConfiguration>[] | null>(null)
+  const [savedColumns, setOriginalColumns] = useState<Partial<ColumnConfiguration>[] | null>(null)
   const [saving, setSaving] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
   const [selectedColumn, setSelectedColumn] = useState<Partial<ColumnConfiguration> | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
@@ -105,45 +104,23 @@ export default function ColumnConfigPage() {
     return col.display_name_en || col.column_key || ""
   }, [locale])
 
-  const fetchColumns = useCallback(async () => {
+  const { data: loadedColumns = defaultColumns, isLoading } = usePageQuery<Partial<ColumnConfiguration>[]>(["column-config-editor"], async () => {
     try {
-      const { data, error } = await supabase
-        .from("column_configurations")
-        .select("*")
-        .eq("entity_type", "loan_applications")
-        .order("display_order", { ascending: true })
-
-      if (error) {
-        console.log("[v0] Error fetching columns, using defaults:", error.message)
-        // Use default columns if table doesn't exist
-        setColumns(defaultColumns)
-        setOriginalColumns(defaultColumns)
-      } else if (data && data.length > 0) {
-        setColumns(data)
-        setOriginalColumns(data)
-      } else {
-        // No data, use defaults
-        setColumns(defaultColumns)
-        setOriginalColumns(defaultColumns)
-      }
-    } catch (err) {
-      console.error("[v0] Failed to fetch columns:", err)
-      setColumns(defaultColumns)
-      setOriginalColumns(defaultColumns)
-    } finally {
-      setLoading(false)
+      const { data, error } = await supabase.from("column_configurations").select("*")
+        .eq("entity_type", "loan_applications").order("display_order", { ascending: true })
+      // Use default columns if the table does not exist or has no configuration.
+      return error || !data?.length ? defaultColumns : data
+    } catch {
+      return defaultColumns
     }
-  }, [supabase])
-
-  useEffect(() => {
-    fetchColumns()
-  }, [fetchColumns])
-
-  // Check for unsaved changes
-  useEffect(() => {
-    const changed = JSON.stringify(columns) !== JSON.stringify(originalColumns)
-    setHasChanges(changed)
-  }, [columns, originalColumns])
+  })
+  const loading = isLoading
+  const originalColumns = savedColumns ?? loadedColumns
+  const columns = editedColumns ?? originalColumns
+  const hasChanges = JSON.stringify(columns) !== JSON.stringify(originalColumns)
+  const setColumns = (next: Partial<ColumnConfiguration>[] | ((previous: Partial<ColumnConfiguration>[]) => Partial<ColumnConfiguration>[])) => {
+    setEditedColumns(previous => typeof next === "function" ? next(previous ?? originalColumns) : next)
+  }
 
   const handleToggleVisibility = (columnKey: string, field: 'is_visible_in_table' | 'is_visible_in_form' | 'is_visible_in_detail') => {
     setColumns(prev => prev.map(col => {

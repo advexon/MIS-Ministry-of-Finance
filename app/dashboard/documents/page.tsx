@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -49,7 +50,6 @@ import {
   type ConditionalRule,
   type SortRule,
   BUILT_IN_TEMPLATES,
-  MOCK_PREVIEW_ROWS,
   applyFilters,
   applySorting,
   getConditionalStyles,
@@ -175,16 +175,8 @@ export default function DocumentsPage() {
   const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState('')
   const [activeConfig, setActiveConfig] = useState<'columns' | 'filters' | 'sort' | 'conditional' | 'headerfooter' | 'page'>('columns')
-  const [liveData, setLiveData] = useState<Record<string, Record<string, unknown>[]>>({})
-  const [dataLoading, setDataLoading] = useState(false)
-  const [dataError, setDataError] = useState<string | null>(null)
-
-  // Fetch live data from database based on data source
-  const fetchLiveData = useCallback(async (dataSource: string) => {
-    setDataLoading(true)
-    setDataError(null)
-
-    try {
+  const { data: liveRows, error: queryError, isLoading, isValidating, mutate } = usePageQuery<Record<string, unknown>[]>(template.dataSource ? ['document-preview', template.dataSource] : null, async () => {
+      const dataSource = template.dataSource
       let data: Record<string, unknown>[] = []
 
       switch (dataSource) {
@@ -201,7 +193,7 @@ export default function DocumentsPage() {
             .limit(500)
 
           if (error) throw error
-          data = (loans || []).map((loan: any) => ({
+          data = (loans || []).map((loan) => ({
             loan_number: loan.loan_number || `LA-${loan.id?.slice(0, 8)}`,
             borrower_name: loan.borrower?.name || '—',
             bank_name: loan.bank?.name_en || '—',
@@ -295,31 +287,15 @@ export default function DocumentsPage() {
         }
 
         default:
-          // Fallback to mock data if table not recognized
-          data = MOCK_PREVIEW_ROWS[dataSource] || []
+          throw new Error('This data source is not supported for live reports')
       }
 
-      setLiveData(prev => ({ ...prev, [dataSource]: data }))
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data'
-      setDataError(errorMessage)
-      // Fallback to mock data on error
-      setLiveData(prev => ({ ...prev, [dataSource]: MOCK_PREVIEW_ROWS[dataSource] || [] }))
-      toast({ title: 'Using sample data', description: errorMessage, variant: 'destructive' })
-    } finally {
-      setDataLoading(false)
-    }
-  }, [supabase, toast])
+      return data
+  })
+  const dataLoading = isLoading || isValidating
+  const dataError = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to fetch data') : null
 
-  // Fetch data when template changes
-  useEffect(() => {
-    if (template.dataSource && !liveData[template.dataSource]) {
-      fetchLiveData(template.dataSource)
-    }
-  }, [template.dataSource, liveData, fetchLiveData])
-
-  // Use live data if available, otherwise fallback to mock data
-  const rawRows = liveData[template.dataSource] ?? MOCK_PREVIEW_ROWS[template.dataSource] ?? []
+  const rawRows = useMemo(() => liveRows ?? [], [liveRows])
   const filteredRows = useMemo(() => applyFilters(rawRows, template.filters), [rawRows, template.filters])
   const sortedRows = useMemo(() => applySorting(filteredRows, template.sortRules), [filteredRows, template.sortRules])
   const previewRows = useMemo(() => {
@@ -338,13 +314,13 @@ export default function DocumentsPage() {
 
   const loadTemplate = (tmpl: Omit<DocumentTemplate, 'createdAt' | 'updatedAt'>) => {
     setTemplate({ ...tmpl, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-    // Fetch fresh data for the new template's data source
-    fetchLiveData(tmpl.dataSource)
+    // A different source revalidates through its query key; refresh reused sources explicitly.
+    if (tmpl.dataSource === template.dataSource) void mutate()
     toast({ title: `Loaded template: ${tmpl.name}` })
   }
 
   const handleRefreshData = () => {
-    fetchLiveData(template.dataSource)
+    void mutate()
     toast({ title: 'Refreshing data...' })
   }
 
@@ -434,7 +410,7 @@ export default function DocumentsPage() {
               size="sm"
               className="gap-2 text-xs"
               onClick={handleExport}
-              disabled={exporting || dataLoading}
+              disabled={exporting || dataLoading || !!dataError}
             >
               {exporting
                 ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -450,7 +426,7 @@ export default function DocumentsPage() {
         {dataError && (
           <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
             <AlertCircle className="mr-1.5 inline h-3.5 w-3.5" />
-            Using sample data: {dataError}
+            Unable to load live data: {dataError}
           </div>
         )}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

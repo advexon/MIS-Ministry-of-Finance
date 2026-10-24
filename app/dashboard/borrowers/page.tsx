@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import Link from "next/link"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
@@ -44,19 +45,10 @@ export default function BorrowersPage() {
   const { t } = useI18n()
   const supabase = createClient()
 
-  const [borrowers, setBorrowers] = useState<Borrower[]>([])
-  const [loading, setLoading] = useState(true)
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState("")
 
-  // Summary stats
-  const [totalCount, setTotalCount] = useState(0)
-  const [activeCount, setActiveCount] = useState(0)
-  const [entityCount, setEntityCount] = useState(0)
-
-  const fetchBorrowers = useCallback(async () => {
-    setLoading(true)
+  const { data: result, isLoading, isValidating, mutate } = usePageQuery<{ borrowers: Borrower[]; total: number }>(["borrowers", page, search], async () => {
     let query = supabase
       .from("borrowers")
       .select("*, sector:sectors(name_en)", { count: "exact" })
@@ -70,32 +62,25 @@ export default function BorrowersPage() {
     }
 
     const { data, count, error } = await query
-    if (error) console.error("Error fetching borrowers:", error)
-    if (data) setBorrowers(data)
-    setTotal(count ?? 0)
-    setLoading(false)
-  }, [page, search, supabase])
+    if (error) throw error
+    return { borrowers: data ?? [], total: count ?? 0 }
+  })
+  const borrowers = result?.borrowers ?? []
+  const total = result?.total ?? 0
+  const loading = isLoading || isValidating
+  const fetchBorrowers = () => mutate()
 
-  useEffect(() => {
-    // Fetch summary stats once
-    supabase
-      .from("borrowers")
-      .select("id, legal_type", { count: "exact" })
-      .then(({ data, count }) => {
-        setTotalCount(count ?? 0)
-        if (data) {
-          setActiveCount(count ?? 0)
-          // Legal entities are stored as llc / jsc, not "legal_entity"
-          setEntityCount(
-            data.filter((b) => ["llc", "jsc", "legal_entity"].includes(b.legal_type ?? "")).length
-          )
-        }
-      })
-  }, [supabase])
-
-  useEffect(() => {
-    fetchBorrowers()
-  }, [fetchBorrowers])
+  const { data: summary } = usePageQuery(["borrower-summary"], async () => {
+    const { data, count, error } = await supabase.from("borrowers").select("id, legal_type", { count: "exact" })
+    if (error) throw error
+    return {
+      totalCount: count ?? 0,
+      activeCount: count ?? 0,
+      // Legal entities are stored as llc / jsc, not "legal_entity".
+      entityCount: (data ?? []).filter((borrower) => ["llc", "jsc", "legal_entity"].includes(borrower.legal_type ?? "")).length,
+    }
+  })
+  const { totalCount = 0, activeCount = 0, entityCount = 0 } = summary ?? {}
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-US", {

@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
 import { usePermissions, CanAccess } from "@/lib/contexts/permission-context"
 import { Card, CardContent } from "@/components/ui/card"
@@ -107,11 +108,6 @@ export default function UsersPage() {
 function UserManagement() {
   const { t, locale } = useI18n()
   const permissions = usePermissions()
-  const [users, setUsers] = useState<UserWithRelations[]>([])
-  const [roles, setRoles] = useState<Role[]>([])
-  const [banks, setBanks] = useState<Bank[]>([])
-  const [branches, setBranches] = useState<BankBranch[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterRole, setFilterRole] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -151,29 +147,22 @@ function UserManagement() {
   const flagsInput = { ...editFlags, product_tags: editProductTags.split(",").map((tag) => tag.trim()).filter(Boolean) }
   const flagsChanged = selectedUser && JSON.stringify(flagsInput) !== JSON.stringify(employeeFlagsFromProfile(selectedUser))
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/users", { credentials: "include" })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        console.error("[v0] API error:", res.status, body)
-        return
-      }
-      const data = await res.json()
-      setUsers(data.users ?? [])
-      setRoles(data.roles ?? [])
-      setBanks(data.banks ?? [])
-      setBranches(data.branches ?? [])
-    } catch (err) {
-      console.error("[v0] Fetch error:", err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  const { data: directory, isLoading, isValidating, mutate } = usePageQuery<{
+    users: UserWithRelations[]
+    roles: Role[]
+    banks: Bank[]
+    branches: BankBranch[]
+  }>(["user-directory"], async () => {
+    const response = await fetch("/api/users", { credentials: "include" })
+    if (!response.ok) throw new Error("Failed to load users")
+    return response.json()
+  })
+  const users = directory?.users ?? []
+  const roles = directory?.roles ?? []
+  const banks = directory?.banks ?? []
+  const branches = directory?.branches ?? []
+  const loading = isLoading || isValidating
+  const fetchData = () => mutate()
 
   const showMessage = (type: "success" | "error", message: string) => {
     if (type === "success") {

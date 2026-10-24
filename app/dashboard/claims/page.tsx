@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import Link from "next/link"
 import { usePermissions } from "@/lib/contexts/permission-context"
 import { useI18n } from "@/lib/i18n/context"
@@ -48,9 +49,6 @@ export default function ClaimsPage() {
     borrower: { name: string } | null
   }
 
-  const [claims, setClaims] = useState<Claim[]>([])
-  const [loans, setLoans] = useState<LoanOption[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -82,8 +80,7 @@ export default function ClaimsPage() {
     setTimeout(() => { setSuccessMsg(null); setErrorMsg(null) }, 5000)
   }
 
-  const fetchClaims = useCallback(async () => {
-    setLoading(true)
+  const { data: claims = [], isLoading, isValidating, mutate } = usePageQuery<Claim[]>(["claims", statusFilter, search], async () => {
     let query = supabase
       .from("claims")
       .select(`*, loan_application:loan_applications!loan_application_id(id,loan_number,currency,bank:banks(name_en),borrower:borrowers(name))`)
@@ -93,24 +90,22 @@ export default function ClaimsPage() {
     if (search) query = query.ilike("claim_number", `%${search}%`)
 
     const { data, error } = await query
-    if (error) console.error('Error fetching claims:', error)
-    if (data) setClaims(data as Claim[])
-    setLoading(false)
-  }, [statusFilter, search, supabase])
+    if (error) throw error
+    return (data ?? []) as Claim[]
+  })
+  const loading = isLoading || isValidating
+  const fetchClaims = () => mutate()
 
-  useEffect(() => {
-    supabase
+  const { data: loans = [] } = usePageQuery<LoanOption[]>(["claim-loan-options"], async () => {
+    const { data, error } = await supabase
       .from("loan_applications")
       .select("id,loan_number,approved_amount,currency,bank_id,borrower:borrowers(name)")
       .in("status", ["active", "defaulted", "claim_pending"])
       .order("loan_number")
-      .then(({ data }) => {
-        // PostgREST returns embedded relations as arrays; flatten to one record.
-        if (data) setLoans(data.map((l) => ({ ...l, borrower: one(l.borrower) })))
-      })
-  }, [supabase])
-
-  useEffect(() => { fetchClaims() }, [fetchClaims])
+    if (error) throw error
+    // PostgREST returns embedded relations as arrays; flatten to one record.
+    return (data ?? []).map((loan) => ({ ...loan, borrower: one(loan.borrower) }))
+  })
 
   const formatCurrency = (val: number | null | undefined, cur = "TJS") => {
     if (!val && val !== 0) return "—"
@@ -200,7 +195,7 @@ export default function ClaimsPage() {
     const prsfShare = parseFloat(recoveryPrsfShare) || total * (selectedClaim.approved_amount || 0) / (selectedClaim.claim_amount || 1)
     // recoveries.loan_id and recoveries.recovery_amount are both NOT NULL.
     // Sending only loan_application_id/total_recovered made every insert fail.
-    const recoveryLoanId = (selectedClaim as any).loan_id || selectedClaim.loan_application_id
+    const recoveryLoanId = selectedClaim.loan_id || selectedClaim.loan_application_id
     if (!recoveryLoanId) {
       showMessage("error", "This claim has no linked loan, so a recovery cannot be recorded.")
       setSaving(false); return
@@ -423,7 +418,7 @@ export default function ClaimsPage() {
                 ["Claim Date", new Date(selectedClaim.claim_date).toLocaleDateString()],
                 ["Principal Claimed", formatCurrency(selectedClaim.principal_claimed)],
                 ["Interest Claimed", formatCurrency(selectedClaim.interest_claimed)],
-                ["Penalties", formatCurrency((selectedClaim as any).penalties_claimed)],
+                ["Penalties", formatCurrency(selectedClaim.penalties_claimed)],
                 ["Total Claim", formatCurrency(selectedClaim.claim_amount)],
                 ["Status", selectedClaim.status.replace(/_/g, " ")],
                 ["Approved Amount", formatCurrency(selectedClaim.approved_amount)],

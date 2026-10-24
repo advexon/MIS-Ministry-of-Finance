@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
@@ -62,40 +63,23 @@ export default function DraftsPage() {
   const { can } = usePermissions()
   const canCreateLoan = can("loans", "create")
 
-  const [drafts, setDrafts] = useState<LoanDraft[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedDraft, setSelectedDraft] = useState<LoanDraft | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [actionMessage, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
-  const loadDrafts = useCallback(async () => {
-    setLoading(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from("loan_drafts")
-        .select("*")
-        .eq("user_id", user.id)
-        .gt("expires_at", new Date().toISOString())
-        .order("updated_at", { ascending: false })
-
-      if (error) throw error
-      setDrafts(data || [])
-    } catch (error) {
-      console.error("Failed to load drafts:", error)
-      setMessage({ type: "error", text: "Failed to load drafts" })
-    } finally {
-      setLoading(false)
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    loadDrafts()
-  }, [loadDrafts])
+  const { data: drafts = [], error: loadError, isLoading, isValidating, mutate } = usePageQuery<LoanDraft[]>(["drafts"], async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Not authenticated")
+    const { data, error } = await supabase.from("loan_drafts").select("*")
+      .eq("user_id", user.id).gt("expires_at", new Date().toISOString()).order("updated_at", { ascending: false })
+    if (error) throw error
+    return data ?? []
+  })
+  const loading = isLoading || isValidating
+  const loadDrafts = () => mutate()
+  const message = actionMessage ?? (loadError ? { type: "error" as const, text: "Failed to load drafts" } : null)
 
   const handleDelete = async () => {
     if (!selectedDraft) return
@@ -109,7 +93,7 @@ export default function DraftsPage() {
 
       if (error) throw error
 
-      setDrafts(prev => prev.filter(d => d.id !== selectedDraft.id))
+      await mutate((previous) => previous?.filter((draft) => draft.id !== selectedDraft.id), { revalidate: false })
       setMessage({ type: "success", text: "Draft deleted successfully" })
       setDeleteDialogOpen(false)
       setSelectedDraft(null)

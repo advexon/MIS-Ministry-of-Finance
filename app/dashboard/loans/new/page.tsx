@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
@@ -47,17 +48,19 @@ export default function NewLoanPage() {
   const [showValidationSummary, setShowValidationSummary] = useState(false)
   const [draftMessage, setDraftMessage] = useState<string | null>(null)
 
-  // Reference data
-  const [banks, setBanks] = useState<Bank[]>([])
-  const [branches, setBranches] = useState<BankBranch[]>([])
-  const [sectors, setSectors] = useState<Sector[]>([])
-  const [products, setProducts] = useState<LoanProduct[]>([])
-  const [bankOfficers, setBankOfficers] = useState<{ id: string; full_name: string }[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: referenceData, isLoading: loading } = usePageQuery<{ banks: Bank[]; sectors: Sector[]; products: LoanProduct[] }>(["loan-form-options"], async () => {
+    const [banks, sectors, products] = await Promise.all([
+      supabase.from("banks").select("*").eq("is_active", true).order("name_en"),
+      supabase.from("sectors").select("*").eq("is_active", true).order("name_en"),
+      supabase.from("loan_products").select("*").eq("is_active", true).order("name_en"),
+    ])
+    return { banks: banks.data ?? [], sectors: sectors.data ?? [], products: products.data ?? [] }
+  })
+  const { banks = [], sectors = [], products = [] } = referenceData ?? {}
 
   // Borrower fields
   const [legalEntityType, setLegalEntityType] = useState("")
-  const [clientName, setClientName] = useState("")
+  const [companyName, setClientName] = useState("")
   const [clientTin, setClientTin] = useState("")
   const [registrationNumber, setRegistrationNumber] = useState("")
   const [sectorId, setSectorId] = useState("")
@@ -89,7 +92,7 @@ export default function NewLoanPage() {
   const [legalRepGender, setLegalRepGender] = useState("")
   const [legalRepBirthdate, setLegalRepBirthdate] = useState("")
   const [legalRepCountry, setLegalRepCountry] = useState("Tajikistan")
-  const [legalRepTin, setLegalRepTin] = useState("")
+  const [representativeTin, setLegalRepTin] = useState("")
   const [passportNumber, setPassportNumber] = useState("")
 
   // Loan fields
@@ -103,7 +106,7 @@ export default function NewLoanPage() {
   const [frequency, setFrequency] = useState("monthly")
   const [repaymentMethod, setRepaymentMethod] = useState("annuity")
   const [interestRate, setInterestRate] = useState("")
-  const [guaranteeCoverage, setGuaranteeCoverage] = useState("")
+  const [coverageOverride, setGuaranteeCoverage] = useState<string>()
   const [loanOfficer, setLoanOfficer] = useState("")
   const [purpose, setPurpose] = useState("")
   const [purposeDetails, setPurposeDetails] = useState("")
@@ -130,22 +133,13 @@ export default function NewLoanPage() {
   // same data is never typed twice (and can never disagree with itself).
   const isIndividualEntrepreneur = legalEntityType === "individual_entrepreneur"
 
-  // Borrower name = the person's name parts. Kept in the legalRep* state so
-  // there is a single source of truth rather than two fields to reconcile.
-  useEffect(() => {
-    if (!isIndividualEntrepreneur) return
-    const composed = [legalRepSurname, legalRepName, legalRepPatronymic]
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .join(" ")
-    setClientName(composed)
-  }, [isIndividualEntrepreneur, legalRepSurname, legalRepName, legalRepPatronymic])
-
-  // Same person, so the same TIN.
-  useEffect(() => {
-    if (!isIndividualEntrepreneur) return
-    setLegalRepTin(clientTin)
-  }, [isIndividualEntrepreneur, clientTin])
+  // Borrower and representative are the same person for a sole proprietor.
+  const clientName = isIndividualEntrepreneur
+    ? [legalRepSurname, legalRepName, legalRepPatronymic].map(part => part.trim()).filter(Boolean).join(" ")
+    : companyName
+  const legalRepTin = isIndividualEntrepreneur ? clientTin : representativeTin
+  const product = products.find(item => item.id === productId)
+  const guaranteeCoverage = coverageOverride ?? (product ? String(product.guarantee_coverage) : "")
 
   // Collect all form data into a single object for validation
   const formData = useMemo(() => ({
@@ -228,21 +222,6 @@ export default function NewLoanPage() {
     return item.name_en
   }
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const [banksRes, sectorsRes, productsRes] = await Promise.all([
-        supabase.from("banks").select("*").eq("is_active", true).order("name_en"),
-        supabase.from("sectors").select("*").eq("is_active", true).order("name_en"),
-        supabase.from("loan_products").select("*").eq("is_active", true).order("name_en"),
-      ])
-      if (banksRes.data) setBanks(banksRes.data)
-      if (sectorsRes.data) setSectors(sectorsRes.data)
-      if (productsRes.data) setProducts(productsRes.data)
-      setLoading(false)
-    }
-    fetchData()
-  }, [])
-
   // Load draft from sessionStorage on mount
   useEffect(() => {
     const draftId = sessionStorage.getItem("loanDraftId")
@@ -309,50 +288,21 @@ export default function NewLoanPage() {
     }
   }, [draftMessage])
 
-  useEffect(() => {
-    if (!bankId) {
-      setBranches([])
-      setBranchId("")
-      setBankOfficers([])
-      setLoanOfficer("")
-      return
-    }
-    // Fetch branches
-    supabase
-      .from("bank_branches")
-      .select("*")
-      .eq("bank_id", bankId)
-      .eq("is_active", true)
-      .order("name_en")
-      .then(({ data }) => {
-        if (data) setBranches(data)
-        setBranchId("")
-      })
-    // Fetch bank staff profiles for the officer dropdown
-    supabase
-      .from("profiles")
-      .select("id, first_name, last_name")
-      .eq("bank_id", bankId)
-      .eq("is_active", true)
-      .order("last_name")
-      .then(({ data }) => {
-        if (data) {
-          setBankOfficers(
-            data.map((p) => ({
-              id: p.id,
-              full_name: [p.first_name, p.last_name].filter(Boolean).join(" "),
-            }))
-          )
-        }
-        setLoanOfficer("")
-      })
-  }, [bankId])
-
-  // Auto-fill guarantee coverage from product
-  useEffect(() => {
-    const p = products.find((x) => x.id === productId)
-    if (p) setGuaranteeCoverage(String(p.guarantee_coverage))
-  }, [productId, products])
+  const { data: branches = [] } = usePageQuery<BankBranch[]>(bankId ? ["bank-branches", bankId] : null, async () => {
+    const { data, error } = await supabase.from("bank_branches").select("*").eq("bank_id", bankId).eq("is_active", true).order("name_en")
+    if (error) throw error
+    return data ?? []
+  })
+  const { data: bankOfficers = [] } = usePageQuery<{ id: string; full_name: string }[]>(bankId ? ["bank-officers", bankId] : null, async () => {
+    const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").eq("bank_id", bankId).eq("is_active", true).order("last_name")
+    if (error) throw error
+    return (data ?? []).map(profile => ({ id: profile.id, full_name: [profile.first_name, profile.last_name].filter(Boolean).join(" ") }))
+  })
+  const handleBankChange = (value: string) => {
+    setBankId(value)
+    setBranchId("")
+    setLoanOfficer("")
+  }
 
   // TIN validation: exactly 9 digits, check for existing borrower
   const handleTinChange = async (value: string) => {
@@ -991,6 +941,10 @@ export default function NewLoanPage() {
                           setLegalRepName(parts[1] || "")
                           setLegalRepPatronymic(parts.slice(2).join(" "))
                         }
+                        if (isIndividualEntrepreneur) {
+                          setClientName(clientName)
+                          setLegalRepTin(legalRepTin)
+                        }
                         setLegalEntityType(v)
                         markTouched("legalEntityType")
                       }}
@@ -1351,7 +1305,7 @@ export default function NewLoanPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Partner Bank<RequiredMark show={isRequired("bankId")} /></Label>
-                    <Select value={bankId} onValueChange={setBankId}>
+                    <Select value={bankId} onValueChange={handleBankChange}>
                       <SelectTrigger><SelectValue placeholder="Select bank" /></SelectTrigger>
                       <SelectContent>
                         {banks.map((b) => <SelectItem key={b.id} value={b.id}>{getName(b)}</SelectItem>)}

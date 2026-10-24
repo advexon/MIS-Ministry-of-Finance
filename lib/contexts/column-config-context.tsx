@@ -1,6 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react"
+import React, { createContext, useContext, useCallback, useMemo, ReactNode } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
 import type { ColumnConfiguration, ColumnFieldGroup } from "@/lib/types/database"
 
@@ -74,40 +75,16 @@ interface ColumnConfigContextType {
 const ColumnConfigContext = createContext<ColumnConfigContextType | undefined>(undefined)
 
 export function ColumnConfigProvider({ children }: { children: ReactNode }) {
-  const [columns, setColumns] = useState<Partial<ColumnConfiguration>[]>(defaultColumns)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchColumns = useCallback(async () => {
-    try {
-      const supabase = createClient()
-      const { data, error: fetchError } = await supabase
-        .from("column_configurations")
-        .select("*")
-        .eq("entity_type", "loan_applications")
-        .order("display_order", { ascending: true })
-
-      if (fetchError) {
-        // Table might not exist, use defaults
-        console.log("[ColumnConfig] Using default configurations")
-        setColumns(defaultColumns)
-      } else if (data && data.length > 0) {
-        setColumns(data)
-      } else {
-        setColumns(defaultColumns)
-      }
-    } catch (err) {
-      console.error("[ColumnConfig] Error loading configurations:", err)
-      setError("Failed to load column configurations")
-      setColumns(defaultColumns)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchColumns()
-  }, [fetchColumns])
+  const { data: columns = defaultColumns, error: queryError, isLoading, isValidating, mutate } = usePageQuery<Partial<ColumnConfiguration>[]>(["column-configurations"], async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase.from("column_configurations").select("*")
+      .eq("entity_type", "loan_applications").order("display_order", { ascending: true })
+    // Preserve defaults when older installations do not have the configuration table.
+    if (error || !data?.length) return defaultColumns
+    return data
+  })
+  const loading = isLoading || isValidating
+  const error = queryError ? "Failed to load column configurations" : null
 
   const getColumn = useCallback((columnKey: string) => {
     return columns.find(c => c.column_key === columnKey)
@@ -242,10 +219,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
     return { valid: true }
   }, [columns])
 
-  const refreshColumns = useCallback(async () => {
-    setLoading(true)
-    await fetchColumns()
-  }, [fetchColumns])
+  const refreshColumns = useCallback(async () => { await mutate() }, [mutate])
 
   const value = useMemo(() => ({
     columns,

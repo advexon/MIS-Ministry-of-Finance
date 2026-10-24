@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { useParams, useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
@@ -82,7 +83,6 @@ interface Report {
   total_guarantee_amount: number
   created_at: string
   banks: { id: string; name_en: string; code: string | null } | null
-  profiles: { first_name: string | null; last_name: string | null; email: string } | null
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -102,19 +102,14 @@ export default function GuaranteeReportDetailPage() {
   const supabase = createClient()
   const id = params.id as string
 
-  const [report, setReport] = useState<Report | null>(null)
-  const [loans, setLoans] = useState<ReportLoan[]>([])
-  const [payments, setPayments] = useState<ReportPayment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [reviewNotes, setReviewNotes] = useState('')
+  const [notesEdit, setNotesEdit] = useState<{ id: string; value: string } | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
-  const fetchReport = useCallback(async () => {
-    setLoading(true)
+  const { data: details, isLoading, isValidating, mutate } = usePageQuery<{ report: Report | null; loans: ReportLoan[]; payments: ReportPayment[] }>(['guarantee-report', id], async () => {
     const [{ data: reportData }, { data: loansData }, { data: paymentsData }] = await Promise.all([
       supabase
         .from('guarantee_reports')
-        .select('*, banks(id, name_en, code), profiles(first_name, last_name, email)')
+        .select('*, banks(id, name_en, code)')
         .eq('id', id)
         .single(),
       supabase
@@ -129,16 +124,15 @@ export default function GuaranteeReportDetailPage() {
         .order('loan_number')
         .order('installment_number'),
     ])
-    if (reportData) {
-      setReport(reportData)
-      setReviewNotes(reportData.review_notes || '')
-    }
-    setLoans(loansData || [])
-    setPayments(paymentsData || [])
-    setLoading(false)
-  }, [supabase, id])
-
-  useEffect(() => { fetchReport() }, [fetchReport])
+    return { report: reportData, loans: loansData ?? [], payments: paymentsData ?? [] }
+  })
+  const report = details?.report ?? null
+  const loans = details?.loans ?? []
+  const payments = details?.payments ?? []
+  const loading = isLoading || isValidating
+  const reviewNotes = notesEdit?.id === id ? notesEdit.value : report?.review_notes ?? ''
+  const setReviewNotes = (value: string) => setNotesEdit({ id, value })
+  const fetchReport = () => mutate()
 
   const takeAction = async (action: 'approve' | 'reject' | 'revision_requested' | 'submitted') => {
     setActionLoading(true)

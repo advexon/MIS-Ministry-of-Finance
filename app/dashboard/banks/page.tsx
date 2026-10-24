@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { getLocalizedName } from '@/lib/utils/localized-name'
@@ -49,8 +50,6 @@ export default function BanksPage() {
   const { toast } = useToast()
   const { isRequired, missingFields } = useFieldRequirements('bank')
 
-  const [banks, setBanks] = useState<Bank[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -61,24 +60,16 @@ export default function BanksPage() {
   // Helper to get localized bank name
   const getBankName = (bank: Bank) => getLocalizedName(bank, locale)
 
-  const fetchBanks = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('banks')
-      .select('*')
-      .order('name_en')
-
-    if (error) {
-      // Fallback: just get banks without ordering
-      const { data: simple } = await supabase.from('banks').select('*')
-      setBanks(simple || [])
-    } else {
-      setBanks(data || [])
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchBanks() }, [])
+  const { data: banks = [], isLoading, isValidating, mutate } = usePageQuery<Bank[]>(['banks'], async () => {
+    const { data, error } = await supabase.from('banks').select('*').order('name_en')
+    if (!error) return data ?? []
+    // Preserve the existing unordered fallback for servers without ordering support.
+    const { data: simple, error: fallbackError } = await supabase.from('banks').select('*')
+    if (fallbackError) throw fallbackError
+    return simple ?? []
+  })
+  const loading = isLoading || isValidating
+  const fetchBanks = () => mutate()
 
   const handleCreate = async () => {
     const missing = missingFields(form)

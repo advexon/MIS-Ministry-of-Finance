@@ -635,6 +635,8 @@ export interface MonthlyReport {
 export interface Claim {
   id: string
   claim_number: string
+  loan_id: string
+  penalties_claimed: number | null
   loan_application_id: string
   claim_date: string
   claim_amount: number

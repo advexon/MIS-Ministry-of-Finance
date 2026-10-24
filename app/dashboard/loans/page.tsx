@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from "react"
+import { useState, useMemo, Suspense } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,7 @@ import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, FileText, Download, Lo
 import { toCSV, downloadCSV } from "@/lib/utils/export"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import type { LoanApplication, Bank, Sector } from "@/lib/types/database"
+import type { LoanApplication, Bank } from "@/lib/types/database"
 import { useColumnConfig } from "@/lib/contexts/column-config-context"
 import { usePermissions } from "@/lib/contexts/permission-context"
 
@@ -67,11 +68,6 @@ function LoansContent() {
   const { can } = usePermissions()
   const canCreateLoan = can("loans", "create")
 
-  const [loans, setLoans] = useState<LoanApplication[]>([])
-  const [banks, setBanks] = useState<Bank[]>([])
-  const [sectors, setSectors] = useState<Sector[]>([])
-  const [loading, setLoading] = useState(true)
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
 
   // Seed the search box from ?search=, so links into this page (e.g. "view a
@@ -87,8 +83,7 @@ function LoansContent() {
     return item.name_en
   }
 
-  const fetchLoans = useCallback(async () => {
-    setLoading(true)
+  const { data: result, isLoading, isValidating, mutate } = usePageQuery<{ loans: LoanApplication[]; total: number }>(["loans", page, statusFilter, bankFilter, searchTerm], async () => {
     let query = supabase
       .from("loan_applications")
       .select(
@@ -116,10 +111,7 @@ function LoansContent() {
       // Dropping the separators can leave nothing to match on; searching for the
       // empty string would return the whole table, so bail out instead.
       if (!safe) {
-        setLoans([])
-        setTotal(0)
-        setLoading(false)
-        return
+        return { loans: [], total: 0 }
       }
 
       const { data: matches } = await supabase
@@ -135,22 +127,19 @@ function LoansContent() {
     }
 
     const { data, count, error } = await query
-    if (error) console.error('Error fetching loans:', error)
-    if (data) {
-      setLoans(data)
-      setTotal(count || 0)
-    }
-    setLoading(false)
-  }, [page, statusFilter, bankFilter, searchTerm, supabase])
+    if (error) throw error
+    return { loans: data ?? [], total: count ?? 0 }
+  })
+  const loans = result?.loans ?? []
+  const total = result?.total ?? 0
+  const loading = isLoading || isValidating
+  const fetchLoans = () => mutate()
 
-  useEffect(() => {
-    supabase.from("banks").select("*").eq("is_active", true).order("name_en")
-      .then(({ data }) => { if (data) setBanks(data) })
-    supabase.from("sectors").select("*").eq("is_active", true).order("name_en")
-      .then(({ data }) => { if (data) setSectors(data) })
-  }, [supabase])
-
-  useEffect(() => { fetchLoans() }, [fetchLoans])
+  const { data: banks = [] } = usePageQuery<Bank[]>(["active-bank-options"], async () => {
+    const { data, error } = await supabase.from("banks").select("*").eq("is_active", true).order("name_en")
+    if (error) throw error
+    return data ?? []
+  })
 
   const formatCurrency = (amount: number | null | undefined, currency = "TJS") => {
     if (!amount && amount !== 0) return "—"

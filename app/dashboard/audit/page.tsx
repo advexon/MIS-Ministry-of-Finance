@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -58,9 +59,6 @@ function RowSkeleton() {
 export default function AuditTrailPage() {
   const supabase = createClient()
 
-  const [entries, setEntries] = useState<AuditEntry[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<AuditEntry | null>(null)
 
@@ -74,8 +72,7 @@ export default function AuditTrailPage() {
 
   const PAGE_SIZE = 25
 
-  const fetchEntries = useCallback(async () => {
-    setLoading(true)
+  const { data: result, isLoading, isValidating, mutate } = usePageQuery<{ entries: AuditEntry[]; total: number }>(['audit', filters, page], async () => {
     let q = supabase
       .from('audit_trail')
       .select('*, profiles(first_name, last_name, email)', { count: 'exact' })
@@ -88,13 +85,14 @@ export default function AuditTrailPage() {
     if (filters.dateTo) q = q.lte('changed_at', filters.dateTo + 'T23:59:59')
     if (filters.search) q = q.or(`table_name.ilike.%${filters.search}%,action.ilike.%${filters.search}%`)
 
-    const { data, count } = await q
-    setEntries(data || [])
-    setTotal(count || 0)
-    setLoading(false)
-  }, [filters, page, supabase])
-
-  useEffect(() => { fetchEntries() }, [fetchEntries])
+    const { data, count, error } = await q
+    if (error) throw error
+    return { entries: data ?? [], total: count ?? 0 }
+  })
+  const entries = result?.entries ?? []
+  const total = result?.total ?? 0
+  const loading = isLoading || isValidating
+  const fetchEntries = () => mutate()
 
   const exportCSV = () => {
     const rows = [

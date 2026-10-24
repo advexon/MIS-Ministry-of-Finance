@@ -1,6 +1,8 @@
 "use client"
 
-import { use, useEffect, useState, useCallback, useRef } from "react"
+import { use, useState, useRef } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
+import { usePermissions } from "@/lib/contexts/permission-context"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
@@ -183,10 +185,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter()
   const supabase = createClient()
 
-  const [loan, setLoan]     = useState<LoanApplication | null>(null)
-  const [claims, setClaims] = useState<Claim[]>([])
-  const [loading, setLoading] = useState(true)
-  const [userRole, setUserRole] = useState("bank_officer")
+  const { role } = usePermissions()
+  const userRole = role?.code ?? ""
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
 
   // Dialog visibility
@@ -228,37 +228,23 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchLoan = useCallback(async () => {
-    setLoading(true)
+  const { data: loan = null, isLoading, isValidating, mutate } = usePageQuery<LoanApplication | null>(["loan", resolvedParams.id], async () => {
     const { data, error } = await supabase
       .from("loan_applications")
       .select(`*, bank:banks(*), branch:bank_branches(*), borrower:borrowers(*), product:loan_products(*)`)
       .eq("id", resolvedParams.id)
       .single()
-    if (!error && data) setLoan(data as LoanApplication)
-    setLoading(false)
-  }, [resolvedParams.id, supabase])
+    if (error) throw error
+    return data as LoanApplication | null
+  })
+  const loading = isLoading || isValidating
+  const fetchLoan = async () => { await mutate() }
 
-  useEffect(() => {
-    fetchLoan()
-    // Get current user role
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role:roles(code)")
-          .eq("id", user.id)
-          .single()
-        if (profile?.role) setUserRole((profile.role as any).code)
-      }
-    })
-    // Fetch related claims
-    supabase
-      .from("claims")
-      .select("*")
-      .eq("loan_application_id", resolvedParams.id)
-      .then(({ data }) => setClaims(data || []))
-  }, [fetchLoan, resolvedParams.id, supabase])
+  const { data: claims = [] } = usePageQuery<Claim[]>(["loan-claims", resolvedParams.id], async () => {
+    const { data, error } = await supabase.from("claims").select("*").eq("loan_application_id", resolvedParams.id)
+    if (error) throw error
+    return data ?? []
+  })
 
   // ── Workflow transitions ───────────────────────────────────────────────────
   const transition = async (newStatus: string, extra: Record<string, unknown> = {}) => {
@@ -391,8 +377,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       if (!data.already_exists) {
         setShowGuaranteePreview(true)
       }
-    } catch (error: any) {
-      showToast(error.message || 'Failed to issue guarantee', 'error')
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'Failed to issue guarantee', 'error')
     } finally {
       setIssuingGuarantee(false)
     }
