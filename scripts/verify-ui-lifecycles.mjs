@@ -199,6 +199,84 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   console.log('Login handler checks passed: successful navigation/refresh, credential errors and rejected auth requests')
 }
 
+{
+  const filename = 'app/dashboard/guarantee-reports/[id]/page.tsx'
+  const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let actionHandler
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === 'takeAction') actionHandler = node
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(actionHandler, 'Report action handler must exist')
+  const compiled = ts.transpileModule(`const ${actionHandler.getText(source)}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const now = '2026-10-25T12:00:00.000Z'
+  class FixedDate extends Date {
+    constructor() { super(now) }
+  }
+  const outcomes = { approve: 'approved', reject: 'rejected', revision_requested: 'revision_requested', submitted: 'submitted' }
+  const titles = { approve: 'Report approved', reject: 'Report rejected', revision_requested: 'Revision requested', submitted: 'Report submitted' }
+  for (const action of Object.keys(outcomes)) {
+    for (const scenario of ['success', 'returned-error', 'zero-rows', 'wrong-id', 'wrong-status', 'network', 'refresh', 'busy', 'missing-report']) {
+      const events = []
+      const notifications = []
+      const report = { id: 'report-1', status: action === 'submitted' ? 'draft' : 'submitted', submission_date: '2026-10-01T00:00:00.000Z' }
+      const query = {
+        update: payload => {
+          events.push('update')
+          assert.equal(payload.status, outcomes[action])
+          assert.equal(payload.review_notes, 'Keep these notes')
+          assert.equal(payload.review_date, action === 'submitted' ? null : now)
+          assert.equal(payload.submission_date, action === 'submitted' ? now : report.submission_date)
+          return query
+        },
+        eq: (column, value) => { events.push([column, value]); return query },
+        select: columns => { assert.equal(columns, 'id, status'); return query },
+        single: async () => {
+          events.push('confirm')
+          if (scenario === 'network') throw new Error('Network unavailable')
+          return {
+            data: scenario === 'zero-rows' ? null : { id: scenario === 'wrong-id' ? 'other-report' : report.id, status: scenario === 'wrong-status' ? 'draft' : outcomes[action] },
+            error: scenario === 'returned-error' ? { message: 'Database details must not be exposed' } : null,
+          }
+        },
+      }
+      const submit = runInNewContext(`${compiled}\ntakeAction`, {
+        id: report.id,
+        report: scenario === 'missing-report' ? null : report,
+        actionLoading: scenario === 'busy',
+        reviewNotes: 'Keep these notes',
+        Date: FixedDate,
+        Error,
+        supabase: { from: table => { assert.equal(table, 'guarantee_reports'); return query } },
+        setActionLoading: value => events.push(['loading', value]),
+        toast: notification => { notifications.push(notification); events.push(notification.title) },
+        fetchReport: async () => {
+          events.push('refresh')
+          if (scenario === 'refresh') throw new Error('Refresh unavailable')
+        },
+      })
+      await submit(action)
+      if (scenario === 'busy' || scenario === 'missing-report') {
+        assert.deepEqual(events, [])
+        continue
+      }
+      const confirmed = scenario === 'success' || scenario === 'refresh'
+      assert.deepEqual(events, [
+        ['loading', true], 'update', ['id', report.id], ['status', report.status], 'confirm',
+        ...(confirmed ? [titles[action], 'refresh', ...(scenario === 'refresh' ? ['Report saved, but refresh failed'] : [])] : ['Action failed']),
+        ['loading', false],
+      ], `${action}/${scenario}: confirm the exact row and status before success or refresh`)
+      assert.equal(notifications[0].variant, confirmed ? undefined : 'destructive')
+      if (scenario === 'refresh') assert.equal(notifications[1].variant, 'destructive')
+      assert.doesNotMatch(JSON.stringify(notifications), /Database details/)
+    }
+  }
+  console.log('Report action checks passed: four actions, returned errors, zero rows, mismatched confirmations, rejected requests, refresh failures and pending/missing-report guards')
+}
+
 const navigationSource = ts.createSourceFile(
   'dashboard-shell.tsx',
   readFileSync(resolve(root, 'components/dashboard/dashboard-shell.tsx'), 'utf8'),

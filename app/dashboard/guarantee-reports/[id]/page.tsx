@@ -134,6 +134,7 @@ export default function GuaranteeReportDetailPage() {
   const fetchReport = () => mutate()
 
   const takeAction = async (action: 'approve' | 'reject' | 'revision_requested' | 'submitted') => {
+    if (!report || actionLoading) return
     setActionLoading(true)
     try {
       const statusMap = {
@@ -142,14 +143,21 @@ export default function GuaranteeReportDetailPage() {
         revision_requested: 'revision_requested',
         submitted: 'submitted',
       }
-      await supabase.from('guarantee_reports').update({
+      const { data: updatedReport, error } = await supabase.from('guarantee_reports').update({
         status: statusMap[action],
         review_notes: reviewNotes || null,
         review_date: ['approve', 'reject', 'revision_requested'].includes(action) ? new Date().toISOString() : null,
-        submission_date: action === 'submitted' ? new Date().toISOString() : report?.submission_date,
-      }).eq('id', id)
+        submission_date: action === 'submitted' ? new Date().toISOString() : report.submission_date,
+      }).eq('id', id).eq('status', report.status).select('id, status').single()
+      if (error || updatedReport?.id !== id || updatedReport.status !== statusMap[action]) {
+        throw new Error('Report update was not confirmed')
+      }
       toast({ title: action === 'approve' ? 'Report approved' : action === 'reject' ? 'Report rejected' : action === 'submitted' ? 'Report submitted' : 'Revision requested' })
-      fetchReport()
+      try {
+        await fetchReport()
+      } catch {
+        toast({ title: 'Report saved, but refresh failed', description: 'Reload the page to see the latest status.', variant: 'destructive' })
+      }
     } catch {
       toast({ title: 'Action failed', variant: 'destructive' })
     } finally {
