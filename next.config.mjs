@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Next.js 16.4.3 can deliver late debug chunks to a closed WebSocket stream.
+    // Keep React debug data in the RSC response instead of that optional channel.
+    reactDebugChannel: false,
+  },
+
   // Enable Next.js built-in image optimisation (was disabled — re-enable for
   // automatic WebP/AVIF conversion, responsive srcset, and lazy loading).
   images: {
