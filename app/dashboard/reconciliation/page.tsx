@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, Download, GitCompare } from 'lucide-react'
 import { toCSV, downloadCSV } from '@/lib/utils/export'
+import type { Bank } from '@/lib/types/database'
 
 type ReconciliationStatus = 'matched' | 'discrepancy' | 'missing'
 
@@ -49,7 +50,7 @@ export default function ReconciliationPage() {
   const [bankFilter, setBankFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7))
-  const [banks, setBanks] = useState<any[]>([])
+  const [banks, setBanks] = useState<Pick<Bank, 'id' | 'name_en' | 'code'>[]>([])
 
   useEffect(() => {
     supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
@@ -93,9 +94,9 @@ export default function ReconciliationPage() {
       const prsfOutstanding = (loans || []).reduce((s, l) => s + (l.disbursed_amount || 0), 0)
       const prsfFees = (fees || []).reduce((s, f) => s + (f.amount || 0), 0)
 
-      const bankLoans = report ? (report as any).total_loans : null
-      const bankOutstanding = report ? (report as any).total_outstanding_principal : null
-      const bankFees = report ? (report as any).total_guarantee_amount : null
+      const bankLoans = report ? report.total_loans : null
+      const bankOutstanding = report ? report.total_outstanding_principal : null
+      const bankFees = report ? report.total_guarantee_amount : null
 
       const loanDisc = bankLoans !== null ? Math.abs(prsfLoans - bankLoans) : 0
       const outstandingDisc = bankOutstanding !== null ? Math.abs(prsfOutstanding - bankOutstanding) : 0
