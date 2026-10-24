@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useCurrentTime } from '@/hooks/use-current-time'
+import { delegationStatus } from '@/lib/utils/display-time'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { usePermissions } from '@/lib/contexts/permission-context'
@@ -28,6 +30,7 @@ async function loadControls() {
 }
 
 export function CgfWorkflowControls() {
+  const now = useCurrentTime()
   const { role, user } = usePermissions()
   const admin = ['super_admin', 'prsf_admin'].includes(role?.code ?? '')
   const visible = admin || ['auditor', 'fkg_management'].includes(role?.code ?? '')
@@ -76,7 +79,7 @@ export function CgfWorkflowControls() {
     </CardContent><CardFooter>{admin && <Button disabled={busy || !data} onClick={() => void run(saveRules, 'Committee settings saved and audited')}>Save committee rules</Button>}</CardFooter></Card>
     <Card><CardHeader><CardTitle>Temporary guarantee-signature delegation</CardTitle><CardDescription>Delegations expire automatically, may be revoked immediately, and last no more than 90 days. They do not grant committee votes or Director decision rights. A deputy cannot sign a file they confirmed.</CardDescription></CardHeader><CardContent className="flex flex-col gap-6">
       {admin && <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="signature-delegate">Employee</Label><Select value={form.delegate} onValueChange={(delegate) => setForm((current) => ({ ...current, delegate }))}><SelectTrigger id="signature-delegate"><SelectValue placeholder="Select employee" /></SelectTrigger><SelectContent><SelectGroup>{data?.members.map((person) => <SelectItem key={person.id} value={person.id}>{[person.first_name, person.last_name].filter(Boolean).join(' ') || person.id.slice(0, 8)} · {person.role?.code}</SelectItem>)}</SelectGroup></SelectContent></Select><Label htmlFor="delegation-start">Starts (your local time)</Label><Input id="delegation-start" type="datetime-local" value={form.start} onChange={(event) => setForm((current) => ({ ...current, start: event.target.value }))} /><Label htmlFor="delegation-end">Expires (your local time)</Label><Input id="delegation-end" type="datetime-local" value={form.end} onChange={(event) => setForm((current) => ({ ...current, end: event.target.value }))} /><Label htmlFor="delegation-reason">Reason</Label><Input id="delegation-reason" maxLength={2000} value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))} /><Button className="self-start" disabled={busy || !form.delegate || !form.start || !form.end || form.reason.trim().length < 3} onClick={() => void run(delegate, 'Temporary signing authority granted and audited')}>Grant temporary authority</Button></fieldset>}
-      <ul className="flex flex-col gap-3">{data?.delegations.map((delegation) => { const person = data.members.find((person) => person.id === delegation.delegate_id); return <li key={delegation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"><div><p className="text-sm font-medium">{person ? [person.first_name, person.last_name].filter(Boolean).join(' ') : delegation.delegate_id.slice(0, 8)}</p><p className="text-sm text-muted-foreground">{new Date(delegation.starts_at).toLocaleString()} — {new Date(delegation.ends_at).toLocaleString()} · {delegation.revoked_at ? 'revoked' : new Date(delegation.ends_at).getTime() <= Date.now() ? 'expired' : 'scheduled / active'}</p><p className="text-sm">{delegation.reason}</p></div>{admin && !delegation.revoked_at && <Button variant="outline" disabled={busy} onClick={() => void run(async () => { const { error } = await createClient().rpc('cgf_manage_signature_delegation', { p_revoke: delegation.id }); if (error) throw new Error(error.message) }, 'Delegation revoked and audited')}>Revoke</Button>}</li> })}</ul>
+      <ul className="flex flex-col gap-3">{data?.delegations.map((delegation) => { const person = data.members.find((person) => person.id === delegation.delegate_id); return <li key={delegation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"><div><p className="text-sm font-medium">{person ? [person.first_name, person.last_name].filter(Boolean).join(' ') : delegation.delegate_id.slice(0, 8)}</p><p className="text-sm text-muted-foreground">{new Date(delegation.starts_at).toLocaleString()} — {new Date(delegation.ends_at).toLocaleString()} · {delegationStatus(delegation.ends_at, delegation.revoked_at, now)}</p><p className="text-sm">{delegation.reason}</p></div>{admin && !delegation.revoked_at && <Button variant="outline" disabled={busy} onClick={() => void run(async () => { const { error } = await createClient().rpc('cgf_manage_signature_delegation', { p_revoke: delegation.id }); if (error) throw new Error(error.message) }, 'Delegation revoked and audited')}>Revoke</Button>}</li> })}</ul>
       {data?.delegations.length === 0 && <p className="text-sm text-muted-foreground">No signature delegations have been granted.</p>}
     </CardContent></Card>
   </section>

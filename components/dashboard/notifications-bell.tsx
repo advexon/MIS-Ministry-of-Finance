@@ -14,6 +14,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { notificationHref } from '@/lib/notifications'
+import { useCurrentTime } from '@/hooks/use-current-time'
+import { notificationAge } from '@/lib/utils/display-time'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
@@ -28,6 +30,7 @@ interface Notification {
 }
 
 export function NotificationsBell() {
+  const now = useCurrentTime()
   const [open, setOpen] = useState(false)
   const { user } = usePermissions()
   const userId: string | undefined = user?.id
@@ -114,15 +117,6 @@ export function NotificationsBell() {
       default:
         return <FileText className="h-4 w-4 text-muted-foreground" />
     }
-  }
-
-  const formatTime = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    return `${Math.floor(hrs / 24)}d ago`
   }
 
   return (
@@ -215,7 +209,7 @@ export function NotificationsBell() {
                         {n.message}
                       </p>
                       <p className="mt-1 text-[10px] text-muted-foreground/70">
-                        {formatTime(n.created_at)}
+                        {notificationAge(n.created_at, now)}
                       </p>
                     </Link>
                   </div>

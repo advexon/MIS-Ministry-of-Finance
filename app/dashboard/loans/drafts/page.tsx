@@ -50,9 +50,12 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import type { LoanDraft } from "@/lib/hooks/use-loan-draft"
+import { useCurrentTime } from "@/hooks/use-current-time"
+import { isExpiringSoon } from "@/lib/utils/display-time"
 import { usePermissions } from "@/lib/contexts/permission-context"
 
 export default function DraftsPage() {
+  const now = useCurrentTime()
   const { t, locale } = useI18n()
   const router = useRouter()
   const supabase = createClient()
@@ -242,10 +245,7 @@ export default function DraftsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {drafts.filter(d => {
-                const daysLeft = Math.ceil((new Date(d.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-                return daysLeft <= 7
-              }).length}
+              {now === null ? '…' : drafts.filter(d => isExpiringSoon(d.expires_at, now)).length}
             </div>
             <p className="text-xs text-muted-foreground">within 7 days</p>
           </CardContent>

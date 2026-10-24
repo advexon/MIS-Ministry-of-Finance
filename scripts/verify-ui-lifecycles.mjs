@@ -45,10 +45,92 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     module: loadedModule,
     require: localRequire,
     window: overrides.window,
+    Date: overrides.Date ?? Date,
     console,
   }, { filename })
   return loadedModule.exports
 }
+
+const serverClock = loadSource('hooks/use-current-time.ts')
+function ClockProbe() {
+  return React.createElement('span', null, serverClock.useCurrentTime() ?? 'pending')
+}
+assert.equal(renderToStaticMarkup(React.createElement(ClockProbe)), '<span>pending</span>')
+
+let clockNow = Date.UTC(2026, 9, 25, 12)
+let clockStore
+let timerCallback
+let timersStarted = 0
+let timersCleared = 0
+const clock = loadSource('hooks/use-current-time.ts', {
+  Date: { now: () => clockNow },
+  window: {
+    setInterval(callback, interval) {
+      assert.equal(interval, 30_000)
+      timerCallback = callback
+      timersStarted++
+      return 1
+    },
+    clearInterval(timer) { assert.equal(timer, 1); timersCleared++ },
+  },
+  react: {
+    ...React,
+    useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot) {
+      clockStore = { subscribe, getSnapshot, getServerSnapshot }
+      return getSnapshot()
+    },
+  },
+})
+assert.equal(clock.useCurrentTime(), null)
+assert.equal(clockStore.getServerSnapshot(), null)
+let firstTicks = 0
+let secondTicks = 0
+const unsubscribeFirst = clockStore.subscribe(() => { firstTicks++ })
+assert.equal(clockStore.getSnapshot(), clockNow)
+const unsubscribeSecond = clockStore.subscribe(() => { secondTicks++ })
+assert.equal(timersStarted, 1)
+clockNow += 30_000
+assert.notEqual(clockStore.getSnapshot(), clockNow)
+timerCallback()
+assert.equal(clockStore.getSnapshot(), clockNow)
+assert.equal(firstTicks, 1)
+assert.equal(secondTicks, 1)
+unsubscribeFirst()
+assert.equal(timersCleared, 0)
+clockNow += 30_000
+timerCallback()
+assert.equal(firstTicks, 1)
+assert.equal(secondTicks, 2)
+unsubscribeSecond()
+assert.equal(timersCleared, 1)
+assert.equal(clockStore.getSnapshot(), null)
+clockNow += 60_000
+const unsubscribeRemount = clockStore.subscribe(() => {})
+assert.equal(timersStarted, 2)
+assert.equal(clockStore.getSnapshot(), clockNow)
+unsubscribeRemount()
+assert.equal(timersCleared, 2)
+
+const { notificationAge, isExpiringSoon, delegationStatus } = loadSource('lib/utils/display-time.ts')
+const isoAt = offset => new Date(clockNow + offset).toISOString()
+assert.equal(notificationAge(isoAt(0), null), '…')
+for (const [age, expected] of [[0, '0m ago'], [59_999, '0m ago'], [60_000, '1m ago'], [3_599_999, '59m ago'], [3_600_000, '1h ago'], [86_399_999, '23h ago'], [86_400_000, '1d ago']]) {
+  assert.equal(notificationAge(isoAt(-age), clockNow), expected)
+}
+assert.equal(notificationAge(isoAt(60_000), clockNow), '0m ago')
+assert.equal(notificationAge('invalid', clockNow), 'Unknown time')
+const week = 7 * 86_400_000
+assert.equal(isExpiringSoon(isoAt(week), clockNow), true)
+assert.equal(isExpiringSoon(isoAt(week + 1), clockNow), false)
+assert.equal(isExpiringSoon(isoAt(0), clockNow), true)
+assert.equal(isExpiringSoon('invalid', clockNow), false)
+assert.equal(delegationStatus(isoAt(-1), null, null), 'checking status')
+assert.equal(delegationStatus(isoAt(1), null, clockNow), 'scheduled / active')
+assert.equal(delegationStatus(isoAt(0), null, clockNow), 'expired')
+assert.equal(delegationStatus(isoAt(-1), null, clockNow), 'expired')
+assert.equal(delegationStatus(isoAt(1), isoAt(-1), clockNow), 'revoked')
+assert.equal(delegationStatus(isoAt(1), isoAt(-1), null), 'revoked')
+console.log('Display time checks passed: SSR defaults, shared timer, stable snapshots, ticks, cleanup/remount, age and expiry boundaries')
 
 const serverMobile = loadSource('hooks/use-mobile.tsx')
 function MobileProbe() {
