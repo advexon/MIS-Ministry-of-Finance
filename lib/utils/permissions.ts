@@ -1,4 +1,4 @@
-import { Role, ROLE_TIERS, ROLE_CODES } from '@/lib/types/database'
+import { type Role, ROLE_TIERS, ROLE_CODES } from '@/lib/types/database'
 import { createClient } from '@/lib/supabase/client'
 
 export type Permission = 'view' | 'create' | 'update' | 'delete' | 'approve'
@@ -91,8 +91,14 @@ export function hasPermission(
   // No role = no access
   if (!role) return false
 
-  // Superadmin bypasses all permission checks
-  if (role.tier === ROLE_TIERS.SUPER_ADMIN) return true
+  // Regulatory prohibitions take precedence over editable grants and tier bypasses.
+  if (role.code === ROLE_CODES.AUDITOR && permission !== 'view') return false
+  if (
+    (role.code === ROLE_CODES.SUPER_ADMIN || role.code === ROLE_CODES.PRSF_ADMIN) &&
+    ['loans', 'claims'].includes(resource) && permission === 'approve'
+  ) return false
+
+  if (role.code === ROLE_CODES.SUPER_ADMIN && role.tier === ROLE_TIERS.SUPER_ADMIN) return true
 
   // Prefer the database-backed permissions when they have been loaded, so
   // edits made on the Role Management page take real effect.
@@ -134,7 +140,7 @@ export async function fetchRolePermissions(
       .select('resource, can_view, can_create, can_update, can_delete, can_approve')
       .eq('role_id', roleId)
 
-    if (error || !data || data.length === 0) return null
+    if (error || !data) return null
 
     const map: PermissionOverrides = {}
     for (const row of data) {
@@ -314,32 +320,15 @@ export function getResourcePermissions(
 ): ResourcePermission | null {
   if (!role) return null
 
-  // Superadmin has full permissions on everything
-  if (role.tier === ROLE_TIERS.SUPER_ADMIN) {
-    return {
-      resource,
-      can_view: true,
-      can_create: true,
-      can_update: true,
-      can_delete: true,
-      can_approve: true,
-    }
-  }
-
-  if (overrides) return overrides[resource] ?? null
-
-  const rolePermissions = PERMISSION_MATRIX[role.code]
-  if (!rolePermissions) return null
-
-  const permissions = rolePermissions[resource]
-  if (!permissions) return null
+  const isSuperAdmin = role.code === ROLE_CODES.SUPER_ADMIN && role.tier === ROLE_TIERS.SUPER_ADMIN
+  if (!isSuperAdmin && !(overrides ? overrides[resource] : PERMISSION_MATRIX[role.code]?.[resource])) return null
 
   return {
     resource,
-    can_view: permissions.includes('view'),
-    can_create: permissions.includes('create'),
-    can_update: permissions.includes('update'),
-    can_delete: permissions.includes('delete'),
-    can_approve: permissions.includes('approve'),
+    can_view: hasPermission(role, resource, 'view', overrides),
+    can_create: hasPermission(role, resource, 'create', overrides),
+    can_update: hasPermission(role, resource, 'update', overrides),
+    can_delete: hasPermission(role, resource, 'delete', overrides),
+    can_approve: hasPermission(role, resource, 'approve', overrides),
   }
 }

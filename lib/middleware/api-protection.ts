@@ -115,7 +115,7 @@ export function withPermission(
           .select('resource, can_view, can_create, can_update, can_delete, can_approve')
           .eq('role_id', roleId)
 
-        if (permRows && permRows.length > 0) {
+        if (permRows) {
           overrides = {}
           for (const row of permRows) {
             overrides[row.resource] = {
