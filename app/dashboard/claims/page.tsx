@@ -118,7 +118,7 @@ export default function ClaimsPage() {
   }
 
   const getBorrowerName = (claim: Claim) => {
-    const b = (claim as any).loan_application?.borrower
+    const b = claim.loan_application?.borrower
     return b?.name || "—"
   }
 
@@ -159,7 +159,7 @@ export default function ClaimsPage() {
     const selectedLoanForClaim = loans.find((l) => l.id === newLoanId)
     // claims.bank_id is NOT NULL, so a missing bank must be reported clearly
     // instead of sending null and surfacing a raw constraint violation.
-    const claimBankId = (selectedLoanForClaim as any)?.bank_id
+    const claimBankId = selectedLoanForClaim?.bank_id
     if (!claimBankId) {
       showMessage("error", "The selected loan has no partner bank assigned, so a claim cannot be filed.")
       setSaving(false); return
@@ -314,9 +314,9 @@ export default function ClaimsPage() {
                   claims.map((claim) => (
                     <TableRow key={claim.id}>
                       <TableCell className="font-medium text-primary">{claim.claim_number}</TableCell>
-                      <TableCell className="text-sm">{(claim as any).loan_application?.loan_number || "—"}</TableCell>
+                      <TableCell className="text-sm">{claim.loan_application?.loan_number || "—"}</TableCell>
                       <TableCell className="text-sm">{getBorrowerName(claim)}</TableCell>
-                      <TableCell className="text-sm">{(claim as any).loan_application?.bank?.name_en || "—"}</TableCell>
+                      <TableCell className="text-sm">{claim.loan_application?.bank?.name_en || "—"}</TableCell>
                       <TableCell className="text-sm">{new Date(claim.claim_date).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right text-sm">{formatCurrency(claim.principal_claimed)}</TableCell>
                       <TableCell className="text-right text-sm">{formatCurrency(claim.interest_claimed)}</TableCell>
@@ -418,7 +418,7 @@ export default function ClaimsPage() {
           {selectedClaim && (
             <div className="space-y-3 text-sm">
               {[
-                ["Loan", (selectedClaim as any).loan_application?.loan_number],
+                ["Loan", selectedClaim.loan_application?.loan_number],
                 ["Borrower", getBorrowerName(selectedClaim)],
                 ["Claim Date", new Date(selectedClaim.claim_date).toLocaleDateString()],
                 ["Principal Claimed", formatCurrency(selectedClaim.principal_claimed)],
