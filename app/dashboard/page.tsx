@@ -19,7 +19,6 @@ import {
   CheckCircle2,
   XCircle,
   Hourglass,
-  ShieldCheck,
   RefreshCw,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -57,6 +56,15 @@ interface ActivityItem {
   amount: number
   bank: string
   time: string
+}
+
+function formatTimeSince(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 function StatCardSkeleton() {
@@ -233,15 +241,6 @@ export default function DashboardPage() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
-
-  const formatTimeSince = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    return `${Math.floor(hrs / 24)}d ago`
-  }
 
   const getActivityIcon = (type: string) => {
     switch (type) {

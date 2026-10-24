@@ -52,6 +52,27 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   return loadedModule.exports
 }
 
+{
+  const filename = 'app/dashboard/page.tsx'
+  const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const formatter = source.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'formatTimeSince')
+  assert.ok(formatter, 'Activity formatter must be module-scoped, not captured from a later render declaration')
+  const now = Date.parse('2026-10-25T12:00:00Z')
+  class FixedDate extends Date {
+    static now() { return now }
+  }
+  const compiled = ts.transpileModule(formatter.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  const format = runInNewContext(`${compiled}\nformatTimeSince`, { Date: FixedDate })
+  for (const [elapsed, label] of [
+    [0, '0m ago'], [59999, '0m ago'], [60000, '1m ago'],
+    [3599999, '59m ago'], [3600000, '1h ago'],
+    [86399999, '23h ago'], [86400000, '1d ago'], [172800000, '2d ago'],
+    [-60000, '-1m ago'],
+  ]) assert.equal(format(new Date(now - elapsed).toISOString()), label)
+  assert.equal(format('invalid-date'), 'NaNd ago')
+  console.log('Dashboard activity formatter checks passed: minute/hour/day boundaries and existing future/invalid-date behavior')
+}
+
 const navigationSource = ts.createSourceFile(
   'dashboard-shell.tsx',
   readFileSync(resolve(root, 'components/dashboard/dashboard-shell.tsx'), 'utf8'),
