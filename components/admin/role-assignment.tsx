@@ -147,15 +147,13 @@ export function RoleAssignmentDialog({
     setError(null)
 
     try {
-      const supabase = createClient()
-
-      // Update user's role
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ role_id: selectedRoleId })
-        .eq("id", user.id)
-
-      if (updateError) throw updateError
+      const response = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, role_id: selectedRoleId }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "Failed to assign role")
 
       // Log the permission change
       await logPermissionChange(

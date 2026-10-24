@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { useI18n } from "@/lib/i18n/context"
 import { usePermissions, CanAccess } from "@/lib/contexts/permission-context"
 import { Card, CardContent } from "@/components/ui/card"
@@ -289,14 +288,14 @@ export default function UsersPage() {
   }
 
   const handleToggleActive = async (user: UserWithRelations) => {
-    const supabase = createClient()
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_active: !user.is_active })
-        .eq("id", user.id)
-
-      if (error) throw error
+      const response = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, is_active: !user.is_active }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "Failed to update user status")
 
       showMessage("success", `User ${getUserName(user)} ${!user.is_active ? "activated" : "deactivated"}`)
       fetchData()
