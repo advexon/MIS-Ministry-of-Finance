@@ -127,6 +127,75 @@ assert.equal(clickCount, 1)
 console.log('Permission wrapper checks passed: denial, hiding, disabled props, click prevention, fallback, mixed children and allowed identity')
 }
 
+{
+  const columns = [
+    { column_key: 'amount', display_name_en: 'Amount', input_type: 'currency', min_value: 0, max_value: 100, is_required: true },
+    { column_key: 'email', validation_type: 'email' },
+    { column_key: 'phone', validation_type: 'phone' },
+    { column_key: 'tin', validation_type: 'tin' },
+    { column_key: 'percent', display_name_en: 'Coverage', validation_type: 'percentage' },
+    { column_key: 'code', display_name_en: 'Code', min_length: 2, max_length: 4, regex_pattern: '^[A-Z]+$' },
+    { column_key: 'invalidRegex', regex_pattern: '[' },
+    { column_key: 'system', display_name_en: 'System', is_system_required: true },
+    { column_key: 'hidden', is_required: true, is_visible_in_form: false },
+  ].map(column => ({ field_group: 'loan', is_visible_in_form: true, ...column }))
+  let context
+  let stateIndex = 0
+  const columnModule = loadSource('lib/contexts/column-config-context.tsx', {
+    '@/lib/supabase/client': { createClient() { throw new Error('Validation checks must not query the database') } },
+    react: {
+      ...React,
+      useState: initial => [stateIndex++ === 0 ? columns : initial, () => {}],
+      useEffect: () => {},
+      useCallback: callback => callback,
+      useMemo: factory => factory(),
+      useContext: () => context,
+    },
+  })
+  context = columnModule.ColumnConfigProvider({ children: null }).props.value
+  const { validateField, validateForm } = columnModule.useColumnValidation()
+  const valid = (key, value) => assert.equal(validateField(key, value).valid, true, `${key}: ${String(value)}`)
+  const invalid = (key, value, error) => {
+    const result = validateField(key, value)
+    assert.equal(result.valid, false, `${key}: ${String(value)}`)
+    if (error) assert.equal(result.error, error)
+  }
+  valid('missing', undefined)
+  for (const empty of [null, undefined, '']) {
+    invalid('amount', empty, 'Amount is required')
+    invalid('system', empty, 'System is required')
+    valid('email', empty)
+  }
+  for (const value of [0, '0', 100, '100', '12.5', '12.5suffix', [12]]) valid('amount', value)
+  invalid('amount', -1, 'Amount must be at least 0')
+  invalid('amount', 101, 'Amount cannot exceed 100')
+  for (const value of ['bad', false, {}, []]) invalid('amount', value, 'Amount must be a valid number')
+  valid('email', 'person@domain.test')
+  invalid('email', 'person@domain', 'Please enter a valid email address')
+  valid('phone', '+123456789')
+  invalid('phone', 'abc', 'Please enter a valid phone number')
+  valid('tin', '123-456-789')
+  valid('tin', 123456789)
+  invalid('tin', '123', 'TIN must be exactly 9 digits')
+  for (const value of [0, '100', 50.5]) valid('percent', value)
+  for (const value of [-1, 101, 'bad']) invalid('percent', value, 'Coverage must be between 0 and 100')
+  valid('code', 'AB')
+  invalid('code', 'A', 'Code must be at least 2 characters')
+  invalid('code', 'ABCDE', 'Code cannot exceed 4 characters')
+  invalid('code', 'ab', 'Code format is invalid')
+  valid('invalidRegex', 'anything')
+  const invalidForm = validateForm({ amount: '', system: null, email: 'invalid' })
+  assert.equal(invalidForm.isValid, false)
+  assert.deepEqual(Object.keys(invalidForm.errors).sort(), ['amount', 'email', 'system'])
+  assert.equal(validateForm({ amount: 0, system: false }).isValid, true)
+  const grouped = columnModule.useGroupedValidation()
+  const missing = grouped.getMissingFieldsByGroup({ amount: '', system: undefined, email: 'invalid' })
+  assert.deepEqual(Array.from(missing.loan, field => field.field), ['amount', 'system'])
+  assert.deepEqual(Array.from(grouped.getRequiredFieldsForGroup('loan'), column => column.column_key), ['amount', 'system'])
+  assert.equal(Object.values(missing).flat().length, 2)
+  console.log('Column validation checks passed: required/optional values, numeric bounds/coercion, formats, lengths, regex and grouped errors')
+}
+
 const testTranslations = {
   en: { common: { appName: 'English' } },
   ru: { common: { appName: 'Russian' } },

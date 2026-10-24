@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { ColumnConfiguration, ColumnFieldGroup, ColumnInputType } from "@/lib/types/database"
+import type { ColumnConfiguration, ColumnFieldGroup } from "@/lib/types/database"
 
 // Default column configurations (used when database table doesn't exist)
 const defaultColumns: Partial<ColumnConfiguration>[] = [
@@ -65,7 +65,7 @@ interface ColumnConfigContextType {
   getColumnsByGroup: (group: ColumnFieldGroup) => Partial<ColumnConfiguration>[]
   
   // Validation
-  validateField: (columnKey: string, value: any) => { valid: boolean; error?: string }
+  validateField: (columnKey: string, value: unknown) => { valid: boolean; error?: string }
   
   // Refresh
   refreshColumns: () => Promise<void>
@@ -163,7 +163,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
   }, [columns])
 
-  const validateField = useCallback((columnKey: string, value: any): { valid: boolean; error?: string } => {
+  const validateField = useCallback((columnKey: string, value: unknown): { valid: boolean; error?: string } => {
     const col = columns.find(c => c.column_key === columnKey)
     if (!col) return { valid: true }
 
@@ -179,7 +179,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
 
     // Type-specific validation
     if (col.validation_type === 'number' || col.input_type === 'number' || col.input_type === 'currency') {
-      const numValue = parseFloat(value)
+      const numValue = parseFloat(String(value))
       if (isNaN(numValue)) {
         return { valid: false, error: `${col.display_name_en} must be a valid number` }
       }
@@ -193,14 +193,14 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
 
     if (col.validation_type === 'email') {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(value)) {
+      if (!emailRegex.test(String(value))) {
         return { valid: false, error: 'Please enter a valid email address' }
       }
     }
 
     if (col.validation_type === 'phone') {
       const phoneRegex = /^\+?[\d\s\-()]{7,15}$/
-      if (!phoneRegex.test(value)) {
+      if (!phoneRegex.test(String(value))) {
         return { valid: false, error: 'Please enter a valid phone number' }
       }
     }
@@ -213,7 +213,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
     }
 
     if (col.validation_type === 'percentage') {
-      const numValue = parseFloat(value)
+      const numValue = parseFloat(String(value))
       if (isNaN(numValue) || numValue < 0 || numValue > 100) {
         return { valid: false, error: `${col.display_name_en} must be between 0 and 100` }
       }
@@ -298,7 +298,7 @@ export function useColumnVisibility(columnKey: string, view: 'table' | 'form' | 
 export function useColumnValidation() {
   const { validateField, isColumnRequired, columns } = useColumnConfig()
   
-  const validateForm = useCallback((formData: Record<string, any>) => {
+  const validateForm = useCallback((formData: Record<string, unknown>) => {
     const errors: Record<string, string> = {}
     let isValid = true
     
@@ -322,7 +322,7 @@ export function useColumnValidation() {
 export function useGroupedValidation() {
   const { columns, validateField } = useColumnConfig()
   
-  const getMissingFieldsByGroup = useCallback((formData: Record<string, any>) => {
+  const getMissingFieldsByGroup = useCallback((formData: Record<string, unknown>) => {
     const groups: Record<ColumnFieldGroup, Array<{ field: string; label: string; error: string }>> = {
       borrower: [],
       legal_rep: [],
