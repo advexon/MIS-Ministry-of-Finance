@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
 import { RequiredMark, missingFieldsMessage } from '@/components/forms/required-mark'
 import { toCSV, downloadCSV } from '@/lib/utils/export'
+import type { Bank } from '@/lib/types/database'
 
 interface Recovery {
   id: string
@@ -54,7 +55,7 @@ export default function RecoveriesPage() {
 
   const [recoveries, setRecoveries] = useState<Recovery[]>([])
   const [claims, setClaims] = useState<any[]>([])
-  const [banks, setBanks] = useState<any[]>([])
+  const [banks, setBanks] = useState<Pick<Bank, 'id' | 'name_en' | 'code'>[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [bankFilter, setBankFilter] = useState('all')

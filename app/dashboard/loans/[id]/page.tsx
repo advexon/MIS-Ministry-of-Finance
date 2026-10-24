@@ -20,7 +20,7 @@ import {
   Download, Eye, FileCheck,
 } from "lucide-react"
 import Link from "next/link"
-import type { LoanApplication, LoanStatus } from "@/lib/types/database"
+import type { Claim, LoanApplication, LoanStatus } from "@/lib/types/database"
 import { SchemeStepper } from "@/components/workflow/scheme-stepper"
 import { WorkflowPanel } from "@/components/workflow/workflow-panel"
 import { LoanPackage } from "@/components/workflow/loan-package"
@@ -184,7 +184,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const supabase = createClient()
 
   const [loan, setLoan]     = useState<LoanApplication | null>(null)
-  const [claims, setClaims] = useState<any[]>([])
+  const [claims, setClaims] = useState<Claim[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState("bank_officer")
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
