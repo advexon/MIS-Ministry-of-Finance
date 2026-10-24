@@ -404,28 +404,16 @@ export function formatCellValue(value: unknown, type: DocumentColumn['type']): s
 
 // ─── Export: Excel ────────────────────────────────────────────────────────────
 
-export async function exportExcel(
+export async function buildExcelWorkbook(
   template: DocumentTemplate,
   rows: Record<string, unknown>[]
-): Promise<void> {
+) {
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const visibleCols = template.columns.filter(c => c.visible)
+  if (!visibleCols.length) throw new Error('Select at least one column to export')
 
-  // Summary sheet
-  if (template.includeSummary) {
-    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
-    const summaryData = [
-      ['Report Name', template.name],
-      ['Generated', now],
-      ['Total Records', rows.length],
-      ['Data Source', template.dataSource],
-      ['Active Filters', template.filters.filter(f => f.enabled).length],
-      ['Sort By', template.sortRules.map(s => `${s.column} ${s.direction}`).join(', ') || 'Default'],
-    ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary')
-  }
-
+  // Keep loan-level details first so Excel opens on borrowers and amounts, not metadata.
   // Main data sheet
   const headers = visibleCols.map(c => c.label)
   const dataRows = rows.map(row =>
@@ -442,7 +430,7 @@ export async function exportExcel(
     const totalsRow = visibleCols.map(col => {
       if (col.type === 'currency' || col.type === 'number') {
         const total = rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0)
-        return total
+        return col.type === 'currency' ? Number(total.toFixed(2)) : total
       }
       if (col.key === visibleCols[0].key) return 'TOTAL'
       return ''
@@ -455,7 +443,47 @@ export async function exportExcel(
   // Column widths
   ws['!cols'] = visibleCols.map(c => ({ wch: Math.round((c.width || 120) / 7) }))
 
+  if (rows.length) {
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: rows.length, c: visibleCols.length - 1 },
+    }) }
+  }
+  visibleCols.forEach((col, columnIndex) => {
+    const format = col.type === 'currency' ? '#,##0.00'
+      : col.type === 'number' ? '#,##0.########'
+      : col.type === 'percent' ? '0.0"%"' : null
+    if (!format) return
+    for (let rowIndex = 1; rowIndex <= dataRows.length; rowIndex++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })]
+      if (cell?.t === 'n') cell.z = format
+    }
+  })
+
   XLSX.utils.book_append_sheet(wb, ws, 'Data')
+
+  if (template.includeSummary) {
+    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+    const summaryData = [
+      ['Report Name', template.name],
+      ['Generated', now],
+      ['Total Records', rows.length],
+      ['Data Source', template.dataSource],
+      ['Active Filters', template.filters.filter(f => f.enabled).length],
+      ['Sort By', template.sortRules.map(s => `${s.column} ${s.direction}`).join(', ') || 'Default'],
+    ]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary')
+  }
+
+  return wb
+}
+
+export async function exportExcel(
+  template: DocumentTemplate,
+  rows: Record<string, unknown>[]
+): Promise<void> {
+  const wb = await buildExcelWorkbook(template, rows)
+  const XLSX = await import('xlsx')
   XLSX.writeFile(wb, `${template.name.replace(/\s+/g, '_')}_${Date.now()}.xlsx`)
 }
 
