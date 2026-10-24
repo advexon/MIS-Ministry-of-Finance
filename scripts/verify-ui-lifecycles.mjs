@@ -45,11 +45,123 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     module: loadedModule,
     require: localRequire,
     window: overrides.window,
+    localStorage: overrides.localStorage,
     Date: overrides.Date ?? Date,
     console,
   }, { filename })
   return loadedModule.exports
 }
+
+const testTranslations = {
+  en: { common: { appName: 'English' } },
+  ru: { common: { appName: 'Russian' } },
+  tj: { common: { appName: 'Tajik' } },
+}
+const serverI18n = loadSource('lib/i18n/context.tsx', { './translations': { translations: testTranslations } })
+function LanguageProbe() {
+  const { locale, t } = serverI18n.useI18n()
+  return React.createElement('span', null, `${locale}:${t.common.appName}`)
+}
+assert.equal(renderToStaticMarkup(React.createElement(serverI18n.I18nProvider, null, React.createElement(LanguageProbe))), '<span>en:English</span>')
+
+function localeHarness(saved, { storageFails = false, loadFails = false } = {}) {
+  let effect
+  let state
+  const updates = []
+  const writes = []
+  const translations = { ...testTranslations }
+  if (loadFails) Object.defineProperty(translations, 'ru', { get() { throw new Error('Chunk unavailable') } })
+  const i18n = loadSource('lib/i18n/context.tsx', {
+    './translations': { translations },
+    localStorage: {
+      getItem(key) {
+        assert.equal(key, 'cgf-locale')
+        if (storageFails) throw new Error('Storage denied')
+        return saved
+      },
+      setItem(key, value) {
+        assert.equal(key, 'cgf-locale')
+        if (storageFails) throw new Error('Storage denied')
+        writes.push(value)
+      },
+    },
+    react: {
+      ...React,
+      useState(initial) {
+        state = initial
+        return [initial, value => { state = value; updates.push(value) }]
+      },
+      useRef: current => ({ current }),
+      useCallback: callback => callback,
+      useEffect(callback) { effect = callback },
+    },
+  })
+  const provider = i18n.I18nProvider({ children: null })
+  return { restore: () => effect(), setLocale: provider.props.value.setLocale, updates, writes, get state() { return state } }
+}
+async function settleLocales() {
+  for (let turn = 0; turn < 12; turn++) await Promise.resolve()
+}
+for (const locale of ['en', 'ru', 'tj']) {
+  const language = localeHarness(locale)
+  language.restore()
+  assert.equal(language.updates.length, 0)
+  await settleLocales()
+  assert.equal(language.state.locale, locale)
+  assert.equal(language.state.t, testTranslations[locale])
+  assert.deepEqual(language.writes, [])
+}
+for (const saved of [null, '', 'invalid', '__proto__']) {
+  const language = localeHarness(saved)
+  language.restore()
+  await settleLocales()
+  assert.equal(language.updates.length, 0)
+  assert.equal(language.state.locale, 'en')
+}
+const restoredRace = localeHarness('ru')
+restoredRace.restore()
+restoredRace.setLocale('en')
+await settleLocales()
+assert.equal(restoredRace.updates.length, 1)
+assert.equal(restoredRace.state.locale, 'en')
+assert.equal(restoredRace.state.t, testTranslations.en)
+assert.deepEqual(restoredRace.writes, ['en'])
+const rapidSwitch = localeHarness(null)
+rapidSwitch.restore()
+rapidSwitch.setLocale('ru')
+rapidSwitch.setLocale('tj')
+await settleLocales()
+assert.equal(rapidSwitch.updates.length, 1)
+assert.equal(rapidSwitch.state.locale, 'tj')
+assert.equal(rapidSwitch.state.t, testTranslations.tj)
+assert.deepEqual(rapidSwitch.writes, ['ru', 'tj'])
+const unmountedLanguage = localeHarness('ru')
+const cleanupLanguage = unmountedLanguage.restore()
+cleanupLanguage()
+await settleLocales()
+assert.equal(unmountedLanguage.updates.length, 0)
+const replayedLanguage = localeHarness('ru')
+replayedLanguage.restore()()
+replayedLanguage.restore()
+await settleLocales()
+assert.equal(replayedLanguage.updates.length, 1)
+assert.equal(replayedLanguage.state.locale, 'ru')
+const deniedStorage = localeHarness('ru', { storageFails: true })
+deniedStorage.restore()
+deniedStorage.setLocale('tj')
+await settleLocales()
+assert.equal(deniedStorage.state.locale, 'tj')
+assert.equal(deniedStorage.state.t, testTranslations.tj)
+const failedLoad = localeHarness('ru', { loadFails: true })
+failedLoad.restore()
+await settleLocales()
+assert.equal(failedLoad.updates.length, 0)
+assert.equal(failedLoad.state.locale, 'en')
+failedLoad.setLocale('tj')
+await settleLocales()
+assert.equal(failedLoad.state.locale, 'tj')
+assert.equal(failedLoad.state.t, testTranslations.tj)
+console.log('Locale lifecycle checks passed: SSR, restoration, invalid preferences, latest-request races, atomic translations, cleanup/replay, denied storage and chunk failure recovery')
 
 const serverClock = loadSource('hooks/use-current-time.ts')
 function ClockProbe() {
