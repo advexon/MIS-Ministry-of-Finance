@@ -1026,7 +1026,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Grant Extension Request</DialogTitle>
-            <DialogDescription>Approve the bank's extension request. The loan returns to Approved status with the new validity date.</DialogDescription>
+            <DialogDescription>Approve the bank&apos;s extension request. The loan returns to Approved status with the new validity date.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-lg bg-secondary/50 p-3 text-sm">
@@ -1051,7 +1051,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Decline Extension Request</DialogTitle>
-            <DialogDescription>Decline the bank's extension request. The guarantee will be cancelled.</DialogDescription>
+            <DialogDescription>Decline the bank&apos;s extension request. The guarantee will be cancelled.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
@@ -1139,9 +1139,9 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 ref={guaranteeLetterRef}
                 loan={{
                   ...loan,
-                  borrower: loan.borrower as any,
-                  bank: loan.bank as any,
-                  branch: loan.branch as any,
+                  borrower: loan.borrower,
+                  bank: loan.bank,
+                  branch: loan.branch,
                 }}
                 guaranteeNumber={loan.guarantee_number || `DRAFT-${loan.loan_number || loan.id.slice(0, 8)}`}
                 issueDate={loan.guarantee_issued_date || undefined}

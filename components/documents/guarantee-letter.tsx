@@ -14,8 +14,8 @@ interface GuaranteeLetterProps {
       tin_number?: string
       tin?: string
       legal_address?: string
-      address_street?: string
-      address_city?: string
+      address_street?: string | null
+      address_city?: string | null
     }
     bank?: {
       name_en?: string
