@@ -2,10 +2,22 @@
 // every page that imports this module. Instead we dynamically import it only
 // when exportToExcel is actually called by the user.
 
+import type { ParsedLoan, ParsedPayment } from './excel-parser'
+
 export interface ReportData {
-  report: any
-  loans: any[]
-  payments: any[]
+  report: {
+    bank?: { name?: string | null } | null
+    status: string
+    total_loans?: number | null
+    total_outstanding_principal?: number | null
+    total_guarantee_amount?: number | null
+  }
+  loans: ParsedLoan[]
+  payments: (ParsedPayment & {
+    is_paid?: boolean
+    actual_payment_date?: string | null
+    actual_amount_paid?: number | null
+  })[]
 }
 
 export async function exportToExcel(data: ReportData, reportMonth: string): Promise<void> {
@@ -271,7 +283,7 @@ export function downloadCSV(csv: string, filename: string): void {
   URL.revokeObjectURL(url)
 }
 
-export function exportToCSV(data: any[], filename: string): void {
+export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
   if (data.length === 0) return
 
   const headers = Object.keys(data[0])

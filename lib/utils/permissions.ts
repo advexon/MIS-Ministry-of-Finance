@@ -197,7 +197,7 @@ export async function logAccessAttempt(
   resourceId: string | undefined,
   success: boolean,
   failureReason?: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ) {
   if (!userId) return
 
@@ -261,7 +261,7 @@ export async function logPermissionChange(
 export async function logSecurityEvent(
   userId: string,
   eventType: 'LOGIN' | 'LOGOUT' | 'PASSWORD_CHANGE' | 'FAILED_LOGIN' | 'PRIVILEGE_ESCALATION_ATTEMPT' | 'UNAUTHORIZED_ACCESS',
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 ) {
   try {
     const supabase = createClient()

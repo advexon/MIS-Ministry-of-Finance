@@ -16,7 +16,7 @@ export interface FieldValidation {
   field: string
   label: string
   required: boolean
-  validate: (value: any, formData?: Record<string, any>) => ValidationResult
+  validate: (value: string, formData?: Record<string, unknown>) => ValidationResult
 }
 
 export interface StepValidation {
@@ -242,7 +242,7 @@ const stepValidations: StepValidation[] = [
   },
 ]
 
-export function useLoanFormValidation(formData: Record<string, any>) {
+export function useLoanFormValidation(formData: Record<string, unknown>) {
   // Admin-configurable (Required fields page). The asterisk on each label and
   // this check both read the same setting, so they can never disagree.
   const requirements = useFieldRequirements("loan_application")
@@ -255,17 +255,20 @@ export function useLoanFormValidation(formData: Record<string, any>) {
 
   // Empty + required → "required" error; empty + optional → valid; otherwise
   // the field's own format rules run (TIN length, coverage cap, …).
-  const runField = useCallback((field: FieldValidation, value: any): ValidationResult => {
+  const runField = useCallback((field: FieldValidation, value: unknown): ValidationResult => {
     if (isEmptyValue(value)) {
       return isFieldRequired(field)
         ? { isValid: false, error: `${field.label} is required` }
         : { isValid: true }
     }
-    return field.validate(value, formData)
+    if (typeof value !== 'string' && typeof value !== 'number') {
+      return { isValid: false, error: `${field.label} has an invalid value` }
+    }
+    return field.validate(String(value), formData)
   }, [formData, isFieldRequired])
 
   // Validate a single field
-  const validateField = useCallback((fieldName: string, value: any): ValidationResult => {
+  const validateField = useCallback((fieldName: string, value: unknown): ValidationResult => {
     for (const stepVal of stepValidations) {
       const field = stepVal.fields.find(f => f.field === fieldName)
       if (field) {

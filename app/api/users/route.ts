@@ -204,7 +204,7 @@ export const PATCH = withPermission(
         }
       }
 
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
 
@@ -234,9 +234,9 @@ export const PATCH = withPermission(
       // Record who changed whom, so user administration is auditable. Only the
       // fields actually being changed are recorded, alongside their prior values.
       const changedKeys = Object.keys(updateData).filter((k) => k !== "updated_at")
-      const oldData: Record<string, any> = {}
+      const oldData: Record<string, unknown> = {}
       for (const k of changedKeys) {
-        oldData[k] = (targetProfile as Record<string, any>)[k] ?? null
+        oldData[k] = (targetProfile as Record<string, unknown>)[k] ?? null
       }
 
       const { error: auditError } = await supabase.from("audit_trail").insert({

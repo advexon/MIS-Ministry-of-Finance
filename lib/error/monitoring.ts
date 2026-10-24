@@ -7,7 +7,7 @@ export interface ErrorContext {
   email?: string
   loanId?: string
   action?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 /**

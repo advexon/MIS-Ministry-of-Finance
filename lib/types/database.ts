@@ -601,8 +601,8 @@ export interface ColumnConfigAudit {
   id: string
   config_id: string | null
   action: 'create' | 'update' | 'delete'
-  previous_values: Record<string, any> | null
-  new_values: Record<string, any> | null
+  previous_values: Record<string, unknown> | null
+  new_values: Record<string, unknown> | null
   changed_by: string | null
   changed_at: string
 }
