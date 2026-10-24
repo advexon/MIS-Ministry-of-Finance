@@ -303,6 +303,9 @@ export const translations = {
       establishmentYear: 'Year of Establishment',
       employeeCount: 'Number of Employees',
       loanHistory: 'Loan History',
+      historyScope: 'Fund-only MIS application history across banks. Not an external credit-bureau report or a repayment ledger. Open an application for its recorded workflow timeline.',
+      historyError: 'Unable to load loan history. Access may have changed; no history is shown.',
+      retryHistory: 'Retry',
     },
     
     // Reports
@@ -739,6 +742,9 @@ export const translations = {
       establishmentYear: 'Год основания',
       employeeCount: 'Количество сотрудников',
       loanHistory: 'История кредитов',
+      historyScope: 'История заявок в ИС по всем банкам доступна только сотрудникам Фонда. Это не отчёт кредитного бюро и не реестр погашений. Хронология действий доступна в заявке.',
+      historyError: 'Не удалось загрузить историю кредитов. Возможно, права доступа изменились; история скрыта.',
+      retryHistory: 'Повторить',
     },
     
     // Reports
@@ -1175,6 +1181,9 @@ export const translations = {
       establishmentYear: 'Соли таъсис',
       employeeCount: 'Шумораи кормандон',
       loanHistory: 'Таърихи қарзҳо',
+      historyScope: 'Таърихи дархостҳо дар низом аз ҳамаи бонкҳо танҳо барои кормандони Фонд дастрас аст. Ин ҳисоботи бюрои қарзӣ ё феҳристи пардохтҳо нест. Барои дидани раванди баррасӣ дархостро кушоед.',
+      historyError: 'Таърихи қарзҳо бор нашуд. Эҳтимол ҳуқуқи дастрасӣ тағйир ёфтааст; таърих пинҳон аст.',
+      retryHistory: 'Такрор',
     },
     
     // Reports

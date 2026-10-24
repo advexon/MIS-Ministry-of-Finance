@@ -37,6 +37,9 @@ import {
   RefreshCw,
 } from "lucide-react"
 import type { Borrower } from "@/lib/types/database"
+import { usePermissions } from "@/lib/contexts/permission-context"
+import { canViewBorrowerCreditHistory } from "@/lib/utils/borrower-credit-history"
+import { CreditHistoryDialog } from "@/components/borrowers/credit-history-dialog"
 
 const PAGE_SIZE = 20
 
@@ -46,6 +49,9 @@ export default function BorrowersPage() {
 
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState("")
+  const [historyBorrower, setHistoryBorrower] = useState<Borrower | null>(null)
+  const { profile, role } = usePermissions()
+  const canViewHistory = canViewBorrowerCreditHistory(profile, role)
 
   const { data: result, isLoading, isValidating, mutate } = usePageQuery<{ borrowers: Borrower[]; total: number }>(["borrowers", page, search], async () => {
     let query = supabase
@@ -247,6 +253,11 @@ export default function BorrowersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {canViewHistory && (
+                              <DropdownMenuItem onSelect={() => setHistoryBorrower(b)}>
+                                {t.borrowers.loanHistory}
+                              </DropdownMenuItem>
+                            )}
                             {/* No /dashboard/borrowers/[id] route exists, and borrower
                                 fields are only writable through the loan application
                                 form, so both items lead to that borrower's loans
@@ -274,6 +285,14 @@ export default function BorrowersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {canViewHistory && historyBorrower && (
+        <CreditHistoryDialog
+          key={historyBorrower.id}
+          borrower={historyBorrower}
+          onClose={() => setHistoryBorrower(null)}
+        />
+      )}
 
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">

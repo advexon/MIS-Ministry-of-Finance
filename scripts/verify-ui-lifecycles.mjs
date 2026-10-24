@@ -53,6 +53,81 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
 }
 
 {
+  const { canViewBorrowerCreditHistory: allowed } = loadSource('lib/utils/borrower-credit-history.ts')
+  const fundRoles = ['super_admin', 'prsf_admin', 'prsf_analyst', 'auditor', 'credit_risk_officer', 'compliance_officer', 'fkg_management', 'deputy_director', 'accountant', 'reporting_officer', 'business_development']
+  for (const code of fundRoles) {
+    assert.equal(allowed({ is_active: true }, { code, is_active: true }), true)
+    assert.equal(allowed({ is_active: false }, { code, is_active: true }), false)
+    assert.equal(allowed({ is_active: true }, { code, is_active: false }), false)
+  }
+  for (const code of ['bank_admin', 'bank_officer', 'legal_officer', 'credit_committee', 'unknown']) {
+    assert.equal(allowed({ is_active: true }, { code, is_active: true }), false)
+  }
+  assert.equal(allowed(null, null), false)
+
+  const { translations } = loadSource('lib/i18n/translations.ts')
+  let identity = { profile: { is_active: true }, role: { code: 'prsf_analyst', is_active: true }, can: () => true }
+  let queryKey, fetchHistory, page = 0, nextPage
+  let rpcError = null
+  let calls = 0
+  let queryState = { isLoading: false, isValidating: false, data: { total: 21, items: [{ id: 'loan-1', loan_request_id: 'HISTORY-ONLY', approved_amount: 0, currency: 'TJS', created_at: null }] } }
+  const wrapper = ({ children }) => React.createElement('div', null, children)
+  const { CreditHistoryDialog } = loadSource('components/borrowers/credit-history-dialog.tsx', {
+    react: { ...React, useState: () => [page, value => { nextPage = value }] },
+    'next/link': { default: ({ children, href }) => React.createElement('a', { href }, children), __esModule: true },
+    '@/lib/contexts/permission-context': { usePermissions: () => identity },
+    '@/lib/i18n/context': { useI18n: () => ({ t: translations.en, locale: 'en' }) },
+    '@/lib/hooks/use-page-query': { usePageQuery: (key, fetcher) => { queryKey = key; fetchHistory = fetcher; return queryState } },
+    '@/lib/supabase/client': { createClient: () => ({ rpc: async (name, args) => {
+      calls++
+      assert.equal(name, 'cgf_borrower_credit_history')
+      assert.equal(args.p_borrower_id, 'borrower-1')
+      assert.equal(args.p_limit, 20)
+      assert.equal(args.p_offset, page * 20)
+      return { data: queryState.data, error: rpcError }
+    } }) },
+    '@/components/ui/dialog': Object.fromEntries(['Dialog', 'DialogContent', 'DialogHeader', 'DialogTitle', 'DialogDescription'].map(name => [name, wrapper])),
+  })
+  const props = { borrower: { id: 'borrower-1', name: 'History borrower' }, onClose: () => {} }
+  const tree = CreditHistoryDialog(props)
+  assert.equal(JSON.stringify(queryKey), JSON.stringify(['borrower-credit-history', 'borrower-1', 0]))
+  assert.equal(await fetchHistory(), queryState.data)
+  assert.match(renderToStaticMarkup(tree), /HISTORY-ONLY/)
+  assert.match(renderToStaticMarkup(tree), /0 TJS/)
+  function findNext(node) {
+    if (!React.isValidElement(node)) return
+    if (node.props.children === 'Next') return node
+    for (const child of React.Children.toArray(node.props.children)) {
+      const found = findNext(child)
+      if (found) return found
+    }
+  }
+  findNext(tree).props.onClick()
+  assert.equal(nextPage, 1)
+  page = 1
+  CreditHistoryDialog(props)
+  assert.equal(queryKey[2], 1)
+  await fetchHistory()
+  rpcError = new Error('Access revoked')
+  await assert.rejects(fetchHistory, /Access revoked/)
+  queryState = { ...queryState, error: rpcError }
+  assert.doesNotMatch(renderToStaticMarkup(CreditHistoryDialog(props)), /HISTORY-ONLY/)
+  queryState = { ...queryState, error: null, isLoading: true }
+  assert.doesNotMatch(renderToStaticMarkup(CreditHistoryDialog(props)), /HISTORY-ONLY/)
+  queryState = { ...queryState, isLoading: false }
+  identity = { ...identity, can: () => false }
+  const readOnlyHistory = renderToStaticMarkup(CreditHistoryDialog(props))
+  assert.match(readOnlyHistory, /HISTORY-ONLY/)
+  assert.doesNotMatch(readOnlyHistory, /href=/)
+  const previousCalls = calls
+  identity = { ...identity, role: { code: 'bank_officer', is_active: true } }
+  assert.equal(CreditHistoryDialog(props), null)
+  assert.equal(queryKey, null)
+  assert.equal(calls, previousCalls)
+  console.log('Borrower history checks passed: fund roles, disabled actors, scoped pagination, zero amount, loading/error hiding, direct RPC failure and bank denial')
+}
+
+{
   const filename = 'app/dashboard/page.tsx'
   const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const formatter = source.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'formatTimeSince')
