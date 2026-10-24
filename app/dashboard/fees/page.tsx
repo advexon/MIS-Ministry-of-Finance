@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import type { Fee } from "@/lib/types/database"
 import { one } from "@/lib/utils/supabase-relation"
+import { renderFeeInvoice } from "@/lib/utils/fee-invoice"
 import { toCSV, downloadCSV } from "@/lib/utils/export"
 import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
 import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
@@ -226,22 +227,19 @@ export default function FeesPage() {
     const bank = (fee as any).loan_application?.bank?.name_en || "—"
     const today = new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" })
     const invoiceNum = fee.invoice_number || `INV-PENDING-${fee.id.substring(0, 8)}`
-    const html = `<!DOCTYPE html><html><head><title>Fee Invoice ${invoiceNum}</title>
-<style>body{font-family:Arial,sans-serif;font-size:12pt;margin:40px;color:#222}.header{text-align:center;margin-bottom:30px}.table{width:100%;border-collapse:collapse;margin:20px 0}.table td,.table th{border:1px solid #ccc;padding:8px 12px}.table th{background:#f0f0f0;font-weight:bold}.total-row{font-weight:bold;background:#f8f8f8}</style>
-</head><body>
-<div class="header"><h1>CREDIT GUARANTEE FUND - GUARANTEE FEE INVOICE</h1><h2>Credit Guarantee Fund – Ministry of Finance</h2></div>
-<p><strong>Invoice No.:</strong> ${invoiceNum}<br><strong>Date:</strong> ${today}<br><strong>Loan Ref.:</strong> ${(fee as any).loan_application?.loan_number || "—"}</p>
-<p><strong>To:</strong> ${bank}<br>Re: ${borrowerName}</p>
-<table class="table">
-<tr><th>Description</th><th>Base Amount</th><th>Rate</th><th>Fee Amount</th></tr>
-<tr><td>${fee.fee_type === "upfront" ? "Upfront Guarantee Fee" : `Quarterly Guarantee Commission${fee.period_start ? ` (${new Date(fee.period_start).toLocaleDateString()} – ${fee.period_end ? new Date(fee.period_end).toLocaleDateString() : ""})` : ""}`}</td><td>${formatCurrency(fee.base_amount)}</td><td>${(fee.fee_rate * 100).toFixed(2)}%</td><td>${formatCurrency(fee.fee_amount)}</td></tr>
-<tr class="total-row"><td colspan="3" style="text-align:right">Total Due:</td><td>${formatCurrency(fee.fee_amount)}</td></tr>
-</table>
-<p>Please remit payment to the PRSF Trust Fund Account within 30 days of this invoice date.</p>
-<p style="margin-top:40px;font-size:10pt;color:#666">Generated: ${today}</p>
-</body></html>`
+    const html = renderFeeInvoice({
+      invoiceNumber: invoiceNum,
+      date: today,
+      loanReference: (fee as any).loan_application?.loan_number || "—",
+      bank,
+      borrower: borrowerName,
+      description: fee.fee_type === "upfront" ? "Upfront Guarantee Fee" : `Quarterly Guarantee Commission${fee.period_start ? ` (${new Date(fee.period_start).toLocaleDateString()} – ${fee.period_end ? new Date(fee.period_end).toLocaleDateString() : ""})` : ""}`,
+      baseAmount: formatCurrency(fee.base_amount),
+      rate: `${(fee.fee_rate * 100).toFixed(2)}%`,
+      feeAmount: formatCurrency(fee.fee_amount),
+    })
     const win = window.open("", "_blank")
-    if (win) { win.document.write(html); win.document.close(); win.print() }
+    if (win) { win.opener = null; win.document.write(html); win.document.close(); win.print() }
   }
 
   // Auto-calculate quarterly fees for all active loans

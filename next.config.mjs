@@ -1,10 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Suppress type errors so the build completes even with minor type gaps
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   // Enable Next.js built-in image optimisation (was disabled — re-enable for
   // automatic WebP/AVIF conversion, responsive srcset, and lazy loading).
   images: {
@@ -25,29 +20,24 @@ const nextConfig = {
     imageSizes: [24, 32, 40, 64, 96],
   },
 
-  // Aggressive HTTP caching for static assets
   async headers() {
+    const privateHeaders = [
+      { key: 'Cache-Control', value: 'private, no-store, max-age=0' },
+    ]
     return [
       {
-        // Immutable cache for hashed Next.js static assets
-        source: '/_next/static/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      {
-        // Cache public assets (images, fonts) for 24 h with revalidation
         source: '/:path*',
         headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=86400, stale-while-revalidate=604800',
-          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         ],
       },
+      { source: '/dashboard/:path*', headers: privateHeaders },
+      { source: '/api/:path*', headers: privateHeaders },
+      { source: '/auth/:path*', headers: privateHeaders },
     ]
   },
 
