@@ -440,7 +440,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   )
 
   const actions = getAvailableActions(loan.status, userRole)
-  const borrowerName = (loan.borrower as any)?.name ?? "—"
+  const borrowerName = loan.borrower?.name ?? "—"
 
   return (
     <div className="p-4 lg:p-6">
@@ -465,7 +465,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               {STATUS_LABELS[loan.status] ?? loan.status}
             </Badge>
           </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">{borrowerName} · {(loan.bank as any)?.name_en}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{borrowerName} · {loan.bank?.name_en}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {["guarantee_issued", "disbursed", "active", "approved"].includes(loan.status) && (
@@ -584,8 +584,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card className="shadow-sm">
               <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Building2 className="h-3.5 w-3.5" />Bank & Branch</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
-                <div className="font-medium">{(loan.bank as any)?.name_en ?? "—"}</div>
-                <div className="text-muted-foreground">{(loan.branch as any)?.name_en ?? "Head Office"}</div>
+                <div className="font-medium">{loan.bank?.name_en ?? "—"}</div>
+                <div className="text-muted-foreground">{loan.branch?.name_en ?? "Head Office"}</div>
                 <div className="text-muted-foreground">Officer: {loan.loan_officer ?? "—"}</div>
               </CardContent>
             </Card>
@@ -622,7 +622,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card className="shadow-sm">
               <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><FileText className="h-3.5 w-3.5" />Loan Terms</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Product:</span><span className="text-foreground">{(loan.product as any)?.name_en ?? "—"}</span></div>
+                <div className="flex justify-between"><span>Product:</span><span className="text-foreground">{loan.product?.name_en ?? "—"}</span></div>
                 <div className="flex justify-between"><span>Term:</span><span className="text-foreground">{loan.duration_months ?? "—"} months</span></div>
                 <div className="flex justify-between"><span>Interest Rate:</span><span className="text-foreground">{loan.interest_rate ?? "—"}% p.a.</span></div>
                 <div className="flex justify-between"><span>Frequency:</span><span className="text-foreground capitalize">{loan.frequency ?? "—"}</span></div>
@@ -649,21 +649,21 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               {loan.borrower ? (
                 <div className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                   {[
-                    ["Legal Type", (loan.borrower as any).legal_type?.replace("_", " ")],
-                    ["Name", (loan.borrower as any).name],
-                    ["TIN Number", (loan.borrower as any).tin_number],
-                    ["Registration No.", (loan.borrower as any).registration_number],
-                    ["Phone", (loan.borrower as any).phone],
-                    ["Email", (loan.borrower as any).email],
-                    ["City", (loan.borrower as any).address_city],
-                    ["District", (loan.borrower as any).address_district],
-                    ["Address", (loan.borrower as any).address_street],
-                    ["Workforce", (loan.borrower as any).workforce_count],
-                    ["Legal Rep Name", (loan.borrower as any).legal_rep_name],
-                    ["Legal Rep Surname", (loan.borrower as any).legal_rep_surname],
-                    ["Legal Rep Gender", (loan.borrower as any).legal_rep_gender],
-                    ["Legal Rep Birthdate", fmtDate((loan.borrower as any).legal_rep_birthdate)],
-                    ["Legal Rep TIN", (loan.borrower as any).legal_rep_tin],
+                    ["Legal Type", loan.borrower.legal_type?.replace("_", " ")],
+                    ["Name", loan.borrower.name],
+                    ["TIN Number", loan.borrower.tin_number],
+                    ["Registration No.", loan.borrower.registration_number],
+                    ["Phone", loan.borrower.phone],
+                    ["Email", loan.borrower.email],
+                    ["City", loan.borrower.address_city],
+                    ["District", loan.borrower.address_district],
+                    ["Address", loan.borrower.address_street],
+                    ["Workforce", loan.borrower.workforce_count],
+                    ["Legal Rep Name", loan.borrower.legal_rep_name],
+                    ["Legal Rep Surname", loan.borrower.legal_rep_surname],
+                    ["Legal Rep Gender", loan.borrower.legal_rep_gender],
+                    ["Legal Rep Birthdate", fmtDate(loan.borrower.legal_rep_birthdate)],
+                    ["Legal Rep TIN", loan.borrower.legal_rep_tin],
                   ].map(([label, value]) => value ? (
                     <div key={label as string}>
                       <p className="text-xs text-muted-foreground">{label}</p>
