@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 import Image from 'next/image'
 import {
   LayoutDashboard,
@@ -82,9 +82,9 @@ const navItems: NavItem[] = [
   { titleKey: 'reconciliation', href: '/dashboard/reconciliation', icon: GitCompare, resource: 'fees', prsfOnly: true },
   { titleKey: 'recoveries', href: '/dashboard/recoveries', icon: TrendingUp, resource: 'claims', prsfOnly: true },
   { titleKey: 'auditTrail', href: '/dashboard/audit', icon: Shield, resource: 'audit_logs' },
-  { titleKey: 'roles' as any, href: '/dashboard/roles', icon: Shield, resource: 'roles', adminOnly: true },
-  { titleKey: 'columnConfig' as any, href: '/dashboard/column-config', icon: Settings, adminOnly: true },
-  { titleKey: 'formRequirements' as any, href: '/dashboard/form-requirements', icon: Asterisk, adminOnly: true },
+  { titleKey: 'roles', href: '/dashboard/roles', icon: Shield, resource: 'roles', adminOnly: true },
+  { titleKey: 'columnConfig', href: '/dashboard/column-config', icon: Settings, adminOnly: true },
+  { titleKey: 'formRequirements', href: '/dashboard/form-requirements', icon: Asterisk, adminOnly: true },
   { titleKey: 'settings', href: '/dashboard/settings', icon: Settings, adminOnly: true },
   { titleKey: 'manual', href: '/dashboard/manual', icon: BookOpen },
 ]

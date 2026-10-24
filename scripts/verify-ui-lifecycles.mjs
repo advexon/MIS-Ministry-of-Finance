@@ -52,6 +52,44 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   return loadedModule.exports
 }
 
+const navigationSource = ts.createSourceFile(
+  'dashboard-shell.tsx',
+  readFileSync(resolve(root, 'components/dashboard/dashboard-shell.tsx'), 'utf8'),
+  ts.ScriptTarget.Latest,
+  true,
+  ts.ScriptKind.TSX,
+)
+let navigationItems
+for (const statement of navigationSource.statements) {
+  if (!ts.isVariableStatement(statement)) continue
+  for (const declaration of statement.declarationList.declarations) {
+    if (declaration.name.getText(navigationSource) === 'navItems') navigationItems = declaration.initializer
+  }
+}
+assert.ok(navigationItems && ts.isArrayLiteralExpression(navigationItems))
+const navigation = navigationItems.elements.map(item => {
+  assert.ok(ts.isObjectLiteralExpression(item))
+  return Object.fromEntries(item.properties.map(property => {
+    assert.ok(ts.isPropertyAssignment(property))
+    const value = property.initializer
+    return [property.name.getText(navigationSource), ts.isStringLiteral(value) ? value.text : value.getText(navigationSource)]
+  }))
+})
+const { translations: navigationTranslations } = loadSource('lib/i18n/translations.ts')
+assert.equal(navigation.length, 19)
+assert.equal(new Set(navigation.map(item => item.href)).size, navigation.length)
+for (const locale of ['en', 'ru', 'tj']) {
+  for (const item of navigation) {
+    const label = navigationTranslations[locale].nav[item.titleKey]
+    assert.equal(typeof label, 'string', `${locale}: missing navigation label ${item.titleKey}`)
+    assert.ok(label.trim(), `${locale}: empty navigation label ${item.titleKey}`)
+  }
+}
+assert.deepEqual(navigation.filter(item => item.adminOnly === 'true').map(item => item.titleKey), ['roles', 'columnConfig', 'formRequirements', 'settings'])
+assert.deepEqual(navigation.filter(item => item.prsfOnly === 'true').map(item => item.titleKey), ['committee', 'reconciliation', 'recoveries'])
+assert.equal(navigation.find(item => item.titleKey === 'roles').resource, 'roles')
+console.log('Navigation contract checks passed: 19 unique routes, all three locales, admin-only and PRSF-only flags')
+
 const testTranslations = {
   en: { common: { appName: 'English' } },
   ru: { common: { appName: 'Russian' } },
