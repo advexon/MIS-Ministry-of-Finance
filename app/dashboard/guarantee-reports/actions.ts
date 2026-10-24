@@ -290,12 +290,14 @@ export async function requestRevisionGuaranteeReport(id: string, reviewNotes: st
 export async function deleteGuaranteeReport(id: string) {
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('guarantee_reports')
     .delete()
     .eq('id', id)
+    .select('id')
+    .single()
 
-  if (error) {
+  if (error || data?.id !== id) {
     console.error('Error deleting guarantee report:', error)
     throw new Error('Failed to delete guarantee report')
   }

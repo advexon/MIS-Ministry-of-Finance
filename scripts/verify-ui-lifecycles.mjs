@@ -277,6 +277,100 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   console.log('Report action checks passed: four actions, returned errors, zero rows, mismatched confirmations, rejected requests, refresh failures and pending/missing-report guards')
 }
 
+{
+  const filename = 'app/dashboard/claims/page.tsx'
+  const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let handler
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === 'handleSubmitNewClaim') handler = node
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(handler)
+  const compiled = ts.transpileModule(`const ${handler.getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  for (const scenario of ['success', 'missing', 'negative', 'nan', 'zero', 'no-bank', 'returned-error', 'network', 'no-confirmation', 'refresh']) {
+    const events = []
+    const messages = []
+    const query = {
+      insert: payload => {
+        events.push('insert')
+        assert.equal(payload.loan_id, 'loan-1')
+        assert.equal(payload.loan_application_id, 'loan-1')
+        assert.equal(payload.bank_id, 'bank-1')
+        assert.equal(payload.claim_amount, 125)
+        assert.equal(payload.principal_claimed, 100)
+        assert.equal(payload.interest_claimed, 25)
+        assert.equal(payload.penalties_claimed, 0)
+        assert.equal(payload.submitted_by, undefined)
+        return query
+      },
+      select: columns => { assert.equal(columns, 'id'); return query },
+      single: async () => {
+        if (scenario === 'network') throw new Error('Network unavailable')
+        return { data: scenario === 'no-confirmation' ? null : { id: 'claim-1' }, error: scenario === 'returned-error' ? { code: '42501' } : null }
+      },
+    }
+    const submit = runInNewContext(`${compiled}\nhandleSubmitNewClaim`, {
+      Number, Math, Date, Error,
+      createReq: { missingFields: () => scenario === 'missing' ? ['Loan'] : [] },
+      newClaimValues: {}, newLoanId: 'loan-1', newClaimDate: '2026-10-25',
+      newPrincipal: scenario === 'negative' ? '-100' : scenario === 'nan' ? '100suffix' : scenario === 'zero' ? '0' : '100',
+      newInterest: scenario === 'zero' ? '0' : '25', newPenalties: '0',
+      loans: scenario === 'no-bank' ? [] : [{ id: 'loan-1', bank_id: 'bank-1' }],
+      missingFieldsMessage: () => 'Missing fields',
+      getDatabaseErrorMessage: () => 'Submission failed',
+      showMessage: (type, message) => messages.push([type, message]),
+      supabase: { from: table => { assert.equal(table, 'claims', 'No split loan or audit writes'); return query } },
+      setSaving: value => events.push(['saving', value]),
+      setNewOpen: value => events.push(['dialog', value]),
+      setNewLoanId: () => {}, setNewClaimDate: () => {}, setNewPrincipal: () => {}, setNewInterest: () => {}, setNewPenalties: () => {},
+      fetchClaims: async () => { events.push('refresh'); if (scenario === 'refresh') throw new Error('Refresh unavailable') },
+    })
+    await submit()
+    const validationFailed = ['missing', 'negative', 'nan', 'zero', 'no-bank'].includes(scenario)
+    const confirmed = ['success', 'refresh'].includes(scenario)
+    assert.deepEqual(events, validationFailed ? [] : [
+      ['saving', true], 'insert', ...(confirmed ? [['dialog', false], 'refresh'] : []), ['saving', false],
+    ], scenario)
+    assert.equal(messages[0][0], confirmed ? 'success' : 'error', scenario)
+    if (scenario === 'refresh') assert.match(messages[1][1], /do not resubmit/)
+  }
+  console.log('Claim submission handler checks passed: single confirmed write, numeric validation, failures, refresh warning and loading cleanup')
+}
+
+{
+  const filename = 'app/dashboard/guarantee-reports/actions.ts'
+  const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const handler = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'deleteGuaranteeReport')
+  assert.ok(handler)
+  const compiled = ts.transpileModule(handler.getText(source).replace('export ', ''), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  for (const scenario of ['success', 'zero-rows', 'wrong-id', 'returned-error', 'network']) {
+    const events = []
+    const query = {
+      delete: () => query,
+      eq: (column, value) => { assert.equal(column, 'id'); assert.equal(value, 'report-1'); return query },
+      select: columns => { assert.equal(columns, 'id'); return query },
+      single: async () => {
+        if (scenario === 'network') throw new Error('Network unavailable')
+        return { data: scenario === 'zero-rows' ? null : { id: scenario === 'wrong-id' ? 'other-report' : 'report-1' }, error: scenario === 'returned-error' ? { message: 'Denied' } : null }
+      },
+    }
+    const remove = runInNewContext(`${compiled}\ndeleteGuaranteeReport`, {
+      Error, console: { error: () => {} },
+      createClient: async () => ({ from: table => { assert.equal(table, 'guarantee_reports'); return query } }),
+      revalidatePath: path => events.push(path),
+    })
+    if (scenario === 'success') {
+      assert.equal((await remove('report-1')).success, true)
+      assert.deepEqual(events, ['/dashboard/guarantee-reports'])
+    } else {
+      await assert.rejects(() => remove('report-1'))
+      assert.deepEqual(events, [])
+    }
+  }
+  console.log('Report delete checks passed: exact returned ID required; denied, zero-row and network failures never report success')
+}
+
 const navigationSource = ts.createSourceFile(
   'dashboard-shell.tsx',
   readFileSync(resolve(root, 'components/dashboard/dashboard-shell.tsx'), 'utf8'),

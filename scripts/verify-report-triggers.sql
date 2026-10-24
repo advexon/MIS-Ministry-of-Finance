@@ -111,15 +111,16 @@ BEGIN
       UPDATE public.roles SET is_active=true WHERE id=bank_role;
     END IF;
 
-    -- The legacy DELETE audit FK cannot reference its already-deleted parent; do not hide this with a skipped audit.
     SELECT count(*) INTO audit_count FROM public.guarantee_report_audit WHERE report_id=report;
-    BEGIN
-      DELETE FROM public.guarantee_reports WHERE id=report;
-      RAISE EXCEPTION 'Report deletion unexpectedly bypassed its unresolved audit FK';
-    EXCEPTION WHEN foreign_key_violation THEN NULL; END;
-    ASSERT (SELECT count(*)=audit_count FROM public.guarantee_report_audit WHERE report_id=report), 'Failed delete altered audit rows';
+    DELETE FROM public.guarantee_reports WHERE id=report;
+    ASSERT NOT EXISTS(SELECT 1 FROM public.guarantee_reports WHERE id=report), 'Trusted deletion did not remove report';
+    ASSERT (SELECT count(*)=audit_count+1 FROM public.guarantee_report_audit WHERE report_id=report), 'Deletion did not retain audit history';
+    ASSERT EXISTS(SELECT 1 FROM public.guarantee_report_audit WHERE report_id=report AND action='delete'
+      AND performed_by=actor AND changes->>'id'=report::text), 'Delete audit snapshot or attribution missing';
   END LOOP;
 
+  report := gen_random_uuid();
+  INSERT INTO public.guarantee_reports(id,bank_id,report_month) VALUES(report,fixture_bank,'2099-04-01');
   PERFORM set_config('request.jwt.claim.sub','',true);
   EXECUTE 'set local role service_role';
   UPDATE public.guarantee_reports SET total_loans=0 WHERE id=report;
@@ -135,4 +136,4 @@ BEGIN
 END;
 $test$;
 ROLLBACK;
-SELECT 'Report trigger regressions passed through authenticated bank submission/resubmission and admin review; all fixtures and temporary identity changes rolled back. Delete-audit FK remains unresolved.' AS result;
+SELECT 'Report trigger regressions passed through authenticated bank submission/resubmission and admin review; all fixtures and temporary identity changes rolled back. Trusted deletions retain complete audit history.' AS result;
