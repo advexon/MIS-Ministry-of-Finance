@@ -169,9 +169,8 @@ function getAvailableActions(status: string, userRole: string): string[] {
     case "defaulted":
       return isBank ? ["file_claim"] : []
 
-    // Step 8: PRSF reviews claim → approve/reject
     case "claim_pending":
-      return isPrsf ? ["approve_claim", "reject_claim"] : []
+      return ["prsf_analyst", "credit_risk_officer", "compliance_officer", "fkg_management"].includes(userRole) ? ["claims_committee"] : []
 
     default: return []
   }
@@ -210,7 +209,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const rejectReq = useFieldRequirements("loan_reject")
   const cancelReq = useFieldRequirements("loan_cancel")
   const rescheduleReq = useFieldRequirements("loan_reschedule")
-  const claimRejectReq = useFieldRequirements("loan_claim_reject")
   const extendRequestReq = useFieldRequirements("loan_extend_request")
   const extendGrantReq = useFieldRequirements("loan_extend_grant")
   const declineReq = useFieldRequirements("loan_decline")
@@ -339,42 +337,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       showToast("Claim filed successfully")
       setDialog(null)
     }
-    setSaving(false)
-  }
-
-  const handleApproveClaim = async () => {
-    if (!loan || !claims[0]) return
-    setSaving(true)
-    const { error } = await supabase.from("claims").update({
-      status: "approved",
-      review_date: dateField,
-      review_notes: notes,
-      approved_amount: parseFloat(amount) || claims[0].claim_amount,
-    }).eq("id", claims[0].id)
-    if (error) {
-      // Stop before moving the loan forward so the claim and loan cannot diverge
-      showToast("Failed to approve claim: " + error.message, "error")
-      setSaving(false)
-      return
-    }
-    await transition("claim_paid", {})
-    setSaving(false)
-  }
-
-  const handleRejectClaim = async () => {
-    if (!loan || !claims[0]) return
-    setSaving(true)
-    const { error } = await supabase
-      .from("claims")
-      .update({ status: "rejected", review_date: dateField, review_notes: reason })
-      .eq("id", claims[0].id)
-    if (error) {
-      // Stop before moving the loan forward so the claim and loan cannot diverge
-      showToast("Failed to reject claim: " + error.message, "error")
-      setSaving(false)
-      return
-    }
-    await transition("claim_rejected", {})
     setSaving(false)
   }
 
@@ -525,8 +487,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           {actions.includes("reschedule")        && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent" onClick={() => setDialog("reschedule")}><RefreshCw className="h-3.5 w-3.5" />Reschedule</Button>}
           {actions.includes("mark_defaulted")    && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("defaulted") }}><TrendingDown className="h-3.5 w-3.5" />Mark Defaulted</Button>}
           {actions.includes("file_claim")        && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("claim")}><AlertTriangle className="h-3.5 w-3.5" />File Claim</Button>}
-          {actions.includes("approve_claim")     && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(claims[0]?.claim_amount ?? "")); setDialog("approve_claim") }}>Approve Claim</Button>}
-          {actions.includes("reject_claim")      && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("reject_claim")}>Reject Claim</Button>}
+          {actions.includes("claims_committee") && <Button size="sm" variant="outline" asChild><Link href="/dashboard/committee#claims-committee">Review in claims committee</Link></Button>}
         </div>
       </div>
 
@@ -1013,38 +974,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleFileClaim} disabled={saving || !claimPrincipal}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}File Claim
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Approve Claim — Step 8B2 */}
-      <Dialog open={dialog === "approve_claim"} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Step 8B2 · Approve & Pay Claim</DialogTitle><DialogDescription>Approve the claim and record payment. Recoveries tracking begins (Step 9).</DialogDescription></DialogHeader>
-          <div className="space-y-3">
-            <div><Label className="text-xs">Review Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Approved Amount ({loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Review Notes</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1" /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleApproveClaim} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve & Pay Claim
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Claim — Step 8B1 */}
-      <Dialog open={dialog === "reject_claim"} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Step 8B1 · Reject Claim</DialogTitle><DialogDescription>Reject the guarantee claim. This is end of process for this claim.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Rejection Reason<RequiredMark show={claimRejectReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleRejectClaim} disabled={saving || claimRejectReq.missingFields({ reason }).length > 0}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reject Claim
             </Button>
           </DialogFooter>
         </DialogContent>

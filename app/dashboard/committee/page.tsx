@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Gavel, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { MeetingCard } from '@/components/committee/meeting-card'
+import { ClaimsCommitteeRegister } from '@/components/committee/claims-register'
 import type { CommitteeMeeting, CommitteeMember, TabledLoan } from '@/components/committee/types'
 import { canServeAsSecretary } from '@/lib/employee-flags'
 import { usePermissions } from '@/lib/contexts/permission-context'
@@ -72,6 +73,7 @@ export default function CommitteePage() {
       </header>
       {error && <Alert variant="destructive"><AlertDescription>{error instanceof Error ? error.message : 'Could not load the committee register'}</AlertDescription></Alert>}
       {isLoading ? <Skeleton className="h-40" /> : !data?.meetings.length ? <Card><CardHeader><CardTitle>No sittings yet</CardTitle><CardDescription>The secretary can convene a sitting after Credit Risk review.</CardDescription></CardHeader><CardContent>Membership is selected by the system, not manually seated.</CardContent></Card> : data.meetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} allMembers={data.members} myId={user?.id ?? null} myRole={role?.code ?? null} secretaryAuthorized={secretary} onChanged={() => mutate()} />)}
+      <ClaimsCommitteeRegister members={data?.members ?? []} myId={user?.id ?? null} myRole={role?.code ?? null} secretary={secretary} />
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent><DialogHeader><DialogTitle>Convene an application sitting</DialogTitle><DialogDescription>The system selects 2–3 flagged operations employees without product restrictions, adds the Director above the configured threshold and chooses the senior chair. Voting is due in one working day.</DialogDescription></DialogHeader>
           <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="meeting-number">Meeting number</Label><Input id="meeting-number" maxLength={100} value={form.meeting_no} onChange={(event) => setForm((current) => ({ ...current, meeting_no: event.target.value }))} /><Label htmlFor="meeting-case">Application</Label><Select value={form.loan_id} onValueChange={(loan_id) => setForm((current) => ({ ...current, loan_id }))}><SelectTrigger id="meeting-case"><SelectValue placeholder="Choose an application" /></SelectTrigger><SelectContent><SelectGroup>{data?.awaiting.map((loan) => <SelectItem key={loan.id} value={loan.id}>{loan.loan_number ?? loan.id.slice(0, 8)} · {loan.status === 'rejected' ? 'reconsideration' : loan.status.replaceAll('_', ' ')}</SelectItem>)}</SelectGroup></SelectContent></Select></fieldset>

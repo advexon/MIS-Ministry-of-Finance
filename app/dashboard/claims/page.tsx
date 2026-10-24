@@ -1,21 +1,23 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
+import { usePermissions } from "@/lib/contexts/permission-context"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
-  Plus, Search, Filter, MoreHorizontal, Eye, CheckCircle, XCircle,
+  Plus, Search, Filter, MoreHorizontal, Eye,
   AlertTriangle, DollarSign, Clock, Loader2, RefreshCw, CheckCircle2, AlertCircle,
 } from "lucide-react"
 import type { Claim } from "@/lib/types/database"
@@ -33,6 +35,8 @@ const statusStyles: Record<string, string> = {
 
 export default function ClaimsPage() {
   const { t } = useI18n()
+  const { role } = usePermissions()
+  const fundStaff = !!role && !["bank_admin", "bank_officer"].includes(role.code)
   const supabase = createClient()
 
   interface LoanOption {
@@ -55,7 +59,6 @@ export default function ClaimsPage() {
   // Dialogs
   const [viewOpen, setViewOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
-  const [reviewOpen, setReviewOpen] = useState(false)
   const [recoveryOpen, setRecoveryOpen] = useState(false)
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null)
   const [saving, setSaving] = useState(false)
@@ -66,13 +69,6 @@ export default function ClaimsPage() {
   const [newPrincipal, setNewPrincipal] = useState("")
   const [newInterest, setNewInterest] = useState("")
   const [newPenalties, setNewPenalties] = useState("0")
-
-  // Review form
-  const [reviewNotes, setReviewNotes] = useState("")
-  const [reviewApprovedAmount, setReviewApprovedAmount] = useState("")
-  const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve")
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
-  const [paymentRef, setPaymentRef] = useState("")
 
   // Recovery form
   const [recoveryDate, setRecoveryDate] = useState(new Date().toISOString().split("T")[0])
@@ -131,7 +127,6 @@ export default function ClaimsPage() {
   const totalApproved = claims.filter((c) => c.approved_amount).reduce((s, c) => s + (c.approved_amount || 0), 0)
 
   const createReq = useFieldRequirements("claim_create")
-  const reviewReq = useFieldRequirements("claim_review")
   const recoveryReq = useFieldRequirements("claim_recovery")
 
   const newClaimValues = {
@@ -141,19 +136,12 @@ export default function ClaimsPage() {
     interest_claimed: newInterest,
     penalties_claimed: newPenalties,
   }
-  const reviewValues = {
-    ...(reviewAction === "approve"
-      ? { approved_amount: reviewApprovedAmount, payment_date: paymentDate, ...(paymentDate ? { payment_reference: paymentRef } : {}) }
-      : {}),
-    review_notes: reviewNotes,
-  }
   const recoveryValues = {
     recovery_date: recoveryDate,
     total_recovered: recoveryTotal,
     prsf_share: recoveryPrsfShare,
     notes: recoveryNotes,
   }
-  const reviewMissing = reviewReq.missingFields(reviewValues)
   const recoveryMissing = recoveryReq.missingFields(recoveryValues)
 
   const handleSubmitNewClaim = async () => {
@@ -187,6 +175,7 @@ export default function ClaimsPage() {
       interest_claimed: interest,
       penalties_claimed: penalties,
       status: "pending",
+      submitted_by: user?.id,
     })
     if (error) { showMessage("error", error.message); setSaving(false); return }
 
@@ -198,41 +187,6 @@ export default function ClaimsPage() {
     setNewOpen(false)
     setNewLoanId(""); setNewClaimDate(new Date().toISOString().split("T")[0])
     setNewPrincipal(""); setNewInterest(""); setNewPenalties("0")
-    fetchClaims()
-    setSaving(false)
-  }
-
-  const handleReview = async () => {
-    if (!selectedClaim) return
-    if (reviewMissing.length) { showMessage("error", missingFieldsMessage(reviewMissing)); return }
-    setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-
-    const updates: Record<string, unknown> = {
-      status: reviewAction === "approve" ? (paymentDate ? "paid" : "approved") : "rejected",
-      review_notes: reviewNotes,
-      reviewed_by: user?.id,
-      review_date: new Date().toISOString().split("T")[0],
-    }
-    if (reviewAction === "approve") {
-      updates.approved_amount = parseFloat(reviewApprovedAmount) || selectedClaim.claim_amount
-      if (paymentDate) {
-        updates.payment_date = paymentDate
-        updates.payment_reference = paymentRef
-      }
-    }
-
-    const { error } = await supabase.from("claims").update(updates).eq("id", selectedClaim.id)
-    if (error) { showMessage("error", error.message); setSaving(false); return }
-
-    if (reviewAction === "approve") {
-      const loanStatus = updates.status === "paid" ? "claim_paid" : "claim_pending"
-      await supabase.from("loan_applications").update({ status: loanStatus }).eq("id", selectedClaim.loan_application_id)
-    }
-    await supabase.from("audit_trail").insert({ table_name: "claims", record_id: selectedClaim.id, action: "UPDATE", old_data: { status: selectedClaim.status }, new_data: updates, changed_by: user?.id })
-
-    showMessage("success", `Claim ${reviewAction === "approve" ? "approved" : "rejected"} successfully`)
-    setReviewOpen(false)
     fetchClaims()
     setSaving(false)
   }
@@ -278,7 +232,7 @@ export default function ClaimsPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t.claims.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage guarantee claim requests from partner banks</p>
+          <p className="mt-1 text-sm text-muted-foreground">Manage guarantee claims. Approval requires a unanimous signed claims committee protocol; payment is a separate controlled process.</p>
         </div>
         <Button onClick={() => setNewOpen(true)} className="gap-2"><Plus className="h-4 w-4" />New Claim</Button>
       </div>
@@ -379,16 +333,8 @@ export default function ClaimsPage() {
                             <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setViewOpen(true) }}>
                               <Eye className="mr-2 h-4 w-4" />View Details
                             </DropdownMenuItem>
-                            {(claim.status === "pending" || claim.status === "under_review") && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setReviewApprovedAmount(String(claim.claim_amount)); setReviewAction("approve"); setReviewOpen(true) }}>
-                                  <CheckCircle className="mr-2 h-4 w-4 text-emerald-600" />Approve
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setReviewAction("reject"); setReviewOpen(true) }}>
-                                  <XCircle className="mr-2 h-4 w-4 text-destructive" />Reject
-                                </DropdownMenuItem>
-                              </>
+                            {fundStaff && ["pending", "submitted", "under_review", "rejected"].includes(claim.status) && (
+                              <DropdownMenuItem asChild><Link href="/dashboard/committee#claims-committee">Review in claims committee</Link></DropdownMenuItem>
                             )}
                             {claim.status === "paid" && (
                               <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setRecoveryOpen(true) }}>
@@ -492,52 +438,6 @@ export default function ClaimsPage() {
               ))}
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Review Dialog */}
-      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{reviewAction === "approve" ? "Approve Claim" : "Reject Claim"}</DialogTitle>
-            <DialogDescription>{selectedClaim?.claim_number}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {reviewAction === "approve" && (
-              <>
-                <div className="space-y-2">
-                  <Label>Approved Amount<RequiredMark show={reviewReq.isRequired("approved_amount")} /></Label>
-                  <Input type="number" value={reviewApprovedAmount} onChange={(e) => setReviewApprovedAmount(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Payment Date (leave blank to mark as Approved only)<RequiredMark show={reviewReq.isRequired("payment_date")} /></Label>
-                  <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-                </div>
-                {paymentDate && (
-                  <div className="space-y-2">
-                    <Label>Payment Reference<RequiredMark show={reviewReq.isRequired("payment_reference")} /></Label>
-                    <Input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="Bank transfer reference" />
-                  </div>
-                )}
-              </>
-            )}
-            <div className="space-y-2">
-              <Label>Review Notes<RequiredMark show={reviewReq.isRequired("review_notes")} /></Label>
-              <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="Justification for this decision..." rows={3} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewOpen(false)}>Cancel</Button>
-            {reviewAction === "approve" ? (
-              <Button onClick={handleReview} disabled={saving || reviewMissing.length > 0} className="bg-emerald-600 hover:bg-emerald-700">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="mr-2 h-4 w-4" />Approve</>}
-              </Button>
-            ) : (
-              <Button onClick={handleReview} disabled={saving || reviewMissing.length > 0} variant="destructive">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><XCircle className="mr-2 h-4 w-4" />Reject</>}
-              </Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

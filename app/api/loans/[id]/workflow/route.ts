@@ -67,6 +67,9 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   }
   const body = parsed.data
   const to = body.to as LoanStatus
+  if (to === 'claim_paid' || to === 'claim_rejected') {
+    return NextResponse.json({ error: 'Claim decisions require a signed claims protocol; payment requires its own authorized transaction', code: 'CLAIM_TRANSACTION_REQUIRED' }, { status: 409 })
+  }
 
   // Caller's role.
   const { data: profile } = await supabase

@@ -24,9 +24,11 @@ interface Props {
   myRole: string | null
   secretaryAuthorized: boolean
   onChanged: () => void | Promise<unknown>
+  onAction?: (action: string, data: Record<string, unknown>) => Promise<void>
+  claimContext?: { claimNumber: string; recommendedAmount: number; originalAmount: number; directorThreshold: number }
 }
 
-export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthorized, onChanged }: Props) {
+export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthorized, onChanged, onAction, claimContext }: Props) {
   const { toast } = useToast()
   const [busy, setBusy] = useState(false)
   const [protocolOpen, setProtocolOpen] = useState(false)
@@ -42,8 +44,12 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
   async function act(action: string, data: Record<string, unknown> = {}) {
     setBusy(true)
     try {
-      const { error } = await createClient().rpc('cgf_committee_action', { p_action: action, p_meeting: meeting.id, p_data: data })
-      if (error) throw error
+      if (onAction) {
+        await onAction(action, data)
+      } else {
+        const { error } = await createClient().rpc('cgf_committee_action', { p_action: action, p_meeting: meeting.id, p_data: data })
+        if (error) throw error
+      }
       setProtocolOpen(false)
       setAcknowledged(false)
       await onChanged()
@@ -80,6 +86,7 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
         {meeting.due_at && <p className="text-sm text-muted-foreground">Voting deadline: {new Date(meeting.due_at).toLocaleString()}{meeting.escalated_at ? ' · Director notified' : ''}</p>}
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
+        {claimContext && <p className="text-sm text-muted-foreground">Claim {claimContext.claimNumber} · Proposed approval {claimContext.recommendedAmount.toLocaleString()} TJS · Original loan {claimContext.originalAmount.toLocaleString()} TJS · Director threshold {claimContext.directorThreshold.toLocaleString()} TJS. Approval does not record a payment.</p>}
         <section aria-label="Assigned committee members" className="flex flex-col gap-3">
           {meeting.seats.map((seat) => (
             <div key={seat.id} className="flex flex-wrap items-center gap-3">
