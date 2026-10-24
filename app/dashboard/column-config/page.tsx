@@ -471,7 +471,7 @@ export default function ColumnConfigPage() {
 
           {/* Column Groups */}
           <Accordion type="multiple" defaultValue={["borrower", "loan", "guarantee"]} className="space-y-3">
-            {(Object.entries(fieldGroups) as Array<[ColumnFieldGroup, any]>).map(([groupKey, group]) => {
+            {(Object.entries(fieldGroups) as Array<[ColumnFieldGroup, (typeof fieldGroups)[ColumnFieldGroup]]>).map(([groupKey, group]) => {
               const groupCols = groupedColumns[groupKey]
               if (groupCols.length === 0) return null
 

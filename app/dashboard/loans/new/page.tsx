@@ -18,7 +18,7 @@ import { ArrowLeft, Save, Building2, User, DollarSign, FileText, Shield, Loader2
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
-import type { Bank, BankBranch, Sector, LoanProduct } from "@/lib/types/database"
+import type { Bank, BankBranch, Sector, LoanProduct, Borrower } from "@/lib/types/database"
 import { useLoanFormValidation, type FormStep } from "@/lib/hooks/use-loan-form-validation"
 import { RequiredMark } from "@/components/forms/required-mark"
 import { StepValidationPanel } from "@/components/forms/step-validation-panel"
@@ -79,7 +79,7 @@ export default function NewLoanPage() {
   const [tinDuplicateWarning, setTinDuplicateWarning] = useState<{ name: string; type: string } | null>(null)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
   const [checkingTin, setCheckingTin] = useState(false)
-  const [foundBorrower, setFoundBorrower] = useState<any | null>(null)
+  const [foundBorrower, setFoundBorrower] = useState<Borrower | null>(null)
   const [borrowerLoaded, setBorrowerLoaded] = useState(false)
 
   // Legal Representative fields
