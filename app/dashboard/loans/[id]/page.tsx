@@ -314,7 +314,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const handleFileClaim = async () => {
     if (!loan) return
     // claims.bank_id is NOT NULL; report a missing bank instead of sending null.
-    const claimBankId = (loan as any).bank_id
+    const claimBankId = loan.bank_id
     if (!claimBankId) {
       showToast("This loan has no partner bank assigned, so a claim cannot be filed.", "error")
       return
@@ -403,7 +403,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     if (!guaranteeLetterRef.current || !loan) return
     setDownloadingPDF(true)
     try {
-      const guaranteeNum = (loan as any).guarantee_number || loan.loan_number || loan.id.slice(0, 8)
+      const guaranteeNum = loan.guarantee_number || loan.loan_number || loan.id.slice(0, 8)
       const filename = `Letter_of_Guarantee_${guaranteeNum}.pdf`
       await downloadPDF(guaranteeLetterRef.current, {
         filename,
@@ -1074,17 +1074,17 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileCheck className="h-5 w-5 text-teal-600" />
-              Letter of Guarantee {(loan as any).guarantee_number ? '' : '(Preview)'}
+              Letter of Guarantee {loan.guarantee_number ? '' : '(Preview)'}
             </DialogTitle>
             <DialogDescription>
-              {(loan as any).guarantee_number 
-                ? `Guarantee Number: ${(loan as any).guarantee_number} · Issued: ${fmtDate(loan.guarantee_issued_date)}`
+              {loan.guarantee_number
+                ? `Guarantee Number: ${loan.guarantee_number} · Issued: ${fmtDate(loan.guarantee_issued_date)}`
                 : 'Preview the Letter of Guarantee before issuing. This is a draft preview.'}
             </DialogDescription>
           </DialogHeader>
           
           {/* Status Banner for Draft */}
-          {!(loan as any).guarantee_number && loan.status === 'approved' && (
+          {!loan.guarantee_number && loan.status === 'approved' && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-amber-800">
                 <AlertTriangle className="h-4 w-4" />
@@ -1104,9 +1104,9 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <div className="flex items-center gap-3 border-b pb-4 flex-shrink-0">
             <Button
               onClick={handleDownloadPDF}
-              disabled={downloadingPDF || !(loan as any).guarantee_number}
+              disabled={downloadingPDF || !loan.guarantee_number}
               className="gap-2 bg-teal-600 hover:bg-teal-700 text-white"
-              title={!(loan as any).guarantee_number ? 'Issue the guarantee first to download' : ''}
+              title={!loan.guarantee_number ? 'Issue the guarantee first to download' : ''}
             >
               {downloadingPDF ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1119,13 +1119,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               variant="outline" 
               onClick={handlePrintGuarantee} 
               className="gap-2"
-              disabled={!(loan as any).guarantee_number}
-              title={!(loan as any).guarantee_number ? 'Issue the guarantee first to print' : ''}
+              disabled={!loan.guarantee_number}
+              title={!loan.guarantee_number ? 'Issue the guarantee first to print' : ''}
             >
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            {(loan as any).guarantee_number && (
+            {loan.guarantee_number && (
               <div className="ml-auto text-xs text-muted-foreground">
                 Valid until: {fmtDate(loan.maturity_date)}
               </div>
@@ -1143,10 +1143,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                   bank: loan.bank as any,
                   branch: loan.branch as any,
                 }}
-                guaranteeNumber={(loan as any).guarantee_number || `DRAFT-${loan.loan_number || loan.id.slice(0, 8)}`}
+                guaranteeNumber={loan.guarantee_number || `DRAFT-${loan.loan_number || loan.id.slice(0, 8)}`}
                 issueDate={loan.guarantee_issued_date || undefined}
                 validUntil={loan.maturity_date || undefined}
-                isDraft={!(loan as any).guarantee_number}
+                isDraft={!loan.guarantee_number}
               />
             </div>
           </div>
