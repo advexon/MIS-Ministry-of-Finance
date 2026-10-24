@@ -61,7 +61,10 @@ import type { Profile, Role, Bank, BankBranch } from "@/lib/types/database"
 import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
 import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 
-interface UserWithRelations extends Profile {
+import { EmployeeFlagsEditor, employeeFlagsFromProfile, type EmployeeFlags } from "@/components/admin/employee-flags-editor"
+import { employeeFlagsSchema } from "@/lib/employee-flags"
+
+interface UserWithRelations extends Profile, Partial<EmployeeFlags> {
   role?: Role
   bank?: Bank
 }
@@ -134,6 +137,13 @@ export default function UsersPage() {
   const [editRoleId, setEditRoleId] = useState("")
   const [editBankId, setEditBankId] = useState("")
   const [editIsActive, setEditIsActive] = useState(true)
+  const [editFlags, setEditFlags] = useState<EmployeeFlags>(() => employeeFlagsFromProfile({}))
+  const [editProductTags, setEditProductTags] = useState("")
+  const canEditFlags = permissions.can("users", "update") &&
+    ["super_admin", "prsf_admin"].includes(permissions.role?.code ?? "") &&
+    !!permissions.user?.id && permissions.user.id !== selectedUser?.id
+  const flagsInput = { ...editFlags, product_tags: editProductTags.split(",").map((tag) => tag.trim()).filter(Boolean) }
+  const flagsChanged = selectedUser && JSON.stringify(flagsInput) !== JSON.stringify(employeeFlagsFromProfile(selectedUser))
 
   const fetchData = useCallback(async () => {
     try {
@@ -200,6 +210,8 @@ export default function UsersPage() {
     setEditRoleId(user.role_id || "")
     setEditBankId(user.bank_id || "")
     setEditIsActive(user.is_active)
+    setEditFlags(employeeFlagsFromProfile(user))
+    setEditProductTags((user.product_tags ?? []).join(", "))
     setEditDialogOpen(true)
   }
 
@@ -210,6 +222,11 @@ export default function UsersPage() {
 
   const handleSaveUser = async () => {
     if (!selectedUser) return
+    const parsedFlags = employeeFlagsSchema.safeParse(flagsInput)
+    if (canEditFlags && flagsChanged && !parsedFlags.success) {
+      showMessage("error", parsedFlags.error.issues[0]?.message ?? "Check employee responsibilities")
+      return
+    }
     setSaving(true)
     try {
       // Use the admin API endpoint to bypass RLS
@@ -224,6 +241,7 @@ export default function UsersPage() {
           ...(editRoleId && editRoleId !== selectedUser.role_id ? { role_id: editRoleId } : {}),
           bank_id: editBankId && editBankId !== "none" ? editBankId : null,
           is_active: editIsActive,
+          ...(canEditFlags && flagsChanged && parsedFlags.success ? parsedFlags.data : {}),
         }),
       })
 
@@ -710,7 +728,7 @@ export default function UsersPage() {
 
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
@@ -799,6 +817,13 @@ export default function UsersPage() {
                 </Select>
               </div>
 
+              <EmployeeFlagsEditor
+                value={editFlags}
+                onChange={setEditFlags}
+                tagsText={editProductTags}
+                onTagsChange={setEditProductTags}
+                disabled={!canEditFlags || saving}
+              />
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="text-sm font-medium">Account Active</p>
