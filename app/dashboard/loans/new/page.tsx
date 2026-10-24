@@ -12,16 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, Save, Building2, User, DollarSign, FileText, Shield, Plus, Trash2, Loader2, AlertCircle, CheckCircle2, AlertTriangle, Clock, FileEdit } from "lucide-react"
+import { ArrowLeft, Save, Building2, User, DollarSign, FileText, Shield, Loader2, AlertCircle, CheckCircle2, AlertTriangle, FileEdit } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
 import type { Bank, BankBranch, Sector, LoanProduct } from "@/lib/types/database"
 import { useLoanFormValidation, type FormStep } from "@/lib/hooks/use-loan-form-validation"
 import { RequiredMark } from "@/components/forms/required-mark"
+import { StepValidationPanel } from "@/components/forms/step-validation-panel"
 import { useLoanDraft } from "@/lib/hooks/use-loan-draft"
 import { usePermissions } from "@/lib/contexts/permission-context"
 import { getDatabaseErrorMessage } from "@/lib/utils/db-error"
@@ -828,35 +828,6 @@ export default function NewLoanPage() {
     )
   }
 
-  // Per-step validation panel rendered inside each tab
-  const StepValidationPanel = ({ step }: { step: FormStep }) => {
-    const status = stepsStatus.find(s => s.step === step)
-    if (!status || status.errors.length === 0 || touchedFields.size === 0) return null
-    return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-2">
-        <div className="flex items-center gap-2 text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-semibold">
-                {status.errors.length === 1
-                  ? "Please complete this required field"
-                  : `Please complete these ${status.errors.length} required fields`}
-          </span>
-        </div>
-        <ul className="space-y-1 pl-6">
-          {status.errors.map((err) => (
-            <li key={err.field} className="flex items-start gap-2 text-sm">
-              <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" />
-              <span>
-                <span className="font-medium text-destructive">{err.label}:</span>{" "}
-                <span className="text-destructive/80">{err.error}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 lg:p-8">
       {/* Header with Progress */}
@@ -988,7 +959,7 @@ export default function NewLoanPage() {
 
           {/* ── BORROWER TAB ── */}
           <TabsContent value="borrower" className="space-y-6">
-            <StepValidationPanel step="borrower" />
+            <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="borrower" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Borrower Information</CardTitle>
@@ -1252,7 +1223,7 @@ export default function NewLoanPage() {
 
           {/* ── LEGAL REP TAB ���─ */}
           <TabsContent value="legal_rep" className="space-y-6">
-            <StepValidationPanel step="legal_rep" />
+            <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="legal_rep" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Legal Representative</CardTitle>
@@ -1370,7 +1341,7 @@ export default function NewLoanPage() {
 
           {/* ── LOAN TAB ── */}
           <TabsContent value="loan" className="space-y-6">
-            <StepValidationPanel step="loan" />
+            <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="loan" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" />Loan & Guarantee Details</CardTitle>
@@ -1561,7 +1532,7 @@ export default function NewLoanPage() {
 
           {/* ── COLLATERAL TAB ── */}
           <TabsContent value="collateral" className="space-y-6">
-            <StepValidationPanel step="collateral" />
+            <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="collateral" />
             <Card>
               <CardHeader>
                 <CardTitle>Collateral & Guarantors</CardTitle>
@@ -1592,7 +1563,7 @@ export default function NewLoanPage() {
 
           {/* ── ADDITIONAL TAB ── */}
           <TabsContent value="additional" className="space-y-6">
-            <StepValidationPanel step="additional" />
+            <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="additional" />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Notes & Submission</CardTitle>

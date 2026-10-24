@@ -171,4 +171,38 @@ const card = props => renderToStaticMarkup(React.createElement(ReportChartCard, 
 assert.match(card({ onExport() {} }), /aria-label="Export Portfolio by Bank"/)
 assert.match(card({}), /Chart content/)
 assert.doesNotMatch(card({}), /<button/)
-console.log('UI lifecycle checks passed: mobile SSR/breakpoints/unsubscribe, shared hook identity, carousel initial/select/reInit/keyboard/cleanup, deterministic skeleton SSR and report export accessibility')
+const { StepValidationPanel } = loadSource('components/forms/step-validation-panel.tsx')
+const validationError = { field: 'clientName', label: 'Borrower Name', error: 'Borrower name is required' }
+const borrowerStatus = {
+  step: 'borrower', label: 'Borrower', isComplete: false, isValid: false,
+  errorCount: 1, errors: [validationError],
+}
+const panel = props => renderToStaticMarkup(React.createElement(StepValidationPanel, {
+  step: 'borrower', stepsStatus: [borrowerStatus], hasTouchedFields: true, ...props,
+}))
+assert.equal(panel({ hasTouchedFields: false }), '')
+assert.equal(panel({ stepsStatus: [] }), '')
+assert.equal(panel({ step: 'loan' }), '')
+assert.equal(panel({ stepsStatus: [{ ...borrowerStatus, errors: [], errorCount: 0 }] }), '')
+const singleError = panel({})
+assert.match(singleError, /Please complete this required field/)
+assert.match(singleError, /Borrower Name:/)
+assert.match(singleError, /Borrower name is required/)
+assert.equal((singleError.match(/<li /g) ?? []).length, 1)
+const multipleErrors = panel({ stepsStatus: [{
+  ...borrowerStatus, errorCount: 2, errors: [validationError, {
+    field: 'clientTin', label: 'TIN <number>', error: 'Invalid <script>alert(1)<\/script>',
+  }],
+}] })
+assert.match(multipleErrors, /Please complete these 2 required fields/)
+assert.equal((multipleErrors.match(/<li /g) ?? []).length, 2)
+assert.match(multipleErrors, /TIN &lt;number&gt;/)
+assert.doesNotMatch(multipleErrors, /<script>/)
+assert.equal(panel({}), singleError)
+for (const step of ['borrower', 'legal_rep', 'loan', 'collateral', 'additional']) {
+  const error = { field: `${step}Field`, label: `${step} label`, error: `${step} message` }
+  const stepsStatus = [{ ...borrowerStatus, step, errors: [error] }]
+  assert.match(panel({ step, stepsStatus }), new RegExp(`${step} message`))
+  assert.equal(panel({ step, stepsStatus, hasTouchedFields: false }), '')
+}
+console.log('UI lifecycle checks passed: mobile SSR/breakpoints/unsubscribe, shared hook identity, carousel initial/select/reInit/keyboard/cleanup, deterministic skeleton SSR, report export accessibility and loan validation visibility/messages/escaping')
