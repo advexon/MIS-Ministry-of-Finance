@@ -16,8 +16,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts'
-import { BarChart3, FileSpreadsheet, TrendingUp, RefreshCw } from 'lucide-react'
+import { BarChart3, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import { toCSV, downloadCSV } from '@/lib/utils/export'
+import { aggregatePortfolioReport, reportExportRows, type PortfolioReport, type ReportBank } from '@/lib/utils/portfolio-report'
 
 const COLORS = ['#1e3a8a', '#2d8c7e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16']
 
@@ -31,7 +32,7 @@ export default function ReportsPage() {
   const supabase = useMemo(() => createClient(), [])
 
   const [loading, setLoading] = useState(true)
-  const [banks, setBanks] = useState<any[]>([])
+  const [banks, setBanks] = useState<ReportBank[]>([])
   const [bankFilter, setBankFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 6); return d.toISOString().slice(0, 10)
@@ -39,10 +40,10 @@ export default function ReportsPage() {
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
 
   // Report data states
-  const [sectorData, setSectorData] = useState<any[]>([])
-  const [bankData, setBankData] = useState<any[]>([])
-  const [monthlyData, setMonthlyData] = useState<any[]>([])
-  const [statusData, setStatusData] = useState<any[]>([])
+  const [sectorData, setSectorData] = useState<PortfolioReport['sectorData']>([])
+  const [bankData, setBankData] = useState<PortfolioReport['bankData']>([])
+  const [monthlyData, setMonthlyData] = useState<PortfolioReport['monthlyData']>([])
+  const [statusData, setStatusData] = useState<PortfolioReport['statusData']>([])
   const [summaryStats, setSummaryStats] = useState({ totalLoans: 0, totalAmount: 0, totalClaims: 0, totalFees: 0, totalOutstanding: 0 })
 
   const fetchReports = useCallback(async () => {
@@ -62,75 +63,28 @@ export default function ReportsPage() {
         supabase.from('fees').select('id, amount, status').gte('created_at', dateFrom).lte('created_at', dateTo + 'T23:59:59'),
       ])
 
-      const allLoans = loans || []
-      const allClaims = claims || []
-      const allFees = fees || []
-
-      // Summary
-      setSummaryStats({
-        totalLoans: allLoans.length,
-        totalAmount: allLoans.reduce((s, l) => s + (l.approved_amount || 0), 0),
-        totalOutstanding: allLoans.reduce((s, l) => s + (l.disbursed_amount || 0), 0),
-        totalClaims: allClaims.reduce((s, c) => s + (c.claim_amount || 0), 0),
-        totalFees: allFees.reduce((s, f) => s + (f.amount || 0), 0),
-      })
-
-      // Sector breakdown
-      const sectorMap: Record<string, { count: number; amount: number }> = {}
-      for (const l of allLoans) {
-        const sec = (l as any).sectors?.name_en || 'Other'
-        if (!sectorMap[sec]) sectorMap[sec] = { count: 0, amount: 0 }
-        sectorMap[sec].count++
-        sectorMap[sec].amount += l.approved_amount || 0
-      }
-      setSectorData(Object.entries(sectorMap).map(([sector, d]) => ({ sector, ...d })).sort((a, b) => b.amount - a.amount))
-
-      // Bank breakdown
-      const bankMap: Record<string, { name: string; count: number; amount: number; outstanding: number }> = {}
-      for (const l of allLoans) {
-        const bk = (l.banks as any)?.code || 'Unknown'
-        const bkName = (l.banks as any)?.name_en || 'Unknown'
-        if (!bankMap[bk]) bankMap[bk] = { name: bkName, count: 0, amount: 0, outstanding: 0 }
-        bankMap[bk].count++
-        bankMap[bk].amount += l.approved_amount || 0
-        bankMap[bk].outstanding += l.disbursed_amount || 0
-      }
-      setBankData(Object.entries(bankMap).map(([code, d]) => ({ code, ...d })).sort((a, b) => b.amount - a.amount))
-
-      // Monthly trend
-      const monthMap: Record<string, { month: string; count: number; amount: number }> = {}
-      for (const l of allLoans) {
-        if (!l.disbursement_date) continue
-        const m = l.disbursement_date.slice(0, 7)
-        if (!monthMap[m]) monthMap[m] = { month: m, count: 0, amount: 0 }
-        monthMap[m].count++
-        monthMap[m].amount += l.approved_amount || 0
-      }
-      setMonthlyData(Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month)))
-
-      // Status distribution
-      const statusMap: Record<string, number> = {}
-      for (const l of allLoans) {
-        const s = l.status || 'unknown'
-        statusMap[s] = (statusMap[s] || 0) + 1
-      }
-      setStatusData(Object.entries(statusMap).map(([name, value]) => ({ name: name.replace('_', ' '), value })))
+      const report = aggregatePortfolioReport(loans || [], claims || [], fees || [])
+      setSummaryStats(report.summaryStats)
+      setSectorData(report.sectorData)
+      setBankData(report.bankData)
+      setMonthlyData(report.monthlyData)
+      setStatusData(report.statusData)
 
     } finally {
       setLoading(false)
     }
-  }, [bankFilter, dateFrom, dateTo])
+  }, [bankFilter, dateFrom, dateTo, supabase])
 
   useEffect(() => {
     supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
-  }, [])
+  }, [supabase])
 
   useEffect(() => { fetchReports() }, [fetchReports])
 
-  const exportCSV = (data: any[], filename: string) => {
+  const exportCSV = <T extends object,>(data: readonly T[], filename: string) => {
     if (!data.length) return
-    const keys = Object.keys(data[0])
-    downloadCSV(toCSV(keys, data.map(row => keys.map(k => row[k]))), filename)
+    const { headers, rows } = reportExportRows(data)
+    downloadCSV(toCSV(headers, rows), filename)
   }
 
   return (
