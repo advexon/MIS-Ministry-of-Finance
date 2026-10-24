@@ -5,7 +5,7 @@ export async function proxy(request: NextRequest) {
   const { updateSession } = await import('@/lib/supabase/proxy')
 
   // updateSession refreshes the auth cookies AND enforces access control:
-  // authentication for /dashboard, admin-only /auth/sign-up, and the
+  // authentication for /dashboard and /api/admin, and the
   // per-route permission matrix in `lib/utils/route-permissions.ts`.
   // Client-side `usePermissions` checks remain, but only to hide UI.
   return await updateSession(request)

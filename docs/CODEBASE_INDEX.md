@@ -61,12 +61,16 @@ Route lists below are the navigation index; use `app/**/page.tsx` and `app/**/ro
 | `utils/export.ts` · `utils/excel-parser.ts` | CSV/Excel import & export |
 | `utils/validation.ts` | Shared validators (TIN, etc.) |
 | `supabase/client.ts` · `server.ts` · `proxy.ts` | Supabase clients per context |
-| `email/service.ts` · `error/monitoring.ts` | Notifications, error capture |
+| `admin/accounts.ts` · `error/monitoring.ts` | Validated administrator account inputs, error capture |
 
 ## Components
 
 - `dashboard/dashboard-shell.tsx` — main app shell/nav
-- `dashboard/notifications-bell.tsx` — notification dropdown
+- `dashboard/notifications-bell.tsx` — user-scoped SWR notification feed, realtime insert/update delivery, and polling fallback. Uses live `notifications.link`; email delivery has been removed.
+- `admin/password-reset.tsx` + `api/admin/reset-password` — system-administrator password recovery without emailed links. Privilege ceiling, self-reset denial and audit entries without passwords.
+- Account provisioning is administrator-only through `api/admin/create-user`, with preconfirmed Auth accounts and a required active role. Migration `033_cgf_internal_notifications_admin_accounts.sql` rejects new Auth users lacking the server-owned `app_metadata.account_provisioning=administrator` marker and publishes notifications for Realtime. Existing users are unchanged. For first-admin bootstrap on a self-hosted instance, use the server-side Auth Admin API with this marker; never put the service-role key in the browser.
+- Deployment target is a future local server. The current backend is still hosted Supabase; running Next.js locally alone does not migrate Auth, Postgres, Storage or Realtime. Self-host these services and replay migrations separately. Disable Auth SMTP/security-notification emails in that deployment. In-app alerts work while MIS is open and do not use external Web Push providers.
+- Email-free operation verification: frozen-lockfile installation, `pnpm verify:notifications` (account/alert input validation and safe destinations), 199 scheme checks, 68 role assertions, 15 employee-flag assertions, full TypeScript and production build passed. Live metadata confirmed the provisioning trigger, notification publication and RLS are enabled. Desktop browser checks confirmed English/Russian account-recovery instructions and the signup-to-login redirect. Signed-in account creation/reset and notification delivery were not browser-tested because no authenticated session was available. Existing security advisories listed below remain; the new invoker trigger has a pinned search path and no public execution grants.
 - `documents/guarantee-letter.tsx` — printable guarantee letter
 - `admin/role-assignment.tsx`, `admin/cgf-workflow-controls.tsx` — active base roles, committee rules and temporary signature delegation
 - `workflow/signature-review-panel.tsx` — deputy confirmation and authorized guarantee signature. The production workflow jump/tester utility has been removed.

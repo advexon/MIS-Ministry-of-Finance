@@ -167,8 +167,8 @@ export default function SettingsPage() {
         <TabsContent value="notifications" className="space-y-6">
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Email Notifications</CardTitle>
-              <CardDescription>Configure when the system sends automated alerts</CardDescription>
+              <CardTitle className="text-base">In-app Notifications</CardTitle>
+              <CardDescription>Alerts appear in the MIS notification bell without email. Automatic reminders require a configured alert generator.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {NOTIFICATION_KEYS.map(item => (

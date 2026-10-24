@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { one } from '@/lib/utils/supabase-relation'
+import { createUserSchema } from '@/lib/admin/accounts'
 
 export async function POST(request: Request) {
   const cookieStore = await cookies()
@@ -49,16 +50,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
   }
 
-  // Parse request body
-  const body = await request.json()
-  const { email, password, firstName, lastName, roleId, bankId, branchId, phone, preferredLanguage } = body
-
-  if (!email || !password) {
-    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+  const parsed = createUserSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Provide a valid email, a password of 8–128 characters, and an active role.' },
+      { status: 400 },
+    )
   }
-  if (password.length < 8) {
-    return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
-  }
+  const { email, password, firstName, lastName, roleId, bankId, branchId, phone, preferredLanguage } = parsed.data
 
   // Privilege ceiling. Without this, a prsf_admin (tier 2) could pass the
   // super_admin role id and mint a tier-1 account, then log into it — a
@@ -94,6 +93,10 @@ export async function POST(request: Request) {
     email,
     password,
     email_confirm: true, // Pre-confirm so admin-created accounts work immediately
+    app_metadata: {
+      account_provisioning: 'administrator',
+      created_by: user.id,
+    },
     user_metadata: {
       first_name: firstName || '',
       last_name: lastName || '',

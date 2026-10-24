@@ -63,6 +63,7 @@ import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-
 
 import { EmployeeFlagsEditor, employeeFlagsFromProfile, type EmployeeFlags } from "@/components/admin/employee-flags-editor"
 import { employeeFlagsSchema } from "@/lib/employee-flags"
+import { AdminPasswordReset } from "@/components/admin/password-reset"
 
 interface UserWithRelations extends Profile, Partial<EmployeeFlags> {
   role?: Role
@@ -79,7 +80,6 @@ const roleColors: Record<string, string> = {
 }
 
 export default function UsersPage() {
-  const { t, locale } = useI18n()
   const permissions = usePermissions()
 
   // Permission check: only admin can access users page
@@ -92,7 +92,7 @@ export default function UsersPage() {
               <Lock className="h-12 w-12 text-destructive" />
               <h3 className="font-semibold text-destructive">Access Denied</h3>
               <p className="text-sm text-muted-foreground">
-                You don't have permission to access the users management page.
+                You don&apos;t have permission to access the users management page.
               </p>
             </div>
           </CardContent>
@@ -101,6 +101,12 @@ export default function UsersPage() {
     )
   }
 
+  return <UserManagement />
+}
+
+function UserManagement() {
+  const { t, locale } = useI18n()
+  const permissions = usePermissions()
   const [users, setUsers] = useState<UserWithRelations[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [banks, setBanks] = useState<Bank[]>([])
@@ -147,7 +153,6 @@ export default function UsersPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      console.log("[v0] Fetching user data...")
       const res = await fetch("/api/users", { credentials: "include" })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -155,7 +160,6 @@ export default function UsersPage() {
         return
       }
       const data = await res.json()
-      console.log("[v0] Fetched users:", data.users?.map((u: any) => ({ email: u.email, role_id: u.role_id, role: u.role })))
       setUsers(data.users ?? [])
       setRoles(data.roles ?? [])
       setBanks(data.banks ?? [])
@@ -271,6 +275,10 @@ export default function UsersPage() {
   })
 
   const handleCreateUser = async () => {
+    if (!newRoleId) {
+      showMessage('error', 'Select a role for the new account')
+      return
+    }
     if (newUserMissing.length) {
       showMessage("error", missingFieldsMessage(newUserMissing))
       return
@@ -362,10 +370,12 @@ export default function UsersPage() {
             Manage system users, assign roles and bank affiliations
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" />
-          Create User
-        </Button>
+        {['super_admin', 'prsf_admin'].includes(permissions.role?.code ?? '') && (
+          <Button onClick={() => setCreateDialogOpen(true)} className="gap-2 shrink-0">
+            <Plus className="h-4 w-4" />
+            Create User
+          </Button>
+        )}
       </div>
 
       {/* Status Messages */}
@@ -579,7 +589,7 @@ export default function UsersPage() {
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
             <DialogDescription>
-              Create a new account. The user can log in immediately with these credentials.
+              Create an account and assign its role. Share credentials through an approved secure channel. The user can sign in immediately; no email or verification link is sent.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -780,6 +790,11 @@ export default function UsersPage() {
               </div>
 
               <Separator />
+
+              {selectedUser.id !== permissions.user?.id &&
+                ['super_admin', 'prsf_admin'].includes(permissions.role?.code ?? '') && (
+                  <AdminPasswordReset key={selectedUser.id} userId={selectedUser.id} name={getUserName(selectedUser)} />
+                )}
 
               <div className="space-y-2">
                 <Label>{t.users.role}</Label>

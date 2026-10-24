@@ -141,7 +141,7 @@ const manualSections: ManualSection[] = [
         'Save applications as drafts to complete later',
         'Use application templates for common loan types',
         'Attach clear, legible document scans',
-        'Monitor email notifications for status updates',
+        'Monitor the notification bell for in-app status updates',
       ],
     },
   },

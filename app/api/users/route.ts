@@ -112,6 +112,9 @@ export const PATCH = withPermission(
   { resource: "users", permission: "update" },
   async (request: NextRequest, { caller }: { caller: Caller }) => {
     try {
+      if (!['super_admin', 'prsf_admin', 'bank_admin'].includes(caller.roleCode)) {
+        return NextResponse.json({ error: 'Administrator role required' }, { status: 403 })
+      }
       const supabase = getAdminClient()
       const parsed = userUpdateSchema.safeParse(await request.json().catch(() => null))
       if (!parsed.success) {

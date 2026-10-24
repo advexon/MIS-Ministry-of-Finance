@@ -49,28 +49,6 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // --- /auth/sign-up is admin-only ---
-    if (pathname === '/auth/sign-up') {
-      if (!user) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/auth/login'
-        return NextResponse.redirect(url)
-      }
-      // Verify admin role before allowing access
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role:roles(code)')
-        .eq('id', user.id)
-        .single()
-      const roleCode = (profile?.role as { code?: string } | null)?.code ?? ''
-      const isAdmin = roleCode === 'prsf_admin' || roleCode === 'super_admin'
-      if (!isAdmin) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/dashboard'
-        return NextResponse.redirect(url)
-      }
-    }
-
     // --- /api/admin routes require authentication ---
     if (pathname.startsWith('/api/admin') && !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -701,10 +701,8 @@ export interface Notification {
   title: string
   message: string
   type: NotificationType
-  related_entity: string | null
-  related_id: string | null
+  link: string | null
   is_read: boolean
-  is_email_sent: boolean
   created_at: string
 }
 
