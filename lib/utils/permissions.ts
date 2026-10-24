@@ -101,7 +101,7 @@ export function hasPermission(
   if (role.code === ROLE_CODES.AUDITOR && permission !== 'view') return false
   if (
     (role.code === ROLE_CODES.SUPER_ADMIN || role.code === ROLE_CODES.PRSF_ADMIN) &&
-    ['loans', 'claims'].includes(resource) && permission === 'approve'
+    ['loans', 'claims'].includes(resource) && ['approve', 'create', 'delete'].includes(permission)
   ) return false
 
   if (role.code === ROLE_CODES.SUPER_ADMIN && role.tier === ROLE_TIERS.SUPER_ADMIN) return true

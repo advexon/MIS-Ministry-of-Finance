@@ -23,6 +23,7 @@ import Link from "next/link"
 import type { LoanApplication, LoanStatus } from "@/lib/types/database"
 import { SchemeStepper } from "@/components/workflow/scheme-stepper"
 import { WorkflowPanel } from "@/components/workflow/workflow-panel"
+import { LoanPackage } from "@/components/workflow/loan-package"
 import { SignatureReviewPanel } from "@/components/workflow/signature-review-panel"
 import { GuaranteeLetter } from "@/components/documents/guarantee-letter"
 import { downloadPDF, printElement } from "@/lib/utils/pdf-generator"
@@ -493,6 +494,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ── ФКГ scheme: current step and its actions (steps 1-4 wired) ── */}
       <div className="mb-6">
+        <LoanPackage loan={loan} onChanged={fetchLoan} />
         <WorkflowPanel loan={loan} roleCode={userRole} onDone={fetchLoan} />
       <SignatureReviewPanel loan={loan} onDone={fetchLoan} />
       </div>

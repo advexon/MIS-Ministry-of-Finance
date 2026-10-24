@@ -72,17 +72,18 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const knownUsd = loan.amount_usd ?? toUsd(amount, loan.usd_rate)
   const needsAssessment = requiresAssessment(knownUsd)
 
-  const canAct = step ? canActOnStep(roleCode, step, profile ?? {}) : false
+  const isAssigned = !loan.assigned_analyst_id || loan.assigned_analyst_id === profile?.id || roleCode !== 'prsf_analyst' || status === 'verification'
+  const canAct = (step ? canActOnStep(roleCode, step, profile ?? {}) : false) && isAssigned
   const nextStatuses = getNextStatuses(status).filter((s) => s !== 'cancelled')
 
-  async function post(to: LoanStatus, payload?: Record<string, unknown>, reason?: string) {
+  async function post(to: LoanStatus, payload?: Record<string, unknown>, reason?: string, screening?: typeof elig) {
     setBusy(true)
     setError(null)
     try {
       const res = await fetch(`/api/loans/${loan.id}/workflow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, payload, reason }),
+        body: JSON.stringify({ to, payload, reason, screening }),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -117,51 +118,19 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       setError('List what is missing so the bank knows what to supply.')
       return
     }
-    const saved = await supabaseInsert('eligibility_checks', {
-      loan_id: loan.id,
-      docs_complete: false,
-      missing_documents: missing,
-      decision: 'returned_to_bank',
-      checked_at: new Date().toISOString(),
-    })
-    if (!saved) return
-    await post('docs_incomplete', undefined, `Returned to bank: ${missing}`)
+    await post('docs_incomplete', undefined, `Returned to bank: ${missing}`, { ...elig, docs: false })
   }
 
   /** Step 4 / gate D: record the eligibility, ESMS and KYC screening. */
   async function submitEligibility() {
-    const passed = elig.eligible && elig.esms && elig.kyc && elig.docs
-    const saved = await supabaseInsert('eligibility_checks', {
-      loan_id: loan.id,
-      is_eligible: elig.eligible,
-      esms_passed: elig.esms,
-      kyc_passed: elig.kyc,
-      sanctions_screened: elig.sanctions,
-      docs_complete: elig.docs,
-      findings: findings || null,
-      decision: passed ? 'passed' : 'rejected',
-      checked_at: new Date().toISOString(),
-    })
-    if (!saved) return
-    if (!passed) {
-      await post('ineligible', undefined, findings || 'Failed the eligibility / ESMS / KYC gate')
+    if (!elig.docs) {
+      if (!findings.trim()) { setError('List the missing documents or clarification needed.'); return }
+      await post('docs_incomplete', undefined, findings, elig)
       return
     }
-    // Gate D routing: above the threshold an assessment note is mandatory.
-    const target: LoanStatus = needsAssessment === false ? 'risk_review' : 'assessment'
-    await post(target, undefined, findings || 'Eligibility, ESMS and KYC passed')
-  }
-
-  // Small helper so the screening record exists before the transition is checked.
-  async function supabaseInsert(table: string, row: Record<string, unknown>) {
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-    const { error } = await supabase.from(table).insert(row)
-    if (error) {
-      setError('The screening record could not be saved. No transition was attempted.')
-      return false
-    }
-    return true
+    const passed = elig.eligible && elig.esms && elig.kyc && elig.sanctions
+    if (!passed && !findings.trim()) { setError('Explain the failed screening checks.'); return }
+    await post(passed ? 'assessment' : 'ineligible', undefined, findings || 'All eligibility, ESMS, KYC and sanctions checks passed', elig)
   }
 
   // Legacy applications predate the scheme and sit in `under_review`, which is
@@ -207,8 +176,11 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
     )
   }
 
+  if (status === 'draft') {
+    return <Card><CardHeader><CardTitle>Bank manager review</CardTitle><CardDescription>The officer prepares the file; the bank manager checks it before submission. MIS then screens stop factors and assigns an operations analyst.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">{error && <p role="alert" className="text-sm text-destructive">{error}</p>}{['bank_admin', 'bank_officer'].includes(roleCode ?? '') ? <Button className="self-start" disabled={busy} onClick={() => void post('submitted', undefined, 'Bank reviewed and submitted the application')}>{busy ? 'Submitting…' : roleCode === 'bank_admin' ? 'Approve and submit to MIS' : 'Submit (manager approval required unless enabled by administrator)'}</Button> : <p className="text-sm text-muted-foreground">Awaiting the originating bank manager.</p>}</CardContent></Card>
+  }
   if (!step) {
-    return null // Not on the issuance scheme (e.g. post-issuance lifecycle).
+    return loan.stop_factor_reason ? <Card><CardHeader><CardTitle>Automatic stop-factor refusal</CardTitle><CardDescription>{loan.stop_factor_reason}</CardDescription></CardHeader></Card> : null
   }
 
   return (
@@ -266,13 +238,13 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
 
         {!canAct ? (
           <p className="text-xs text-muted-foreground">
-            This step belongs to {step.actors.join(', ')}. Your role
+            {!isAssigned ? 'This application belongs to another assigned analyst. ' : ''}This step belongs to {step.actors.join(', ')}. Your role
             {roleCode ? ` (${roleCode})` : ''} cannot act on it.
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {status === 'submitted' && (
-              <Button size="sm" onClick={() => setDialog('uko')} disabled={busy}>
+              <Button size="sm" onClick={() => void post('uko_registration', undefined, 'Assigned analyst started registration')} disabled={busy}>
                 Register request (step 2) <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
@@ -287,7 +259,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
               </>
             )}
             {status === 'docs_incomplete' && (
-              <Button size="sm" onClick={() => post('uko_registration', undefined, 'Bank resubmitted the completed package')} disabled={busy}>
+              <Button size="sm" onClick={() => post(loan.clarification_return_status === 'assessment' ? 'assessment' : 'uko_registration', undefined, 'Bank resubmitted documents and clarification')} disabled={busy}>
                 Package resubmitted — re-register <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
@@ -301,6 +273,8 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
                 {artifactForm.title.replace(/ — step \d+$/, '')} <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
+            {status === 'kkg_protocol' && <Button size="sm" disabled={busy} onClick={() => void post('formal_application', undefined, 'Signed protocol released for the formal application')}>Proceed to formal application (step 11)</Button>}
+            {status === 'assessment' && <Button size="sm" variant="outline" disabled={busy} onClick={() => setDialog('return')}>Request documents from bank</Button>}
             {/* Steps 7, 8 and 10 are a multi-party committee sitting rather than a
                 single officer's form, so they are handled on the ККГ meeting page. */}
             {(status === 'kkg_scheduled' || status === 'kkg_review' || status === 'kkg_protocol') && (
@@ -387,8 +361,8 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
           <DialogHeader>
             <DialogTitle>Eligibility, ESMS and KYC screening</DialogTitle>
             <DialogDescription>
-              All four checks must pass. Anything unchecked marks the application ineligible and ends
-              the process.
+              Missing documents return the case to the bank. With a complete package, eligibility,
+              ESMS, KYC and sanctions checks must all pass before analyst assessment.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
@@ -413,11 +387,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
               <Textarea id="findings" value={findings} onChange={(e) => setFindings(e.target.value)} rows={3} />
             </div>
             <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              {needsAssessment === null
-                ? 'The USD equivalent is unknown, so routing cannot be determined.'
-                : needsAssessment
-                  ? `At or above $${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} — proceeds to the assessment note (step 5).`
-                  : `Below $${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} — skips step 5, straight to Credit Risk (step 6).`}
+              Every application proceeds to analyst assessment. Credit Risk review follows for guarantees at or above ${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} or elevated/high risk.
             </p>
           </div>
           <DialogFooter>

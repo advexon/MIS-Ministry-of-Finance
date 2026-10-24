@@ -751,7 +751,7 @@ export default function NewLoanPage() {
         frequency: frequency,
         guarantee_coverage: coverage,
         guarantee_amount: guaranteeAmount,
-        status: "submitted" as const,
+        status: "draft" as const,
         notes: notes || null,
         created_by: user?.id || null,
         sector_id: sectorId || null,
@@ -778,7 +778,7 @@ export default function NewLoanPage() {
       })
 
       setSuccess(true)
-      setTimeout(() => router.push("/dashboard/loans"), 1500)
+      setTimeout(() => router.push(`/dashboard/loans/${loanApp.id}`), 1500)
     } catch (err) {
       // Never surface raw Postgres JSON to the user.
       console.error("[v0] Loan application submit failed:", err)
@@ -822,7 +822,7 @@ export default function NewLoanPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <CheckCircle2 className="h-16 w-16 text-emerald-500" />
-        <h2 className="text-xl font-semibold">Application Submitted Successfully</h2>
+        <h2 className="text-xl font-semibold">Application Saved for Bank Manager Review</h2>
         <p className="text-muted-foreground">Redirecting to loan list...</p>
       </div>
     )

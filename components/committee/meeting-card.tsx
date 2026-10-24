@@ -34,6 +34,8 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
   const [protocolOpen, setProtocolOpen] = useState(false)
   const [protocol, setProtocol] = useState({ no: '', notes: '' })
   const [acknowledged, setAcknowledged] = useState(false)
+  const [clarificationLoan, setClarificationLoan] = useState<string | null>(null)
+  const [clarificationReason, setClarificationReason] = useState('')
   const finalized = ['closed', 'protocol_issued', 'cancelled'].includes(meeting.status ?? '')
   const signing = meeting.status === 'signing'
   const secretary = secretaryAuthorized && meeting.secretary_id === myId
@@ -68,6 +70,21 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
       const result = await response.json()
       if (!response.ok) throw new Error(result.error ?? 'Verification request refused')
       await onChanged()
+    } catch (error) {
+      toast({ title: 'Action refused', description: error instanceof Error ? error.message : 'Request failed', variant: 'destructive' })
+    } finally { setBusy(false) }
+  }
+
+  async function requestClarification() {
+    if (!clarificationLoan || clarificationReason.trim().length < 3) return
+    setBusy(true)
+    try {
+      const { error } = await createClient().rpc('cgf_request_clarification', { p_loan: clarificationLoan, p_reason: clarificationReason.trim() })
+      if (error) throw new Error(error.message)
+      setClarificationLoan(null)
+      setClarificationReason('')
+      await onChanged()
+      toast({ title: 'Clarification requested', description: 'The bank was notified. Prior votes are preserved; the clarified file requires a new sitting.' })
     } catch (error) {
       toast({ title: 'Action refused', description: error instanceof Error ? error.message : 'Request failed', variant: 'destructive' })
     } finally { setBusy(false) }
@@ -114,7 +131,7 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
                     {(['for', 'against', 'abstain'] as const).map((vote) => <Button key={vote} size="sm" variant={myVote === vote ? 'default' : 'outline'} disabled={busy} onClick={() => void act('vote', { item_id: item.id, vote })}>{vote === 'for' ? 'For' : vote === 'against' ? 'Against' : 'Abstain'}</Button>)}
                   </div>
                 )}
-                {secretary && !finalized && !signing && item.loan?.status === 'kkg_review' && <Button className="self-start" variant="outline" size="sm" disabled={busy} onClick={() => void requestVerification(item.loan_id)}>Request verification</Button>}
+                {secretary && !finalized && !signing && item.loan?.status === 'kkg_review' && <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy} onClick={() => void requestVerification(item.loan_id)}>Request verification</Button>{!claimContext && <Button variant="outline" size="sm" disabled={busy} onClick={() => setClarificationLoan(item.loan_id)}>Request bank clarification</Button>}</div>}
               </article>
             )
           })}
@@ -139,6 +156,9 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
         {secretary && signing && <Button disabled={busy || !allSigned} onClick={() => void act('issue')}>Issue signed protocol</Button>}
         {busy && <Loader2 className="size-4 animate-spin" aria-label="Saving committee action" />}
       </CardFooter>
+      <Dialog open={clarificationLoan !== null} onOpenChange={(open) => { if (!open) setClarificationLoan(null) }}>
+        <DialogContent><DialogHeader><DialogTitle>Request additional information from the bank</DialogTitle><DialogDescription>The current sitting is closed without a decision. Existing votes remain recorded. After the bank responds, the analyst reviews the file and a new sitting is convened.</DialogDescription></DialogHeader><fieldset disabled={busy} className="flex flex-col gap-3"><Label htmlFor={`clarification-${meeting.id}`}>Documents or clarification required</Label><Textarea id={`clarification-${meeting.id}`} maxLength={4000} rows={4} value={clarificationReason} onChange={(event) => setClarificationReason(event.target.value)} /></fieldset><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setClarificationLoan(null)}>Cancel</Button><Button disabled={busy || clarificationReason.trim().length < 3} onClick={() => void requestClarification()}>Notify bank and return file</Button></DialogFooter></DialogContent>
+      </Dialog>
       <Dialog open={protocolOpen} onOpenChange={setProtocolOpen}>
         <DialogContent><DialogHeader><DialogTitle>Prepare committee protocol</DialogTitle><DialogDescription>Every assigned member must have voted unanimously. Preparing freezes the text and votes; all members must then sign before issuance.</DialogDescription></DialogHeader>
           <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor={`protocol-no-${meeting.id}`}>Protocol number</Label><Input id={`protocol-no-${meeting.id}`} maxLength={100} value={protocol.no} onChange={(event) => setProtocol((current) => ({ ...current, no: event.target.value }))} /><Label htmlFor={`protocol-notes-${meeting.id}`}>Protocol notes</Label><Textarea id={`protocol-notes-${meeting.id}`} value={protocol.notes} onChange={(event) => setProtocol((current) => ({ ...current, notes: event.target.value }))} /></fieldset>

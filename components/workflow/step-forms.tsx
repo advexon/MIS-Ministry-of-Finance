@@ -27,7 +27,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -35,7 +35,7 @@ import {
 
 import { createClient } from '@/lib/supabase/client'
 import type { LoanApplication, LoanStatus } from '@/lib/types/database'
-import { ASSESSMENT_SLA_DAYS } from '@/lib/workflow/fkg-scheme'
+import { ASSESSMENT_SLA_DAYS, requiresRiskReview } from '@/lib/workflow/fkg-scheme'
 import type { FormDef } from '@/lib/forms/field-requirements'
 import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
 import { RequiredMark } from '@/components/forms/required-mark'
@@ -73,7 +73,7 @@ interface StepFormConfig {
   buildRow: (ctx: Ctx) => Record<string, unknown>
   transitions: TransitionDef[]
   /** Chooses the transition from the entered values, overriding the buttons. */
-  pickTransition?: (values: Record<string, string | boolean>) => LoanStatus | null
+  pickTransition?: (values: Record<string, string | boolean>, loan: LoanApplication) => LoanStatus | null
   /**
    * Guideline 7.2.1.1: the step whose actor must not be the same person as this
    * step's actor. Checked against the recorded actor before the form is usable.
@@ -96,10 +96,14 @@ export const STEP_FORMS: Partial<Record<LoanStatus, StepFormConfig>> = {
     step: 5,
     title: 'Assessment note — step 5',
     description:
-      'Mandatory for guarantees at or above 10,000 USD. The scheme allows one day, so the due time is recorded with the note.',
+      'Every application needs an analyst conclusion. Large guarantees or elevated/high risk go to Credit Risk; smaller low/moderate-risk cases go to committee.',
     table: 'assessment_notes',
     fields: [
       { name: 'summary', label: 'Summary', type: 'textarea', required: true, rows: 3 },
+      { name: 'risk_rating', label: 'Analyst risk rating', type: 'select', required: true, options: [
+        { value: 'low', label: 'Low' }, { value: 'moderate', label: 'Moderate' },
+        { value: 'elevated', label: 'Elevated' }, { value: 'high', label: 'High' },
+      ] },
       { name: 'borrower_background', label: 'Borrower background', type: 'textarea', rows: 3 },
       { name: 'financial_analysis', label: 'Financial analysis', type: 'textarea', required: true, rows: 4 },
       { name: 'collateral_analysis', label: 'Collateral analysis', type: 'textarea', rows: 3 },
@@ -121,6 +125,7 @@ export const STEP_FORMS: Partial<Record<LoanStatus, StepFormConfig>> = {
       return {
         loan_id: loan.id,
         summary: str(values.summary),
+        risk_rating: str(values.risk_rating),
         borrower_background: str(values.borrower_background),
         financial_analysis: str(values.financial_analysis),
         collateral_analysis: str(values.collateral_analysis),
@@ -135,7 +140,8 @@ export const STEP_FORMS: Partial<Record<LoanStatus, StepFormConfig>> = {
         status: 'submitted',
       }
     },
-    transitions: [{ to: 'risk_review', label: 'Submit to Credit Risk (step 6)' }],
+    pickTransition: (values, loan) => requiresRiskReview(loan.amount_usd, str(values.risk_rating)) ? 'risk_review' : 'kkg_scheduled',
+    transitions: [{ to: 'risk_review', label: 'Submit assessment and route application' }],
   },
 
   // ── Step 6 · Credit Risk Department analysis ──
@@ -224,7 +230,6 @@ export const STEP_FORMS: Partial<Record<LoanStatus, StepFormConfig>> = {
     }),
     transitions: [
       { to: 'kkg_review', label: 'Return to ККГ (step 8)' },
-      { to: 'kkg_protocol', label: 'Proceed to protocol (step 10)', variant: 'outline' },
     ],
   },
 
@@ -485,9 +490,12 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       }
 
       // 2. Transition, validated server-side.
-      const to = explicitTo ?? config.pickTransition?.(values) ?? config.transitions[0]?.to
+      const to = config.pickTransition ? config.pickTransition(values, loan) : explicitTo ?? config.transitions[0]?.to
       if (!to) {
-        setError('No transition is defined for these values.')
+        onOpenChange(false)
+        setValues({})
+        onDone?.()
+        router.refresh()
         return
       }
       const res = await fetch(`/api/loans/${loan.id}/workflow`, {
@@ -569,13 +577,13 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                         <SelectTrigger id={f.name}>
                           <SelectValue placeholder="Select…" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent><SelectGroup>
                           {f.options?.map((o) => (
                             <SelectItem key={o.value} value={o.value}>
                               {o.label}
                             </SelectItem>
                           ))}
-                        </SelectContent>
+                        </SelectGroup></SelectContent>
                       </Select>
                     ) : (
                       <Input

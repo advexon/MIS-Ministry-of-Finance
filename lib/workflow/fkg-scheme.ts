@@ -52,7 +52,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'Bank submits guarantee request',
     titleRu: 'Банк направляет заявку на гарантию',
     guidelineRef: '7.1.1',
-    actors: [ROLE_CODES.BANK_OFFICER, ROLE_CODES.BANK_ADMIN],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 2,
@@ -72,7 +72,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'Incomplete package returned to bank',
     titleRu: 'Неполный пакет возвращён банку',
     guidelineRef: '7.1.3',
-    actors: [ROLE_CODES.PRSF_ANALYST],
+    actors: [ROLE_CODES.BANK_OFFICER, ROLE_CODES.BANK_ADMIN],
   },
   {
     step: 4,
@@ -235,15 +235,14 @@ export const ALLOWED_TRANSITIONS: Partial<Record<LoanStatus, LoanStatus[]>> = {
   // Step 2 either accepts the package or bounces it back to the bank.
   uko_registration: ['eligibility_review', 'docs_incomplete', 'rejected', 'cancelled'],
   // Step 3 loop: the bank completes the package and resubmits.
-  docs_incomplete: ['uko_registration', 'cancelled'],
-  // Gate D: small exposures skip the assessment note and go straight to risk.
-  eligibility_review: ['assessment', 'risk_review', 'ineligible', 'docs_incomplete', 'cancelled'],
-  assessment: ['risk_review', 'ineligible', 'cancelled'],
+  docs_incomplete: ['uko_registration', 'assessment', 'cancelled'],
+  eligibility_review: ['assessment', 'ineligible', 'docs_incomplete', 'cancelled'],
+  assessment: ['risk_review', 'kkg_scheduled', 'ineligible', 'docs_incomplete', 'cancelled'],
   risk_review: ['kkg_scheduled', 'ineligible', 'cancelled'],
   kkg_scheduled: ['kkg_review', 'cancelled'],
   // Step 8 may send the case out for verification before it can be concluded.
-  kkg_review: ['verification', 'kkg_protocol', 'rejected', 'cancelled'],
-  verification: ['kkg_review', 'kkg_protocol', 'cancelled'],
+  kkg_review: ['verification', 'docs_incomplete', 'kkg_protocol', 'rejected', 'cancelled'],
+  verification: ['kkg_review', 'cancelled'],
   kkg_protocol: ['formal_application', 'rejected', 'cancelled'],
   formal_application: ['uko_reconciliation', 'cancelled'],
   uko_reconciliation: ['compliance_check', 'kkg_review', 'rejected', 'cancelled'],
@@ -278,9 +277,13 @@ export function toUsd(amount: number | null, usdRate: number | null): number | n
  * the difference between a round-number case getting a full review or skipping
  * straight to Credit Risk.
  */
-export function requiresAssessment(amountUsd: number | null): boolean | null {
-  if (amountUsd == null) return null
-  return amountUsd >= ASSESSMENT_THRESHOLD_USD
+export function requiresAssessment(_amountUsd: number | null): boolean {
+  return true
+}
+
+export function requiresRiskReview(amountUsd: number | null, riskRating: string | null): boolean {
+  return amountUsd == null || amountUsd >= ASSESSMENT_THRESHOLD_USD ||
+    !riskRating || riskRating === 'elevated' || riskRating === 'high'
 }
 
 /**

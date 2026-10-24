@@ -282,6 +282,11 @@ export interface LoanApplication {
   uko_reference_no: string | null
   uko_registered_at: string | null
   uko_registered_by: string | null
+  assigned_analyst_id?: string | null
+  bank_reviewed_by?: string | null
+  bank_reviewed_at?: string | null
+  stop_factor_reason?: string | null
+  clarification_return_status?: string | null
 
   bank?: Bank
   branch?: BankBranch

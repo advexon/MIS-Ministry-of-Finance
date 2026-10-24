@@ -7,4 +7,11 @@ export const workflowRequestSchema = z.object({
     uko_reference_no: z.string().trim().max(255).nullable().optional(),
     usd_rate: z.number().finite().positive(),
   }).strict().optional(),
+  screening: z.object({
+    eligible: z.boolean(),
+    esms: z.boolean(),
+    kyc: z.boolean(),
+    sanctions: z.boolean(),
+    docs: z.boolean(),
+  }).strict().optional(),
 }).strict()
