@@ -32,6 +32,10 @@ type CarouselContextProps = {
 
 const CarouselContext = React.createContext<CarouselContextProps | null>(null)
 
+function getServerSnapshot() {
+  return 0
+}
+
 function useCarousel() {
   const context = React.useContext(CarouselContext)
 
@@ -65,17 +69,23 @@ const Carousel = React.forwardRef<
       },
       plugins,
     )
-    const [canScrollPrev, setCanScrollPrev] = React.useState(false)
-    const [canScrollNext, setCanScrollNext] = React.useState(false)
+    const subscribe = React.useCallback((onChange: () => void) => {
+      if (!api) return () => {}
 
-    const onSelect = React.useCallback((api: CarouselApi) => {
-      if (!api) {
-        return
+      api.on('reInit', onChange)
+      api.on('select', onChange)
+      return () => {
+        api.off('reInit', onChange)
+        api.off('select', onChange)
       }
-
-      setCanScrollPrev(api.canScrollPrev())
-      setCanScrollNext(api.canScrollNext())
-    }, [])
+    }, [api])
+    const getSnapshot = React.useCallback(() => {
+      // A primitive bitmask keeps equal snapshots stable across React reads.
+      return (api?.canScrollPrev() ? 1 : 0) | (api?.canScrollNext() ? 2 : 0)
+    }, [api])
+    const scrollAvailability = React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+    const canScrollPrev = (scrollAvailability & 1) !== 0
+    const canScrollNext = (scrollAvailability & 2) !== 0
 
     const scrollPrev = React.useCallback(() => {
       api?.scrollPrev()
@@ -105,20 +115,6 @@ const Carousel = React.forwardRef<
 
       setApi(api)
     }, [api, setApi])
-
-    React.useEffect(() => {
-      if (!api) {
-        return
-      }
-
-      onSelect(api)
-      api.on('reInit', onSelect)
-      api.on('select', onSelect)
-
-      return () => {
-        api?.off('select', onSelect)
-      }
-    }, [api, onSelect])
 
     return (
       <CarouselContext.Provider

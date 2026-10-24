@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { ReportChartCard as ChartCard } from '@/components/dashboard/report-chart-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +16,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts'
-import { BarChart3, Download, FileSpreadsheet, TrendingUp, RefreshCw } from 'lucide-react'
+import { BarChart3, FileSpreadsheet, TrendingUp, RefreshCw } from 'lucide-react'
 import { toCSV, downloadCSV } from '@/lib/utils/export'
 
 const COLORS = ['#1e3a8a', '#2d8c7e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16']
@@ -131,23 +132,6 @@ export default function ReportsPage() {
     const keys = Object.keys(data[0])
     downloadCSV(toCSV(keys, data.map(row => keys.map(k => row[k]))), filename)
   }
-
-  const ChartCard = ({ title, description, children, onExport }: any) => (
-    <Card className="shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div>
-          <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-          {description && <CardDescription className="text-xs">{description}</CardDescription>}
-        </div>
-        {onExport && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onExport}>
-            <Download className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  )
 
   return (
     <div className="p-6 lg:p-8">
