@@ -71,7 +71,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   // Caller's role.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, is_active, role:roles(code, tier, is_active)')
+    .select('id, is_active, department, is_department_head, is_loan_committee_member, is_claims_committee_member, is_committee_secretary, role:roles(code, tier, is_active)')
     .eq('id', user.id)
     .single()
 
@@ -100,6 +100,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   const from = loan.status as LoanStatus
 
+  if (to === 'kkg_review' && from === 'kkg_scheduled' || to === 'kkg_protocol' || from === 'kkg_review' && to === 'rejected') {
+    return NextResponse.json({ error: 'Convene or issue the all-member signed protocol in the committee register.', code: 'COMMITTEE_TRANSACTION_REQUIRED' }, { status: 422 })
+  }
+
   // 1. Is the transition part of the scheme at all?
   if (!canTransition(from, to)) {
     return NextResponse.json(
@@ -122,7 +126,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       ? ['bank_officer', 'bank_admin']
       : from === 'approved'
         ? ['fkg_management']
-        : ['prsf_analyst', 'uko_officer']
+        : ['prsf_analyst']
     if (!roleCode || !allowedLegacyRoles.includes(roleCode)) {
       return NextResponse.json(
         { error: `Role "${roleCode ?? 'unknown'}" may not move an application out of "${from}".`, code: 'WRONG_LANE' },
@@ -131,7 +135,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     }
   }
 
-  if (currentStep && !canActOnStep(roleCode, currentStep)) {
+  if (currentStep && !canActOnStep(roleCode, currentStep, profile)) {
     return NextResponse.json(
       {
         error:
@@ -141,6 +145,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       },
       { status: 403 },
     )
+  }
+
+  if (from === 'deputy_review' && to === 'management_review') {
+    return NextResponse.json({ error: 'Record the Deputy Director confirmation in the signing panel.', code: 'DEPUTY_CONFIRMATION_REQUIRED' }, { status: 422 })
+  }
+  if (from === 'management_review' && to === 'approved') {
+    const { data: confirmed, error } = await supabase.rpc('cgf_deputy_confirmation_current', { p_loan: loanId })
+    if (error || confirmed !== true) return NextResponse.json({ error: 'A current Deputy Director confirmation is required.', code: 'DEPUTY_CONFIRMATION_REQUIRED' }, { status: 422 })
   }
 
   // 3. Step-specific preconditions — the artefact each step must produce.
@@ -425,7 +437,7 @@ async function checkPreconditions(
   }
 
   // Step 13 → 15 needs a submitted compliance note.
-  if (from === 'compliance_check' && to === 'management_review') {
+  if (from === 'compliance_check' && to === 'deputy_review') {
     const { data } = await supabase
       .from('compliance_checks')
       .select('status, outcome')

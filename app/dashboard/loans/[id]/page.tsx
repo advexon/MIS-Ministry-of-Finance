@@ -23,10 +23,9 @@ import Link from "next/link"
 import type { LoanApplication, LoanStatus } from "@/lib/types/database"
 import { SchemeStepper } from "@/components/workflow/scheme-stepper"
 import { WorkflowPanel } from "@/components/workflow/workflow-panel"
+import { SignatureReviewPanel } from "@/components/workflow/signature-review-panel"
 import { GuaranteeLetter } from "@/components/documents/guarantee-letter"
 import { downloadPDF, printElement } from "@/lib/utils/pdf-generator"
-import { WorkflowTester } from "@/components/admin/workflow-tester"
-import { usePermissions } from "@/lib/contexts/permission-context"
 import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
 import { RequiredMark } from "@/components/forms/required-mark"
 
@@ -101,6 +100,7 @@ const STATUS_LABELS: Record<string, string> = {
   formal_application: "Formal Application",
   uko_reconciliation: "УКО Reconciliation",
   compliance_check:   "Compliance Check",
+  deputy_review:      "Deputy Director Review",
   management_review:  "Management Decision",
   approved:           "Approved",
   rejected:           "Rejected",
@@ -120,7 +120,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 // ─── Action buttons based on current status ───────────────────────────────────
 function getAvailableActions(status: string, userRole: string): string[] {
-  const isPrsf = ["super_admin", "prsf_admin", "prsf_analyst"].includes(userRole)
+  const isPrsf = userRole === "prsf_analyst"
   const isBank = ["bank_admin", "bank_officer"].includes(userRole)
 
   switch (status) {
@@ -192,15 +192,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   // Dialog visibility
   const [dialog, setDialog] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  
-  // Get user permissions for superadmin check
-  let isSuperAdmin = false
-  try {
-    const { role } = usePermissions()
-    isSuperAdmin = role?.tier === 1 || Boolean(role?.name_en?.toLowerCase().includes('admin'))
-  } catch {
-    // Not wrapped in PermissionProvider or error
-  }
   
   // Guarantee letter state
   const [showGuaranteePreview, setShowGuaranteePreview] = useState(false)
@@ -542,6 +533,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* ── ФКГ scheme: current step and its actions (steps 1-4 wired) ── */}
       <div className="mb-6">
         <WorkflowPanel loan={loan} roleCode={userRole} onDone={fetchLoan} />
+      <SignatureReviewPanel loan={loan} onDone={fetchLoan} />
       </div>
 
       {/* ── Workflow Stepper ── */}
@@ -612,13 +604,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           )}
         </CardContent>
       </Card>
-
-      {/* ── Superadmin Workflow Tester ── */}
-      {isSuperAdmin && (
-        <div className="mb-6">
-          <WorkflowTester loan={loan} onStatusChange={fetchLoan} />
-        </div>
-      )}
 
       {/* ── Detail Tabs ── */}
       <Tabs defaultValue="overview">

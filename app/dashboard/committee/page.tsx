@@ -1,314 +1,81 @@
 'use client'
 
-/**
- * ККГ (Credit Guarantee Committee) sittings — scheme steps 7, 8 and 10.
- *
- * These three steps are a multi-party sitting rather than one officer filling in
- * a form, which is why they live here instead of in the per-loan action panel:
- *   step 7  — the secretary convenes a meeting, seats members and fixes quorum
- *   step 8  — seated members vote on each tabled application
- *   step 10 — the secretary issues the protocol, releasing the application onward
- *
- * Quorum and unanimity are re-evaluated server-side by
- * /api/loans/[id]/workflow before the protocol transition is allowed, so nothing
- * here is the security boundary — the tallies shown are an honest preview of a
- * decision the server makes again on its own.
- */
-
-import { useCallback, useEffect, useState } from 'react'
+/** Sitting composition and authorization are enforced in transactional RPCs, not UI controls. */
+import { useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
-import { Gavel, Loader2, Plus } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Gavel, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { requiredQuorum, toUsd } from '@/lib/workflow/fkg-scheme'
 import { MeetingCard } from '@/components/committee/meeting-card'
 import type { CommitteeMeeting, CommitteeMember, TabledLoan } from '@/components/committee/types'
+import { canServeAsSecretary } from '@/lib/employee-flags'
+import { usePermissions } from '@/lib/contexts/permission-context'
+import { one } from '@/lib/utils/supabase-relation'
+
+async function loadCommitteeRegister() {
+  const supabase = createClient()
+  const [members, meetings, loans] = await Promise.all([
+    supabase.from('profiles').select('id, first_name, last_name, email, role:roles(code, name_en)'),
+    supabase.from('committee_meetings').select(`id, meeting_no, scheduled_at, held_at, required_quorum, chaired_by, secretary_id, protocol_no, protocol_date, protocol_notes, protocol_snapshot, status, due_at, escalated_at,
+      seats:committee_meeting_members(id, member_id, is_chair, attended, signed_at),
+      items:committee_agenda_items(id, loan_id, outcome, recommended_amount, recommended_coverage, conditions, decided_at,
+      loan:loan_applications(id, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd), votes:committee_votes(id, member_id, vote, comment, voted_at))`).order('created_at', { ascending: false }),
+    supabase.from('loan_applications').select('id, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd').in('status', ['kkg_scheduled', 'kkg_review', 'verification', 'rejected']).order('created_at'),
+  ])
+  const error = members.error ?? meetings.error ?? loans.error
+  if (error) throw new Error(error.message)
+  const normalized = (meetings.data ?? []).map((meeting) => ({ ...meeting, items: meeting.items.map((item) => ({ ...item, loan: one<TabledLoan>(item.loan) })) })) as CommitteeMeeting[]
+  const openLoanIds = new Set(normalized.filter((meeting) => !['closed', 'protocol_issued', 'cancelled'].includes(meeting.status ?? '')).flatMap((meeting) => meeting.items.map((item) => item.loan_id)))
+  return {
+    members: (members.data ?? []).map((member) => ({ ...member, role: one<NonNullable<CommitteeMember['role']>>(member.role) })) as CommitteeMember[],
+    meetings: normalized,
+    awaiting: (loans.data ?? []).filter((loan) => !openLoanIds.has(loan.id)) as TabledLoan[],
+  }
+}
 
 export default function CommitteePage() {
-  // Held in state so the reference is stable even if createClient() ever stops
-  // being a singleton — `load` below lists it as a dependency.
-  const [supabase] = useState(() => createClient())
+  const { profile, role, user } = usePermissions()
   const { toast } = useToast()
-
-  const [loading, setLoading] = useState(true)
-  const [meetings, setMeetings] = useState<CommitteeMeeting[]>([])
-  const [awaiting, setAwaiting] = useState<TabledLoan[]>([])
-  const [members, setMembers] = useState<CommitteeMember[]>([])
-  const [myId, setMyId] = useState<string | null>(null)
-  const [myRole, setMyRole] = useState<string | null>(null)
-
-  const [error, setError] = useState<string | null>(null)
+  const { data, error, isLoading, mutate } = useSWR(user?.id ? ['committee-register', user.id] : null, loadCommitteeRegister)
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState({ meeting_no: '', scheduled_at: '', quorum: '5' })
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    const { data: auth } = await supabase.auth.getUser()
-    const uid = auth.user?.id ?? null
-    setMyId(uid)
-
-    if (uid) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role:roles(code)')
-        .eq('id', uid)
-        .maybeSingle()
-      const r = profile?.role as { code?: string } | null
-      setMyRole(r?.code ?? null)
-    }
-
-    // Everyone eligible to sit on the committee, so the secretary can seat them.
-    const { data: memberRows, error: memberErr } = await supabase
-      .from('profiles')
-      .select('id, first_name, last_name, email, role:roles(code, name_en)')
-      .eq('is_active', true)
-
-    // Surface this instead of swallowing it. An empty member list and a failed
-    // query look identical in the UI ("No members seated yet"), which would
-    // leave a secretary unable to seat anyone with no idea why.
-    if (memberErr) setError(`Could not load eligible members: ${memberErr.message}`)
-
-    setMembers(
-      ((memberRows ?? []) as unknown as CommitteeMember[]).filter((m) => {
-        const code = (m.role as { code?: string } | null)?.code ?? ''
-        return ['kkg_member', 'kkg_secretary', 'prsf_analyst', 'fkg_management', 'compliance_officer', 'credit_risk_officer'].includes(code)
-      }),
-    )
-
-    const { data: meetingRows, error: meetingErr } = await supabase
-      .from('committee_meetings')
-      .select(
-        `id, meeting_no, scheduled_at, held_at, required_quorum, chaired_by, secretary_id,
-         protocol_no, protocol_date, protocol_notes, status,
-         seats:committee_meeting_members(id, member_id, is_chair, attended),
-         items:committee_agenda_items(
-           id, loan_id, outcome, recommended_amount, recommended_coverage, conditions, decided_at,
-           loan:loan_applications(id, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd),
-           votes:committee_votes(id, member_id, vote, comment, voted_at)
-         )`,
-      )
-      .order('scheduled_at', { ascending: false })
-
-    // A failed query and a genuinely empty register both render as "no meetings
-    // have been convened yet", which is how a just-created meeting appeared to
-    // vanish. Report the failure instead of showing a reassuring empty state.
-    if (meetingErr) setError(`Could not load meetings: ${meetingErr.message}`)
-
-    setMeetings((meetingRows ?? []) as unknown as CommitteeMeeting[])
-
-    // Applications that have cleared Credit Risk and are waiting to be tabled.
-    const { data: loanRows } = await supabase
-      .from('loan_applications')
-      .select('id, loan_number, status, guarantee_amount, approved_amount, usd_rate, amount_usd')
-      .in('status', ['kkg_scheduled'])
-      .order('created_at', { ascending: true })
-
-    setAwaiting((loanRows ?? []) as unknown as TabledLoan[])
-    setLoading(false)
-  }, [supabase])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const isSecretary = myRole === 'kkg_secretary'
+  const [form, setForm] = useState({ meeting_no: '', loan_id: '' })
+  const secretary = canServeAsSecretary(role?.code, profile ?? {})
 
   async function createMeeting() {
-    if (!form.meeting_no.trim() || !form.scheduled_at) {
-      toast({
-        title: 'Missing details',
-        description: 'A meeting number and a scheduled date are both required.',
-        variant: 'destructive',
-      })
-      return
-    }
     setBusy(true)
-    const { error } = await supabase.from('committee_meetings').insert({
-      meeting_no: form.meeting_no.trim(),
-      scheduled_at: new Date(form.scheduled_at).toISOString(),
-      required_quorum: Number.parseInt(form.quorum, 10) || 5,
-      secretary_id: myId,
-      status: 'scheduled',
-    })
-    setBusy(false)
-
-    if (error) {
-      toast({ title: 'Could not create the meeting', description: error.message, variant: 'destructive' })
-      return
-    }
-    setCreating(false)
-    setForm({ meeting_no: '', scheduled_at: '', quorum: '5' })
-    toast({ title: 'Meeting convened', description: 'Seat members and table applications next.' })
-    await load()
+    try {
+      const { error } = await createClient().rpc('cgf_committee_action', { p_action: 'create', p_data: form })
+      if (error) throw error
+      setCreating(false)
+      setForm({ meeting_no: '', loan_id: '' })
+      await mutate()
+      toast({ title: 'Sitting convened', description: 'The system assigned members and chair, and opened the application for voting.' })
+    } catch (error) {
+      toast({ title: 'Could not convene sitting', description: error && typeof error === 'object' && 'message' in error ? String(error.message) : 'Request failed', variant: 'destructive' })
+    } finally { setBusy(false) }
   }
 
-  // The strictest quorum any waiting application would demand, so the default
-  // the secretary is offered is never lower than the scheme requires.
-  const suggestedQuorum = awaiting.length
-    ? Math.max(
-        ...awaiting.map((l) =>
-          requiredQuorum(l.amount_usd ?? toUsd(l.guarantee_amount ?? l.approved_amount, l.usd_rate)),
-        ),
-      )
-    : 5
-
   return (
-    <div className="p-4 lg:p-6">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Gavel className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-            ККГ Meetings
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Steps 7, 8 and 10 of the guarantee-issuance scheme — convening, voting and the protocol.
-          </p>
-        </div>
-        {isSecretary && (
-          <Button
-            size="sm"
-            onClick={() => {
-              setForm((f) => ({ ...f, quorum: String(suggestedQuorum) }))
-              setCreating(true)
-            }}
-          >
-            <Plus className="mr-1 h-4 w-4" /> Convene meeting
-          </Button>
-        )}
+    <div className="flex flex-col gap-6 p-4 lg:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2"><h1 className="flex items-center gap-2 text-xl font-semibold"><Gavel className="size-5" aria-hidden="true" />Committee sittings</h1><p className="max-w-3xl text-sm text-muted-foreground">System-selected operations members, unanimous decisions, all-member signatures and immutable protocols. Each reconsideration has a new sitting.</p></div>
+        {secretary && <Button onClick={() => setCreating(true)} disabled={!data?.awaiting.length}>Convene sitting</Button>}
       </header>
-
-      {error && (
-        <p
-          role="alert"
-          className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-        >
-          {error}
-        </p>
-      )}
-
-      {!isSecretary && myRole !== 'kkg_member' && (
-        <p className="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          You are not seated on the committee, so this page is read-only for you.
-        </p>
-      )}
-
-      {loading ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {awaiting.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Awaiting a sitting ({awaiting.length})</CardTitle>
-                <CardDescription className="text-xs">
-                  Cleared Credit Risk (step 6) and waiting to be tabled. Each carries its own quorum
-                  requirement, shown below.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {awaiting.map((l) => {
-                  const usd = l.amount_usd ?? toUsd(l.guarantee_amount ?? l.approved_amount, l.usd_rate)
-                  return (
-                    <Badge key={l.id} variant="outline" className="font-normal">
-                      {l.loan_number ?? l.id.slice(0, 8)} · quorum{' '}
-                      {requiredQuorum(usd)}
-                      {usd == null && ' (FX unknown)'}
-                    </Badge>
-                  )
-                })}
-              </CardContent>
-            </Card>
-          )}
-
-          {meetings.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                No ККГ meetings have been convened yet.
-              </CardContent>
-            </Card>
-          ) : (
-            meetings.map((m) => (
-              <MeetingCard
-                key={m.id}
-                meeting={m}
-                allMembers={members}
-                awaiting={awaiting}
-                myId={myId}
-                myRole={myRole}
-                onChanged={load}
-              />
-            ))
-          )}
-        </div>
-      )}
-
-      {/* ── Step 7: convene ── */}
+      {error && <Alert variant="destructive"><AlertDescription>{error instanceof Error ? error.message : 'Could not load the committee register'}</AlertDescription></Alert>}
+      {isLoading ? <Skeleton className="h-40" /> : !data?.meetings.length ? <Card><CardHeader><CardTitle>No sittings yet</CardTitle><CardDescription>The secretary can convene a sitting after Credit Risk review.</CardDescription></CardHeader><CardContent>Membership is selected by the system, not manually seated.</CardContent></Card> : data.meetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} allMembers={data.members} myId={user?.id ?? null} myRole={role?.code ?? null} secretaryAuthorized={secretary} onChanged={() => mutate()} />)}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Convene a ККГ meeting — step 7</DialogTitle>
-            <DialogDescription>
-              Quorum is fixed when the meeting is convened, not when it votes, so the threshold cannot
-              be lowered after the votes are known.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="meeting-no">Meeting number</Label>
-              <Input
-                id="meeting-no"
-                value={form.meeting_no}
-                onChange={(e) => setForm((f) => ({ ...f, meeting_no: e.target.value }))}
-                placeholder="e.g. ККГ-2026-07"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="meeting-when">Scheduled for</Label>
-              <Input
-                id="meeting-when"
-                type="datetime-local"
-                value={form.scheduled_at}
-                onChange={(e) => setForm((f) => ({ ...f, scheduled_at: e.target.value }))}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="meeting-quorum">Required quorum</Label>
-              <Input
-                id="meeting-quorum"
-                type="number"
-                min={1}
-                value={form.quorum}
-                onChange={(e) => setForm((f) => ({ ...f, quorum: e.target.value }))}
-              />
-              <p className="text-xs text-muted-foreground">
-                {awaiting.length
-                  ? `The applications waiting to be tabled require at least ${suggestedQuorum}.`
-                  : 'No applications are waiting; 5 is the stricter default.'}
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreating(false)} disabled={busy}>
-              Cancel
-            </Button>
-            <Button onClick={createMeeting} disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Convene
-            </Button>
-          </DialogFooter>
+        <DialogContent><DialogHeader><DialogTitle>Convene an application sitting</DialogTitle><DialogDescription>The system selects 2–3 flagged operations employees without product restrictions, adds the Director above the configured threshold and chooses the senior chair. Voting is due in one working day.</DialogDescription></DialogHeader>
+          <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="meeting-number">Meeting number</Label><Input id="meeting-number" maxLength={100} value={form.meeting_no} onChange={(event) => setForm((current) => ({ ...current, meeting_no: event.target.value }))} /><Label htmlFor="meeting-case">Application</Label><Select value={form.loan_id} onValueChange={(loan_id) => setForm((current) => ({ ...current, loan_id }))}><SelectTrigger id="meeting-case"><SelectValue placeholder="Choose an application" /></SelectTrigger><SelectContent><SelectGroup>{data?.awaiting.map((loan) => <SelectItem key={loan.id} value={loan.id}>{loan.loan_number ?? loan.id.slice(0, 8)} · {loan.status === 'rejected' ? 'reconsideration' : loan.status.replaceAll('_', ' ')}</SelectItem>)}</SelectGroup></SelectContent></Select></fieldset>
+          <DialogFooter><Button variant="outline" onClick={() => setCreating(false)} disabled={busy}>Cancel</Button><Button onClick={() => void createMeeting()} disabled={busy || !form.meeting_no.trim() || !form.loan_id}>{busy && <Loader2 data-icon="inline-start" className="animate-spin" />}Convene and select members</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Save, Settings as SettingsIcon, Bell, Shield, Database } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { CgfWorkflowControls } from '@/components/admin/cgf-workflow-controls'
 
 interface SettingRow { key: string; value: Record<string, unknown>; description: string }
 
@@ -38,7 +39,11 @@ export default function SettingsPage() {
     supabase.from('system_settings').select('*').then(({ data }) => {
       if (data) {
         const map: Record<string, SettingRow> = {}
-        for (const row of data) map[row.key] = row
+        for (const row of data) {
+          let value: unknown = row.value
+          try { value = JSON.parse(row.value) } catch { value = {} }
+          map[row.key] = { ...row, value: value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
+        }
         setSettings(map)
       }
       setLoading(false)
@@ -61,13 +66,15 @@ export default function SettingsPage() {
 
   const saveSection = async (keys: string[]) => {
     setSaving(true)
-    for (const key of keys) {
-      const row = settings[key]
-      if (!row) continue
-      await supabase.from('system_settings').upsert({ key, value: row.value, description: row.description }, { onConflict: 'key' })
-    }
-    toast({ title: 'Settings saved' })
-    setSaving(false)
+    try {
+      const rows = keys.flatMap((key) => settings[key] ? [{ key, value: JSON.stringify(settings[key].value), description: settings[key].description }] : [])
+      if (!rows.length) return
+      const { error } = await supabase.from('system_settings').upsert(rows, { onConflict: 'key' })
+      if (error) throw new Error(error.message)
+      toast({ title: 'Settings saved' })
+    } catch (error) {
+      toast({ title: 'Settings not saved', description: error instanceof Error ? error.message : 'The update failed', variant: 'destructive' })
+    } finally { setSaving(false) }
   }
 
   if (loading) return (
@@ -89,6 +96,7 @@ export default function SettingsPage() {
           <TabsTrigger value="general" className="gap-2"><SettingsIcon className="h-4 w-4" />{t.settings.general}</TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" />{t.settings.notifications}</TabsTrigger>
           <TabsTrigger value="security" className="gap-2"><Shield className="h-4 w-4" />{t.settings.security}</TabsTrigger>
+          <TabsTrigger value="workflow">CGF workflow</TabsTrigger>
           <TabsTrigger value="backup" className="gap-2"><Database className="h-4 w-4" />Backup</TabsTrigger>
         </TabsList>
 
@@ -243,6 +251,8 @@ export default function SettingsPage() {
             </Button>
           </div>
         </TabsContent>
+
+        <TabsContent value="workflow"><CgfWorkflowControls /></TabsContent>
 
         {/* Backup */}
         <TabsContent value="backup" className="space-y-6">

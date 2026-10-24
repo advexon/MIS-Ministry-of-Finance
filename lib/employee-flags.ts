@@ -1,5 +1,27 @@
 import { z } from "zod"
 
+export interface EmployeeFlags {
+  specialist_level?: "specialist" | "chief_specialist" | null
+  department?: string | null
+  is_department_head?: boolean
+  is_loan_committee_member?: boolean
+  is_claims_committee_member?: boolean
+  is_committee_secretary?: boolean
+  product_tags?: string[]
+}
+
+export function isOperationalEmployee(roleCode: string | null | undefined): boolean {
+  return ["prsf_analyst", "credit_risk_officer", "compliance_officer"].includes(roleCode ?? "")
+}
+
+export function canServeAsSecretary(roleCode: string | null | undefined, flags: EmployeeFlags): boolean {
+  return isOperationalEmployee(roleCode) && flags.is_committee_secretary === true
+}
+
+export function canServeOnLoanCommittee(roleCode: string | null | undefined, flags: EmployeeFlags): boolean {
+  return isOperationalEmployee(roleCode) && flags.department === "operations" && flags.is_loan_committee_member === true
+}
+
 export const employeeFlagKeys = [
   "specialist_level",
   "department",

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { Role } from '@/lib/types/database'
+import { type Role, type Profile } from '@/lib/types/database'
 import {
   hasPermission,
   Permission,
@@ -12,6 +12,7 @@ import {
 } from '@/lib/utils/permissions'
 
 interface PermissionContextType {
+  profile: Profile | null
   user: any
   role: Role | null
   can: (resource: string, permission: Permission | Permission[]) => boolean
@@ -25,6 +26,7 @@ interface PermissionContextType {
 const PermissionContext = createContext<PermissionContextType | undefined>(undefined)
 
 interface PermissionProviderProps {
+  profile?: Profile | null
   children: ReactNode
   user: any
   role: Role | null
@@ -33,7 +35,7 @@ interface PermissionProviderProps {
 /**
  * Provider component that makes permissions available to all child components
  */
-export function PermissionProvider({ children, user, role }: PermissionProviderProps) {
+export function PermissionProvider({ children, user, role, profile = null }: PermissionProviderProps) {
   // Permissions live in the `role_permissions` table so the Role Management
   // page can actually change access. Until they load (or if they cannot be
   // read), `hasPermission` falls back to the static matrix, which the table
@@ -74,6 +76,7 @@ export function PermissionProvider({ children, user, role }: PermissionProviderP
     getResourcePermissions(role, resource, overrides)
 
   const value: PermissionContextType = {
+    profile,
     user,
     role,
     can,

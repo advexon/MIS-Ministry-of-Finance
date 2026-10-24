@@ -15,6 +15,7 @@
 
 import type { LoanStatus, RoleCode } from '@/lib/types/database'
 import { ROLE_CODES } from '@/lib/types/database'
+import { canServeAsSecretary, canServeOnLoanCommittee, type EmployeeFlags } from '@/lib/employee-flags'
 
 /** Guideline threshold that decides whether a full assessment is required. */
 export const ASSESSMENT_THRESHOLD_USD = 10_000
@@ -39,9 +40,8 @@ export interface SchemeStep {
 }
 
 /**
- * The 16 steps. `step` matches the numbering on the official scheme diagram, so
- * step 14 is intentionally absent: the diagram routes step 13 straight into the
- * Management decision at 15.
+ * The 16 steps. The approved CGF role document adds mandatory Deputy Director
+ * confirmation at step 14 before the Director's decision and signature.
  */
 export const SCHEME_STEPS: SchemeStep[] = [
   {
@@ -62,7 +62,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'УКО registers request and checks amount',
     titleRu: 'УКО регистрирует заявку и проверяет сумму',
     guidelineRef: '7.1.2',
-    actors: [ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 3,
@@ -72,7 +72,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'Incomplete package returned to bank',
     titleRu: 'Неполный пакет возвращён банку',
     guidelineRef: '7.1.3',
-    actors: [ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 4,
@@ -113,7 +113,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ККГ members assigned and quorum set',
     titleRu: 'Назначение членов ККГ и определение кворума',
     guidelineRef: '7.1.7',
-    actors: [ROLE_CODES.KKG_SECRETARY],
+    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.COMPLIANCE_OFFICER, ROLE_CODES.CREDIT_RISK_OFFICER],
   },
   {
     step: 8,
@@ -123,7 +123,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ККГ reviews application',
     titleRu: 'ККГ рассматривает заявку',
     guidelineRef: '7.1.8',
-    actors: [ROLE_CODES.KKG_SECRETARY, ROLE_CODES.KKG_MEMBER],
+    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.COMPLIANCE_OFFICER, ROLE_CODES.CREDIT_RISK_OFFICER, ROLE_CODES.FKG_MANAGEMENT],
     isDecision: true,
   },
   {
@@ -144,7 +144,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ККГ protocol issued',
     titleRu: 'Оформление протокола ККГ',
     guidelineRef: '7.1.10',
-    actors: [ROLE_CODES.KKG_SECRETARY],
+    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.COMPLIANCE_OFFICER, ROLE_CODES.CREDIT_RISK_OFFICER],
   },
   {
     step: 11,
@@ -154,7 +154,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'Formal application (Appendix 1.1)',
     titleRu: 'Официальная заявка (Приложение 1.1)',
     guidelineRef: '7.1.11',
-    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 12,
@@ -164,7 +164,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'УКО decision reconciled with ККГ recommendation',
     titleRu: 'Сверка решения УКО с рекомендацией ККГ',
     guidelineRef: '7.1.12',
-    actors: [ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 13,
@@ -175,6 +175,16 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleRu: 'Записка комплаенс-проверки',
     guidelineRef: '7.1.13',
     actors: [ROLE_CODES.COMPLIANCE_OFFICER],
+  },
+  {
+    step: 14,
+    code: 'deputy_confirmation',
+    status: 'deputy_review',
+    lane: 'management',
+    titleEn: 'Deputy Director reviews and confirms the file',
+    titleRu: 'Заместитель директора проверяет и подтверждает дело',
+    guidelineRef: 'CGF roles, section 1',
+    actors: [ROLE_CODES.DEPUTY_DIRECTOR],
   },
   {
     step: 15,
@@ -195,7 +205,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ПВГ issued electronically',
     titleRu: 'ПВГ выдаётся электронно',
     guidelineRef: '7.1.16',
-    actors: [ROLE_CODES.FKG_MANAGEMENT, ROLE_CODES.PRSF_ADMIN],
+    actors: [ROLE_CODES.FKG_MANAGEMENT],
   },
 ]
 
@@ -237,7 +247,8 @@ export const ALLOWED_TRANSITIONS: Partial<Record<LoanStatus, LoanStatus[]>> = {
   kkg_protocol: ['formal_application', 'rejected', 'cancelled'],
   formal_application: ['uko_reconciliation', 'cancelled'],
   uko_reconciliation: ['compliance_check', 'kkg_review', 'rejected', 'cancelled'],
-  compliance_check: ['management_review', 'rejected', 'cancelled'],
+  compliance_check: ['deputy_review', 'rejected', 'cancelled'],
+  deputy_review: ['management_review', 'rejected', 'cancelled'],
   management_review: ['approved', 'rejected', 'cancelled'],
   approved: ['guarantee_issued', 'cancelled'],
 }
@@ -332,8 +343,16 @@ export function isWorkflowReadOnlyRole(roleCode: string | null | undefined): boo
   return !roleCode || ['super_admin', 'prsf_admin', 'auditor'].includes(roleCode)
 }
 
-export function canActOnStep(roleCode: string | null | undefined, step: SchemeStep): boolean {
+export function canActOnStep(
+  roleCode: string | null | undefined,
+  step: SchemeStep,
+  flags: EmployeeFlags = {},
+): boolean {
   if (isWorkflowReadOnlyRole(roleCode)) return false
+  if (step.step === 7 || step.step === 10) return canServeAsSecretary(roleCode, flags)
+  if (step.step === 8) {
+    return roleCode === ROLE_CODES.FKG_MANAGEMENT || canServeAsSecretary(roleCode, flags) || canServeOnLoanCommittee(roleCode, flags)
+  }
   return (step.actors as string[]).includes(roleCode!)
 }
 

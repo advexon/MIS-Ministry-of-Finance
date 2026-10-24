@@ -56,7 +56,7 @@ const happyPath: LoanStatus[] = [
   'draft', 'submitted', 'uko_registration', 'eligibility_review', 'assessment',
   'risk_review', 'kkg_scheduled', 'kkg_review', 'kkg_protocol',
   'formal_application', 'uko_reconciliation', 'compliance_check',
-  'management_review', 'approved', 'guarantee_issued',
+  'deputy_review', 'management_review', 'approved', 'guarantee_issued',
 ]
 for (let i = 0; i < happyPath.length - 1; i++) {
   check(
@@ -107,7 +107,8 @@ check(
 const step2 = STEP_BY_STATUS['uko_registration']!
 const step6 = STEP_BY_STATUS['risk_review']!
 const step16 = getStepByNumber(16)!
-check('УКО officer may act on step 2', canActOnStep(ROLE_CODES.UKO_OFFICER, step2))
+check('base analyst may register at step 2', canActOnStep(ROLE_CODES.PRSF_ANALYST, step2))
+check('retired UKO role cannot register', !canActOnStep(ROLE_CODES.UKO_OFFICER, step2))
 check('bank officer may not act on step 2', !canActOnStep(ROLE_CODES.BANK_OFFICER, step2))
 check('credit risk officer may act on step 6', canActOnStep(ROLE_CODES.CREDIT_RISK_OFFICER, step6))
 check('УКО officer may not act on step 6', !canActOnStep(ROLE_CODES.UKO_OFFICER, step6))
@@ -116,6 +117,20 @@ check('compliance officer may not issue the ПВГ', !canActOnStep(ROLE_CODES.CO
 check('an unknown role may act nowhere', !canActOnStep(null, step2))
 for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR]) {
   check(`${code} cannot complete any workflow step`, SCHEME_STEPS.every((step) => !canActOnStep(code, step)))
+}
+const committeeStep = getStepByNumber(8)!
+const secretaryStep = getStepByNumber(7)!
+const committeeFlags = { department: 'operations', is_loan_committee_member: true, is_committee_secretary: true }
+check('flagged analyst may convene', canActOnStep(ROLE_CODES.PRSF_ANALYST, secretaryStep, committeeFlags))
+check('unflagged analyst cannot convene', !canActOnStep(ROLE_CODES.PRSF_ANALYST, secretaryStep))
+check('flagged operations analyst may participate', canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep, committeeFlags))
+check('unflagged analyst cannot participate', !canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep))
+check('product tags never restrict membership', canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep, { ...committeeFlags, product_tags: ['green'] }))
+for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR, ROLE_CODES.BANK_ADMIN, ROLE_CODES.BANK_OFFICER]) {
+  check(`${code} cannot gain committee rights through flags`, !canActOnStep(code, secretaryStep, committeeFlags) && !canActOnStep(code, committeeStep, committeeFlags))
+}
+for (const code of [ROLE_CODES.KKG_MEMBER, ROLE_CODES.KKG_SECRETARY, ROLE_CODES.UKO_OFFICER]) {
+  check(`${code} retired role has no workflow authority`, SCHEME_STEPS.every((step) => !canActOnStep(code, step, committeeFlags)))
 }
 const unanimous = tallyVotes([{ vote: 'for' }, { vote: 'for' }, { vote: 'for' }])
 check('all assigned members in favour carries', evaluateCommitteeOutcome(unanimous, 3, 3).carried)
@@ -156,13 +171,12 @@ for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
   }
 }
 
-// ── 9. Known gap, asserted so it cannot be forgotten ─────────────────────────
-// The Guideline numbers its steps 1..16, but step 14 has no entry in this table.
-// It is recorded here as a KNOWN GAP rather than left as a silent hole: the
-// assertion documents the omission and will start failing once step 14 is added,
-// prompting this note to be removed.
+// ── 9. Every step, including mandatory deputy confirmation, is present ───────
 const missing = Array.from({ length: 16 }, (_, i) => i + 1).filter((n) => !stepNumbers.includes(n))
-check('the only unimplemented step is 14', missing.length === 1 && missing[0] === 14)
+check('all sixteen steps are implemented', missing.length === 0)
+check('compliance cannot skip deputy confirmation', !canTransition('compliance_check', 'management_review'))
+check('deputy review belongs to the Deputy Director', canActOnStep(ROLE_CODES.DEPUTY_DIRECTOR, getStepByNumber(14)!))
+check('Director cannot self-confirm the deputy review', !canActOnStep(ROLE_CODES.FKG_MANAGEMENT, getStepByNumber(14)!))
 
 // ── 10. Every evidence-bearing step must be gated server-side ────────────────
 // The checks above all read the registry, so they cannot see whether the API

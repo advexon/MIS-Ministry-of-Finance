@@ -1,4 +1,5 @@
 /** Shared shapes for the ККГ committee UI (scheme steps 7, 8 and 10). */
+import type { EmployeeFlags } from '@/lib/employee-flags'
 
 export interface TabledLoan {
   id: string
@@ -13,7 +14,7 @@ export interface TabledLoan {
   amount_usd: number | null
 }
 
-export interface CommitteeMember {
+export interface CommitteeMember extends EmployeeFlags {
   id: string
   first_name: string | null
   last_name: string | null
@@ -26,6 +27,7 @@ export interface Seat {
   member_id: string
   is_chair: boolean | null
   attended: boolean | null
+  signed_at: string | null
 }
 
 export type VoteValue = 'for' | 'against' | 'abstain'
@@ -51,6 +53,9 @@ export interface AgendaItem {
 }
 
 export interface CommitteeMeeting {
+  due_at: string | null
+  escalated_at: string | null
+  protocol_snapshot: Record<string, unknown> | null
   id: string
   meeting_no: string | null
   scheduled_at: string | null

@@ -1,3 +1,5 @@
+import type { EmployeeFlags } from '@/lib/employee-flags'
+
 export type LoanStatus = 
   | 'draft'
   | 'submitted'
@@ -16,6 +18,7 @@ export type LoanStatus =
   | 'formal_application'  // step 11: formal application, Appendix 1.1
   | 'uko_reconciliation'  // step 12: УКО decision vs ККГ recommendation
   | 'compliance_check'    // step 13: compliance-check note
+  | 'deputy_review'       // step 14: Deputy Director confirmation
   | 'management_review'   // step 15: ФКГ Management final decision
   | 'approved'
   | 'rejected'
@@ -136,6 +139,11 @@ export const ROLE_TIERS = {
   CREDIT_RISK_OFFICER: 4,
   COMPLIANCE_OFFICER: 4,
   KKG_SECRETARY: 4,
+  DEPUTY_DIRECTOR: 3,
+  ACCOUNTANT: 4,
+  REPORTING_OFFICER: 4,
+  LEGAL_OFFICER: 4,
+  BUSINESS_DEVELOPMENT: 4,
   AUDITOR: 5,        // Read-only compliance
   BANK_ADMIN: 6,     // Bank management
   BANK_OFFICER: 7,   // Loan submissions
@@ -155,12 +163,17 @@ export const ROLE_CODES = {
   KKG_SECRETARY: 'kkg_secretary',
   KKG_MEMBER: 'kkg_member',
   FKG_MANAGEMENT: 'fkg_management',
+  DEPUTY_DIRECTOR: 'deputy_director',
+  ACCOUNTANT: 'accountant',
+  REPORTING_OFFICER: 'reporting_officer',
+  LEGAL_OFFICER: 'legal_officer',
+  BUSINESS_DEVELOPMENT: 'business_development',
 } as const
 
 export type RoleTier = typeof ROLE_TIERS[keyof typeof ROLE_TIERS]
 export type RoleCode = typeof ROLE_CODES[keyof typeof ROLE_CODES]
 
-export interface Profile {
+export interface Profile extends EmployeeFlags {
   id: string
   email: string
   first_name: string | null

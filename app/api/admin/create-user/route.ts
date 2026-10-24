@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { one } from '@/lib/utils/supabase-relation'
 
 export async function POST(request: Request) {
   const cookieStore = await cookies()
@@ -30,16 +31,16 @@ export async function POST(request: Request) {
   // Verify caller has admin role
   const { data: profile } = await supabase
     .from('profiles')
-    .select('is_active, role:roles(code, tier)')
+    .select('is_active, role:roles(code, tier, is_active)')
     .eq('id', user.id)
     .single()
-  const callerRole = (profile?.role as { code?: string; tier?: number } | null) ?? null
+  const callerRole = one<{ code?: string; tier?: number; is_active?: boolean }>(profile?.role)
   const roleCode = callerRole?.code ?? ''
   const callerTier = callerRole?.tier ?? 99
 
   // A deactivated account keeps a valid session cookie until it expires, so it
   // has to be rejected here and not only at login.
-  if (profile?.is_active === false) {
+  if (profile?.is_active !== true || callerRole?.is_active !== true) {
     return NextResponse.json({ error: 'Forbidden: Account is disabled' }, { status: 403 })
   }
 
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
     const { data: targetRole } = await supabase
       .from('roles')
       .select('code, tier')
+      .eq('is_active', true)
       .eq('id', roleId)
       .single()
 

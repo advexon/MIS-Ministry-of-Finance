@@ -336,8 +336,8 @@ export const STEP_FORMS: Partial<Record<LoanStatus, StepFormConfig>> = {
       status: 'submitted',
     }),
     // "Not cleared" cannot proceed; the server also refuses this transition.
-    pickTransition: (v) => (v.outcome === 'not_cleared' ? 'rejected' : 'management_review'),
-    transitions: [{ to: 'management_review', label: 'Submit note' }],
+    pickTransition: (v) => (v.outcome === 'not_cleared' ? 'rejected' : 'deputy_review'),
+    transitions: [{ to: 'deputy_review', label: 'Submit for Deputy Director confirmation' }],
   },
 
   // ── Step 15 · ФКГ Management final decision ──

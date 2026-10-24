@@ -52,6 +52,11 @@ const PERMISSION_MATRIX: Record<string, Record<string, Permission[]>> = {
     'claims': ['view'],
     'reports': ['view', 'create'],
   },
+  [ROLE_CODES.DEPUTY_DIRECTOR]: { loans: ['view', 'update'], claims: ['view'], reports: ['view'] },
+  [ROLE_CODES.ACCOUNTANT]: { fees: ['view', 'create', 'update'], reports: ['view', 'create'], banks: ['view'] },
+  [ROLE_CODES.REPORTING_OFFICER]: { reports: ['view', 'create', 'update'], loans: ['view'] },
+  [ROLE_CODES.LEGAL_OFFICER]: { loans: ['view'], claims: ['view'] },
+  [ROLE_CODES.BUSINESS_DEVELOPMENT]: { reports: ['view'] },
   [ROLE_CODES.AUDITOR]: {
     // Auditor has read-only access for compliance
     'loans': ['view'],
@@ -89,9 +94,10 @@ export function hasPermission(
   overrides?: PermissionOverrides | null
 ): boolean {
   // No role = no access
-  if (!role) return false
+  if (!role || role.is_active === false) return false
 
   // Regulatory prohibitions take precedence over editable grants and tier bypasses.
+  if (role.code === ROLE_CODES.LEGAL_OFFICER && (permission !== 'view' || !['loans', 'claims'].includes(resource))) return false
   if (role.code === ROLE_CODES.AUDITOR && permission !== 'view') return false
   if (
     (role.code === ROLE_CODES.SUPER_ADMIN || role.code === ROLE_CODES.PRSF_ADMIN) &&

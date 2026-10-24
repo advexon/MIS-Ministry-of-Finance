@@ -29,6 +29,7 @@ import {
   ASSESSMENT_THRESHOLD_USD, statusLabel,
 } from '@/lib/workflow/fkg-scheme'
 import { STEP_FORMS, StepArtifactForm } from '@/components/workflow/step-forms'
+import { usePermissions } from '@/lib/contexts/permission-context'
 
 interface Props {
   loan: LoanApplication
@@ -40,6 +41,7 @@ type DialogKind = 'uko' | 'eligibility' | 'return' | null
 
 export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const router = useRouter()
+  const { profile } = usePermissions()
   const status = loan.status as LoanStatus
   const step = STEP_BY_STATUS[status]
 
@@ -70,7 +72,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const knownUsd = loan.amount_usd ?? toUsd(amount, loan.usd_rate)
   const needsAssessment = requiresAssessment(knownUsd)
 
-  const canAct = step ? canActOnStep(roleCode, step) : false
+  const canAct = step ? canActOnStep(roleCode, step, profile ?? {}) : false
   const nextStatuses = getNextStatuses(status).filter((s) => s !== 'cancelled')
 
   async function post(to: LoanStatus, payload?: Record<string, unknown>, reason?: string) {
@@ -115,20 +117,21 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       setError('List what is missing so the bank knows what to supply.')
       return
     }
-    await supabaseInsert('eligibility_checks', {
+    const saved = await supabaseInsert('eligibility_checks', {
       loan_id: loan.id,
       docs_complete: false,
       missing_documents: missing,
       decision: 'returned_to_bank',
       checked_at: new Date().toISOString(),
     })
+    if (!saved) return
     await post('docs_incomplete', undefined, `Returned to bank: ${missing}`)
   }
 
   /** Step 4 / gate D: record the eligibility, ESMS and KYC screening. */
   async function submitEligibility() {
     const passed = elig.eligible && elig.esms && elig.kyc && elig.docs
-    await supabaseInsert('eligibility_checks', {
+    const saved = await supabaseInsert('eligibility_checks', {
       loan_id: loan.id,
       is_eligible: elig.eligible,
       esms_passed: elig.esms,
@@ -139,6 +142,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       decision: passed ? 'passed' : 'rejected',
       checked_at: new Date().toISOString(),
     })
+    if (!saved) return
     if (!passed) {
       await post('ineligible', undefined, findings || 'Failed the eligibility / ESMS / KYC gate')
       return
@@ -152,7 +156,12 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   async function supabaseInsert(table: string, row: Record<string, unknown>) {
     const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
-    await supabase.from(table).insert(row)
+    const { error } = await supabase.from(table).insert(row)
+    if (error) {
+      setError('The screening record could not be saved. No transition was attempted.')
+      return false
+    }
+    return true
   }
 
   // Legacy applications predate the scheme and sit in `under_review`, which is
@@ -160,7 +169,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const isLegacy = status === 'under_review'
   const isStaff =
     roleCode != null &&
-    ['prsf_analyst', 'uko_officer'].includes(roleCode)
+    roleCode === 'prsf_analyst'
 
   if (isLegacy) {
     return (

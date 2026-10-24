@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { withPermission } from "@/lib/middleware/api-protection"
 import { employeeFlagKeys, employeeFlagUpdateError, userUpdateSchema } from "@/lib/employee-flags"
+import { one } from "@/lib/utils/supabase-relation"
 
 /**
  * Caller identity resolved by `withPermission`. Every handler in this file is
@@ -67,7 +68,7 @@ export const GET = withPermission(
 
       const [usersRes, rolesRes, banksRes, branchesRes] = await Promise.all([
         usersQuery,
-        supabase.from("roles").select("*").order("name_en"),
+        supabase.from("roles").select("*").eq("is_active", true).order("name_en"),
         caller.isBankScoped
           ? supabase.from("banks").select("*").eq("id", caller.bankId).order("name_en")
           : supabase.from("banks").select("*").order("name_en"),
@@ -170,17 +171,18 @@ export const PATCH = withPermission(
 
       // Privilege ceiling: only super_admin may grant or modify super_admin-level
       // access, so a prsf_admin cannot mint an account more powerful than itself.
-      if (role_id && caller.roleCode !== "super_admin") {
+      if (role_id) {
         const { data: targetRole } = await supabase
           .from("roles")
           .select("code, tier")
+          .eq("is_active", true)
           .eq("id", role_id)
           .single()
 
         if (!targetRole) {
           return NextResponse.json({ error: "Unknown role_id" }, { status: 400 })
         }
-        if ((targetRole.tier ?? 99) < caller.tier) {
+        if (caller.roleCode !== "super_admin" && (targetRole.tier ?? 99) < caller.tier) {
           return NextResponse.json(
             { error: "You cannot assign a role more privileged than your own." },
             { status: 403 },
@@ -190,7 +192,7 @@ export const PATCH = withPermission(
 
       // Likewise, nobody may edit a user more privileged than themselves.
       if (caller.roleCode !== "super_admin") {
-        const targetTier = (targetProfile.role as { tier?: number } | null)?.tier ?? 99
+        const targetTier = one<{ tier?: number }>(targetProfile.role)?.tier ?? 99
         if (targetTier < caller.tier) {
           return NextResponse.json(
             { error: "You cannot modify a user more privileged than your own role." },
