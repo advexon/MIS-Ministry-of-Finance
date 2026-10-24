@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { type Role, type Profile } from '@/lib/types/database'
+import type { User } from '@supabase/supabase-js'
 import {
   hasPermission,
   Permission,
@@ -13,7 +14,7 @@ import {
 
 interface PermissionContextType {
   profile: Profile | null
-  user: any
+  user: User
   role: Role | null
   can: (resource: string, permission: Permission | Permission[]) => boolean
   getPermissions: (resource: string) => ResourcePermission | null
@@ -28,7 +29,7 @@ const PermissionContext = createContext<PermissionContextType | undefined>(undef
 interface PermissionProviderProps {
   profile?: Profile | null
   children: ReactNode
-  user: any
+  user: User
   role: Role | null
 }
 
@@ -52,7 +53,7 @@ export function PermissionProvider({ children, user, role, profile = null }: Per
     const perms = await fetchRolePermissions(role.id)
     setOverrides(perms)
     setPermissionsLoading(false)
-  }, [role?.id])
+  }, [role])
 
   useEffect(() => {
     let active = true
@@ -219,8 +220,8 @@ export function CanAccessOrDisable({
         aria-disabled="true"
       >
         {React.Children.map(children, child => {
-          if (React.isValidElement(child)) {
-            return React.cloneElement(child as React.ReactElement<any>, {
+          if (React.isValidElement<Pick<React.ButtonHTMLAttributes<HTMLButtonElement>, 'disabled' | 'aria-disabled' | 'onClick'>>(child)) {
+            return React.cloneElement(child, {
               disabled: true,
               'aria-disabled': true,
               onClick: (e: React.MouseEvent) => e.preventDefault(),

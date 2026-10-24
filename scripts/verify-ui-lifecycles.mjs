@@ -90,6 +90,43 @@ assert.deepEqual(navigation.filter(item => item.prsfOnly === 'true').map(item =>
 assert.equal(navigation.find(item => item.titleKey === 'roles').resource, 'roles')
 console.log('Navigation contract checks passed: 19 unique routes, all three locales, admin-only and PRSF-only flags')
 
+{
+let permissionGranted = false
+const permissionWrappers = loadSource('lib/contexts/permission-context.tsx', {
+  react: { ...React, useContext: () => ({ can: () => permissionGranted }) },
+  '@/lib/utils/permissions': {},
+})
+let clickCount = 0
+const permittedControl = React.createElement('button', { onClick: () => { clickCount++ } }, 'Protected action')
+const protectedProps = { resource: 'loans', permission: 'update', children: permittedControl }
+assert.equal(permissionWrappers.CanAccessOrDisable({ ...protectedProps, mode: 'hide' }), null)
+const denied = permissionWrappers.CanAccessOrDisable(protectedProps)
+assert.equal(denied.type, 'span')
+assert.equal(denied.props['aria-disabled'], 'true')
+assert.equal(denied.props.title, 'You do not have permission for this action')
+const disabledControl = React.Children.toArray(denied.props.children)[0]
+assert.equal(disabledControl.props.disabled, true)
+assert.equal(disabledControl.props['aria-disabled'], true)
+let prevented = false
+disabledControl.props.onClick({ preventDefault: () => { prevented = true } })
+assert.equal(prevented, true)
+assert.equal(clickCount, 0)
+assert.equal(permissionWrappers.CanAccessOrDisable({ ...protectedProps, disabledTooltip: 'Read only' }).props.title, 'Read only')
+const mixedChildren = permissionWrappers.CanAccessOrDisable({ ...protectedProps, children: ['Text', null, permittedControl] })
+assert.equal(React.Children.toArray(mixedChildren.props.children)[0], 'Text')
+assert.match(renderToStaticMarkup(denied), /disabled=""/)
+assert.equal(renderToStaticMarkup(permissionWrappers.CanAccess({ ...protectedProps, fallback: 'Unavailable' })), 'Unavailable')
+permissionGranted = true
+for (const mode of ['hide', 'disable']) {
+  const allowed = permissionWrappers.CanAccessOrDisable({ ...protectedProps, mode })
+  assert.equal(allowed.props.children, permittedControl)
+}
+assert.equal(permissionWrappers.CanAccess(protectedProps).props.children, permittedControl)
+permittedControl.props.onClick()
+assert.equal(clickCount, 1)
+console.log('Permission wrapper checks passed: denial, hiding, disabled props, click prevention, fallback, mixed children and allowed identity')
+}
+
 const testTranslations = {
   en: { common: { appName: 'English' } },
   ru: { common: { appName: 'Russian' } },
