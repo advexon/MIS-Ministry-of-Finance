@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import Link from "next/link"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
@@ -33,10 +34,12 @@ import {
   Users,
   Building2,
   UserCheck,
-  Loader2,
   RefreshCw,
 } from "lucide-react"
 import type { Borrower } from "@/lib/types/database"
+import { usePermissions } from "@/lib/contexts/permission-context"
+import { canViewBorrowerCreditHistory } from "@/lib/utils/borrower-credit-history"
+import { CreditHistoryDialog } from "@/components/borrowers/credit-history-dialog"
 
 const PAGE_SIZE = 20
 
@@ -44,19 +47,13 @@ export default function BorrowersPage() {
   const { t } = useI18n()
   const supabase = createClient()
 
-  const [borrowers, setBorrowers] = useState<Borrower[]>([])
-  const [loading, setLoading] = useState(true)
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState("")
+  const [historyBorrower, setHistoryBorrower] = useState<Borrower | null>(null)
+  const { profile, role } = usePermissions()
+  const canViewHistory = canViewBorrowerCreditHistory(profile, role)
 
-  // Summary stats
-  const [totalCount, setTotalCount] = useState(0)
-  const [activeCount, setActiveCount] = useState(0)
-  const [entityCount, setEntityCount] = useState(0)
-
-  const fetchBorrowers = useCallback(async () => {
-    setLoading(true)
+  const { data: result, isLoading, isValidating, mutate } = usePageQuery<{ borrowers: Borrower[]; total: number }>(["borrowers", page, search], async () => {
     let query = supabase
       .from("borrowers")
       .select("*, sector:sectors(name_en)", { count: "exact" })
@@ -70,39 +67,25 @@ export default function BorrowersPage() {
     }
 
     const { data, count, error } = await query
-    if (error) console.error("Error fetching borrowers:", error)
-    if (data) setBorrowers(data)
-    setTotal(count ?? 0)
-    setLoading(false)
-  }, [page, search, supabase])
+    if (error) throw error
+    return { borrowers: data ?? [], total: count ?? 0 }
+  })
+  const borrowers = result?.borrowers ?? []
+  const total = result?.total ?? 0
+  const loading = isLoading || isValidating
+  const fetchBorrowers = () => mutate()
 
-  useEffect(() => {
-    // Fetch summary stats once
-    supabase
-      .from("borrowers")
-      .select("id, legal_type", { count: "exact" })
-      .then(({ data, count }) => {
-        setTotalCount(count ?? 0)
-        if (data) {
-          setActiveCount(count ?? 0)
-          // Legal entities are stored as llc / jsc, not "legal_entity"
-          setEntityCount(
-            data.filter((b) => ["llc", "jsc", "legal_entity"].includes(b.legal_type ?? "")).length
-          )
-        }
-      })
-  }, [supabase])
-
-  useEffect(() => {
-    fetchBorrowers()
-  }, [fetchBorrowers])
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "TJS",
-      minimumFractionDigits: 0,
-    }).format(val)
+  const { data: summary } = usePageQuery(["borrower-summary"], async () => {
+    const { data, count, error } = await supabase.from("borrowers").select("id, legal_type", { count: "exact" })
+    if (error) throw error
+    return {
+      totalCount: count ?? 0,
+      activeCount: count ?? 0,
+      // Legal entities are stored as llc / jsc, not "legal_entity".
+      entityCount: (data ?? []).filter((borrower) => ["llc", "jsc", "legal_entity"].includes(borrower.legal_type ?? "")).length,
+    }
+  })
+  const { totalCount = 0, activeCount = 0, entityCount = 0 } = summary ?? {}
 
   // Borrowers are stored using the database vocabulary (llc / sole_proprietor / ...),
   // so map those to labels as well as the legacy form values.
@@ -270,6 +253,11 @@ export default function BorrowersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {canViewHistory && (
+                              <DropdownMenuItem onSelect={() => setHistoryBorrower(b)}>
+                                {t.borrowers.loanHistory}
+                              </DropdownMenuItem>
+                            )}
                             {/* No /dashboard/borrowers/[id] route exists, and borrower
                                 fields are only writable through the loan application
                                 form, so both items lead to that borrower's loans
@@ -297,6 +285,14 @@ export default function BorrowersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {canViewHistory && historyBorrower && (
+        <CreditHistoryDialog
+          key={historyBorrower.id}
+          borrower={historyBorrower}
+          onClose={() => setHistoryBorrower(null)}
+        />
+      )}
 
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">

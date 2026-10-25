@@ -1,11 +1,12 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useRouter } from "next/navigation"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -32,7 +33,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   FileEdit,
   Trash2,
@@ -50,49 +50,35 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import type { LoanDraft } from "@/lib/hooks/use-loan-draft"
+import { useCurrentTime } from "@/hooks/use-current-time"
+import { isExpiringSoon } from "@/lib/utils/display-time"
 import { usePermissions } from "@/lib/contexts/permission-context"
 
 export default function DraftsPage() {
-  const { t, locale } = useI18n()
+  const now = useCurrentTime()
+  const { locale } = useI18n()
   const router = useRouter()
   const supabase = createClient()
   const { can } = usePermissions()
   const canCreateLoan = can("loans", "create")
 
-  const [drafts, setDrafts] = useState<LoanDraft[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedDraft, setSelectedDraft] = useState<LoanDraft | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [actionMessage, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
-  const loadDrafts = useCallback(async () => {
-    setLoading(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from("loan_drafts")
-        .select("*")
-        .eq("user_id", user.id)
-        .gt("expires_at", new Date().toISOString())
-        .order("updated_at", { ascending: false })
-
-      if (error) throw error
-      setDrafts(data || [])
-    } catch (error) {
-      console.error("Failed to load drafts:", error)
-      setMessage({ type: "error", text: "Failed to load drafts" })
-    } finally {
-      setLoading(false)
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    loadDrafts()
-  }, [loadDrafts])
+  const { data: drafts = [], error: loadError, isLoading, isValidating, mutate } = usePageQuery<LoanDraft[]>(["drafts"], async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Not authenticated")
+    const { data, error } = await supabase.from("loan_drafts").select("*")
+      .eq("user_id", user.id).gt("expires_at", new Date().toISOString()).order("updated_at", { ascending: false })
+    if (error) throw error
+    return data ?? []
+  })
+  const loading = isLoading || isValidating
+  const loadDrafts = () => mutate()
+  const message = actionMessage ?? (loadError ? { type: "error" as const, text: "Failed to load drafts" } : null)
 
   const handleDelete = async () => {
     if (!selectedDraft) return
@@ -106,7 +92,7 @@ export default function DraftsPage() {
 
       if (error) throw error
 
-      setDrafts(prev => prev.filter(d => d.id !== selectedDraft.id))
+      await mutate((previous) => previous?.filter((draft) => draft.id !== selectedDraft.id), { revalidate: false })
       setMessage({ type: "success", text: "Draft deleted successfully" })
       setDeleteDialogOpen(false)
       setSelectedDraft(null)
@@ -242,10 +228,7 @@ export default function DraftsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {drafts.filter(d => {
-                const daysLeft = Math.ceil((new Date(d.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-                return daysLeft <= 7
-              }).length}
+              {now === null ? '…' : drafts.filter(d => isExpiringSoon(d.expires_at, now)).length}
             </div>
             <p className="text-xs text-muted-foreground">within 7 days</p>
           </CardContent>

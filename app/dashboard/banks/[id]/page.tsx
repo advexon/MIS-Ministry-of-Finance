@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
+import type { Bank, LoanApplication, Claim, Fee } from '@/lib/types/database'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { getLocalizedName } from '@/lib/utils/localized-name'
@@ -18,30 +19,53 @@ import { ArrowLeft, Building2, Save, Edit2, FileText, DollarSign, AlertTriangle 
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
 
+type BankDetail = Pick<Bank, 'id' | 'code' | 'name_en' | 'name_ru' | 'name_tj'> & {
+  is_active: boolean | null
+}
+type BankForm = Omit<BankDetail, 'id'>
+type BankLoan = Pick<LoanApplication, 'id' | 'loan_number' | 'approved_amount' | 'disbursed_amount' | 'disbursement_date'> & {
+  status: string | null
+}
+type BankClaim = Pick<Claim, 'id' | 'claim_number' | 'claim_amount'> & {
+  status: string | null
+  created_at: string | null
+}
+type BankFee = Pick<Fee, 'id'> & {
+  fee_type: string
+  amount: number
+  status: string | null
+  due_date: string
+}
+
+const bankTextFields = [
+  { label: 'Bank Code', field: 'code' },
+  { label: 'Bank Name (English)', field: 'name_en' },
+  { label: 'Bank Name (Russian)', field: 'name_ru' },
+  { label: 'Bank Name (Tajik)', field: 'name_tj' },
+] as const satisfies readonly { label: string; field: keyof BankForm }[]
+
 export default function BankDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { t, locale } = useI18n()
+  const { locale } = useI18n()
   const supabase = createClient()
   const { toast } = useToast()
-  const router = useRouter()
-
-  const [bank, setBank] = useState<any>(null)
-  const [loans, setLoans] = useState<any[]>([])
-  const [claims, setClaims] = useState<any[]>([])
-  const [fees, setFees] = useState<any[]>([])
+  const [bank, setBank] = useState<BankDetail | null>(null)
+  const [loans, setLoans] = useState<BankLoan[]>([])
+  const [claims, setClaims] = useState<BankClaim[]>([])
+  const [fees, setFees] = useState<BankFee[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<any>({})
+  const [form, setForm] = useState<BankForm>({ code: '', name_en: '', name_ru: null, name_tj: null, is_active: null })
 
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true)
       const [{ data: bankData }, { data: loanData }, { data: claimData }, { data: feeData }] = await Promise.all([
-        supabase.from('banks').select('*').eq('id', id).single(),
-        supabase.from('loan_applications').select('id, loan_number, status, approved_amount, disbursed_amount, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20),
-        supabase.from('claims').select('id, claim_number, status, claim_amount, created_at').eq('bank_id', id).order('created_at', { ascending: false }).limit(10),
-        supabase.from('fees').select('id, fee_type, amount, status, due_date').eq('bank_id', id).order('due_date', { ascending: false }).limit(10),
+        supabase.from('banks').select('id, code, name_en, name_ru, name_tj, is_active').eq('id', id).single().overrideTypes<BankDetail, { merge: false }>(),
+        supabase.from('loan_applications').select('id, loan_number, status, approved_amount, disbursed_amount, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20).overrideTypes<BankLoan[], { merge: false }>(),
+        supabase.from('claims').select('id, claim_number, status, claim_amount, created_at').eq('bank_id', id).order('created_at', { ascending: false }).limit(10).overrideTypes<BankClaim[], { merge: false }>(),
+        supabase.from('fees').select('id, fee_type, amount, status, due_date').eq('bank_id', id).order('due_date', { ascending: false }).limit(10).overrideTypes<BankFee[], { merge: false }>(),
       ])
       if (bankData) { setBank(bankData); setForm(bankData) }
       setLoans(loanData || [])
@@ -50,10 +74,10 @@ export default function BankDetailPage() {
       setLoading(false)
     }
     fetchAll()
-  }, [id])
+  }, [id, supabase])
 
   // Helper to get localized bank name
-  const getBankName = (b: any) => getLocalizedName(b, locale)
+  const getBankName = (b: BankDetail) => getLocalizedName(b, locale)
 
   const handleSave = async () => {
     setSaving(true)
@@ -68,13 +92,13 @@ export default function BankDetailPage() {
       toast({ title: 'Failed to update bank', description: error.message, variant: 'destructive' })
     } else {
       toast({ title: 'Bank updated successfully' })
-      setBank(form)
+      setBank({ ...form, id })
       setEditing(false)
     }
     setSaving(false)
   }
 
-  const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 }).format(v || 0)
+  const fmt = (v: number | null) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 }).format(v || 0)
   const totalDisbursed = loans.reduce((s, l) => s + (l.approved_amount || 0), 0)
   const totalOutstanding = loans.reduce((s, l) => s + (l.disbursed_amount || 0), 0)
   const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'disbursed').length
@@ -171,19 +195,14 @@ export default function BankDetailPage() {
             <CardHeader><CardTitle className="text-sm">Bank Information</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                {[
-                  { label: 'Bank Code', field: 'code', readOnly: !editing },
-                  { label: 'Bank Name (English)', field: 'name_en' },
-                  { label: 'Bank Name (Russian)', field: 'name_ru' },
-                  { label: 'Bank Name (Tajik)', field: 'name_tj' },
-                ].map(({ label, field, readOnly }) => (
+                {bankTextFields.map(({ label, field }) => (
                   <div key={field} className="space-y-2">
                     <Label className="text-xs">{label}</Label>
                     <Input
                       value={form[field] || ''}
-                      onChange={e => setForm((p: any) => ({ ...p, [field]: e.target.value }))}
-                      readOnly={!editing || readOnly}
-                      className={!editing || readOnly ? 'bg-secondary/30 text-sm' : 'text-sm'}
+                      onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))}
+                      readOnly={!editing}
+                      className={!editing ? 'bg-secondary/30 text-sm' : 'text-sm'}
                     />
                   </div>
                 ))}
@@ -193,9 +212,9 @@ export default function BankDetailPage() {
                   <p className="text-sm font-medium">Active Status</p>
                   <p className="text-xs text-muted-foreground">Enable or disable this bank in the system</p>
                 </div>
-                <Switch 
-                  checked={form.is_active} 
-                  onCheckedChange={v => setForm((p: any) => ({ ...p, is_active: v }))} 
+                <Switch
+                  checked={form.is_active ?? false}
+                  onCheckedChange={v => setForm(p => ({ ...p, is_active: v }))}
                   disabled={!editing}
                 />
               </div>
@@ -262,7 +281,7 @@ export default function BankDetailPage() {
                       <TableCell className="font-mono text-sm font-semibold text-primary">{claim.claim_number}</TableCell>
                       <TableCell><Badge variant="secondary" className="text-xs capitalize">{claim.status}</Badge></TableCell>
                       <TableCell className="text-right font-medium">{fmt(claim.claim_amount)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{new Date(claim.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{claim.created_at ? new Date(claim.created_at).toLocaleDateString() : '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { withPermission } from "@/lib/middleware/api-protection"
+import { employeeFlagKeys, employeeFlagUpdateError, userUpdateSchema } from "@/lib/employee-flags"
+import { one } from "@/lib/utils/supabase-relation"
 
 /**
  * Caller identity resolved by `withPermission`. Every handler in this file is
@@ -66,7 +68,7 @@ export const GET = withPermission(
 
       const [usersRes, rolesRes, banksRes, branchesRes] = await Promise.all([
         usersQuery,
-        supabase.from("roles").select("*").order("name_en"),
+        supabase.from("roles").select("*").eq("is_active", true).order("name_en"),
         caller.isBankScoped
           ? supabase.from("banks").select("*").eq("id", caller.bankId).order("name_en")
           : supabase.from("banks").select("*").order("name_en"),
@@ -110,21 +112,25 @@ export const PATCH = withPermission(
   { resource: "users", permission: "update" },
   async (request: NextRequest, { caller }: { caller: Caller }) => {
     try {
-      const supabase = getAdminClient()
-      const body = await request.json()
-
-      const { userId, first_name, last_name, phone, role_id, bank_id, is_active } = body
-
-      if (!userId) {
-        return NextResponse.json({ error: "userId is required" }, { status: 400 })
+      if (!['super_admin', 'prsf_admin', 'bank_admin'].includes(caller.roleCode)) {
+        return NextResponse.json({ error: 'Administrator role required' }, { status: 403 })
       }
+      const supabase = getAdminClient()
+      const parsed = userUpdateSchema.safeParse(await request.json().catch(() => null))
+      if (!parsed.success) {
+        return NextResponse.json({ error: "Invalid profile update", details: parsed.error.flatten() }, { status: 400 })
+      }
+      const body = parsed.data
+      const { userId, first_name, last_name, phone, role_id, bank_id, is_active } = body
+      const flagError = employeeFlagUpdateError(body, caller, userId)
+      if (flagError) return NextResponse.json({ error: flagError }, { status: 403 })
 
       // Load the target once, for bank-isolation, privilege checks, and the
       // before-image recorded in the audit trail.
       const { data: targetProfile } = await supabase
         .from("profiles")
         .select(
-          "first_name, last_name, phone, role_id, bank_id, is_active, role:roles(tier)",
+          "first_name, last_name, phone, role_id, bank_id, is_active, specialist_level, department, is_department_head, is_loan_committee_member, is_claims_committee_member, is_committee_secretary, product_tags, role:roles(tier)",
         )
         .eq("id", userId)
         .single()
@@ -168,17 +174,18 @@ export const PATCH = withPermission(
 
       // Privilege ceiling: only super_admin may grant or modify super_admin-level
       // access, so a prsf_admin cannot mint an account more powerful than itself.
-      if (role_id && caller.roleCode !== "super_admin") {
+      if (role_id) {
         const { data: targetRole } = await supabase
           .from("roles")
           .select("code, tier")
+          .eq("is_active", true)
           .eq("id", role_id)
           .single()
 
         if (!targetRole) {
           return NextResponse.json({ error: "Unknown role_id" }, { status: 400 })
         }
-        if ((targetRole.tier ?? 99) < caller.tier) {
+        if (caller.roleCode !== "super_admin" && (targetRole.tier ?? 99) < caller.tier) {
           return NextResponse.json(
             { error: "You cannot assign a role more privileged than your own." },
             { status: 403 },
@@ -188,7 +195,7 @@ export const PATCH = withPermission(
 
       // Likewise, nobody may edit a user more privileged than themselves.
       if (caller.roleCode !== "super_admin") {
-        const targetTier = (targetProfile.role as { tier?: number } | null)?.tier ?? 99
+        const targetTier = one<{ tier?: number }>(targetProfile.role)?.tier ?? 99
         if (targetTier < caller.tier) {
           return NextResponse.json(
             { error: "You cannot modify a user more privileged than your own role." },
@@ -197,7 +204,7 @@ export const PATCH = withPermission(
         }
       }
 
-      const updateData: Record<string, any> = {
+      const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
 
@@ -208,6 +215,9 @@ export const PATCH = withPermission(
       if (role_id !== undefined) updateData.role_id = role_id || null
       if (bank_id !== undefined) updateData.bank_id = bank_id || null
       if (is_active !== undefined) updateData.is_active = is_active
+      for (const key of employeeFlagKeys) {
+        if (body[key] !== undefined) updateData[key] = body[key]
+      }
 
       const { data, error } = await supabase
         .from("profiles")
@@ -224,9 +234,9 @@ export const PATCH = withPermission(
       // Record who changed whom, so user administration is auditable. Only the
       // fields actually being changed are recorded, alongside their prior values.
       const changedKeys = Object.keys(updateData).filter((k) => k !== "updated_at")
-      const oldData: Record<string, any> = {}
+      const oldData: Record<string, unknown> = {}
       for (const k of changedKeys) {
-        oldData[k] = (targetProfile as Record<string, any>)[k] ?? null
+        oldData[k] = (targetProfile as Record<string, unknown>)[k] ?? null
       }
 
       const { error: auditError } = await supabase.from("audit_trail").insert({

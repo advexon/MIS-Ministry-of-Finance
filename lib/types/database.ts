@@ -1,3 +1,5 @@
+import type { EmployeeFlags } from '@/lib/employee-flags'
+
 export type LoanStatus = 
   | 'draft'
   | 'submitted'
@@ -16,6 +18,7 @@ export type LoanStatus =
   | 'formal_application'  // step 11: formal application, Appendix 1.1
   | 'uko_reconciliation'  // step 12: УКО decision vs ККГ recommendation
   | 'compliance_check'    // step 13: compliance-check note
+  | 'deputy_review'       // step 14: Deputy Director confirmation
   | 'management_review'   // step 15: ФКГ Management final decision
   | 'approved'
   | 'rejected'
@@ -136,6 +139,11 @@ export const ROLE_TIERS = {
   CREDIT_RISK_OFFICER: 4,
   COMPLIANCE_OFFICER: 4,
   KKG_SECRETARY: 4,
+  DEPUTY_DIRECTOR: 3,
+  ACCOUNTANT: 4,
+  REPORTING_OFFICER: 4,
+  LEGAL_OFFICER: 4,
+  BUSINESS_DEVELOPMENT: 4,
   AUDITOR: 5,        // Read-only compliance
   BANK_ADMIN: 6,     // Bank management
   BANK_OFFICER: 7,   // Loan submissions
@@ -155,12 +163,17 @@ export const ROLE_CODES = {
   KKG_SECRETARY: 'kkg_secretary',
   KKG_MEMBER: 'kkg_member',
   FKG_MANAGEMENT: 'fkg_management',
+  DEPUTY_DIRECTOR: 'deputy_director',
+  ACCOUNTANT: 'accountant',
+  REPORTING_OFFICER: 'reporting_officer',
+  LEGAL_OFFICER: 'legal_officer',
+  BUSINESS_DEVELOPMENT: 'business_development',
 } as const
 
 export type RoleTier = typeof ROLE_TIERS[keyof typeof ROLE_TIERS]
 export type RoleCode = typeof ROLE_CODES[keyof typeof ROLE_CODES]
 
-export interface Profile {
+export interface Profile extends EmployeeFlags {
   id: string
   email: string
   first_name: string | null
@@ -269,6 +282,11 @@ export interface LoanApplication {
   uko_reference_no: string | null
   uko_registered_at: string | null
   uko_registered_by: string | null
+  assigned_analyst_id?: string | null
+  bank_reviewed_by?: string | null
+  bank_reviewed_at?: string | null
+  stop_factor_reason?: string | null
+  clarification_return_status?: string | null
 
   bank?: Bank
   branch?: BankBranch
@@ -583,8 +601,8 @@ export interface ColumnConfigAudit {
   id: string
   config_id: string | null
   action: 'create' | 'update' | 'delete'
-  previous_values: Record<string, any> | null
-  new_values: Record<string, any> | null
+  previous_values: Record<string, unknown> | null
+  new_values: Record<string, unknown> | null
   changed_by: string | null
   changed_at: string
 }
@@ -617,6 +635,8 @@ export interface MonthlyReport {
 export interface Claim {
   id: string
   claim_number: string
+  loan_id: string
+  penalties_claimed: number | null
   loan_application_id: string
   claim_date: string
   claim_amount: number
@@ -683,10 +703,8 @@ export interface Notification {
   title: string
   message: string
   type: NotificationType
-  related_entity: string | null
-  related_id: string | null
+  link: string | null
   is_read: boolean
-  is_email_sent: boolean
   created_at: string
 }
 

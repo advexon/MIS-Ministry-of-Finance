@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { getLocalizedName } from '@/lib/utils/localized-name'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Building2, MapPin, TrendingUp, Plus, Search, ChevronRight, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/use-toast'
+import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
+import { RequiredMark, missingFieldsMessage } from '@/components/forms/required-mark'
 
 interface Bank {
   id: string
@@ -45,9 +48,8 @@ export default function BanksPage() {
   const { t, locale } = useI18n()
   const supabase = createClient()
   const { toast } = useToast()
+  const { isRequired, missingFields } = useFieldRequirements('bank')
 
-  const [banks, setBanks] = useState<Bank[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -58,28 +60,21 @@ export default function BanksPage() {
   // Helper to get localized bank name
   const getBankName = (bank: Bank) => getLocalizedName(bank, locale)
 
-  const fetchBanks = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('banks')
-      .select('*')
-      .order('name_en')
-
-    if (error) {
-      // Fallback: just get banks without ordering
-      const { data: simple } = await supabase.from('banks').select('*')
-      setBanks(simple || [])
-    } else {
-      setBanks(data || [])
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { fetchBanks() }, [])
+  const { data: banks = [], isLoading, isValidating, mutate } = usePageQuery<Bank[]>(['banks'], async () => {
+    const { data, error } = await supabase.from('banks').select('*').order('name_en')
+    if (!error) return data ?? []
+    // Preserve the existing unordered fallback for servers without ordering support.
+    const { data: simple, error: fallbackError } = await supabase.from('banks').select('*')
+    if (fallbackError) throw fallbackError
+    return simple ?? []
+  })
+  const loading = isLoading || isValidating
+  const fetchBanks = () => mutate()
 
   const handleCreate = async () => {
-    if (!form.code || !form.name_en) {
-      toast({ title: 'Bank code and name are required', variant: 'destructive' })
+    const missing = missingFields(form)
+    if (missing.length) {
+      toast({ title: missingFieldsMessage(missing), variant: 'destructive' })
       return
     }
     setSaving(true)
@@ -100,9 +95,6 @@ export default function BanksPage() {
     }
     setSaving(false)
   }
-
-  const fmt = (v: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 }).format(v)
 
   const filtered = banks.filter(b => {
     const name = getBankName(b)
@@ -134,21 +126,21 @@ export default function BanksPage() {
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Bank Code *</Label>
+                  <Label>Bank Code<RequiredMark show={isRequired('code')} /></Label>
                   <Input placeholder="e.g. AIB" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase() }))} maxLength={10} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Bank Name (English) *</Label>
+                  <Label>Bank Name (English)<RequiredMark show={isRequired('name_en')} /></Label>
                   <Input placeholder="Full legal name" value={form.name_en} onChange={e => setForm(p => ({ ...p, name_en: e.target.value }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Bank Name (Russian)</Label>
+                  <Label>Bank Name (Russian)<RequiredMark show={isRequired('name_ru')} /></Label>
                   <Input placeholder="Название банка" value={form.name_ru} onChange={e => setForm(p => ({ ...p, name_ru: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Bank Name (Tajik)</Label>
+                  <Label>Bank Name (Tajik)<RequiredMark show={isRequired('name_tj')} /></Label>
                   <Input placeholder="Номи бонк" value={form.name_tj} onChange={e => setForm(p => ({ ...p, name_tj: e.target.value }))} />
                 </div>
               </div>

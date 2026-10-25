@@ -4,11 +4,29 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { REQUIRED_FIELD_NAMES } from "@/lib/hooks/use-loan-form-validation"
 
+export type LoanDraftFormData = Partial<Record<
+  | 'legalEntityType' | 'clientName' | 'clientTin' | 'registrationNumber' | 'sectorId'
+  | 'addressStreet' | 'city' | 'district' | 'workforce' | 'establishmentYear'
+  | 'businessDescription' | 'phone' | 'email' | 'bankCustomerCode' | 'blacklistReason'
+  | 'guaranteeType' | 'legalRepSurname' | 'legalRepName' | 'legalRepPatronymic'
+  | 'legalRepGender' | 'legalRepBirthdate' | 'legalRepCountry' | 'legalRepTin'
+  | 'passportNumber' | 'bankId' | 'branchId' | 'productId' | 'requestedAmount'
+  | 'currency' | 'loanTerm' | 'gracePeriod' | 'frequency' | 'repaymentMethod'
+  | 'interestRate' | 'guaranteeCoverage' | 'loanOfficer' | 'purpose' | 'purposeDetails'
+  | 'applicationDate' | 'bankApprovalDate' | 'annualTurnover' | 'netIncome'
+  | 'riskRating' | 'totalExposure' | 'collateralDescription' | 'covenantBank'
+  | 'covenantPrsf' | 'notes',
+  string
+>> & {
+  isBlacklisted?: boolean
+  guarantors?: { name: string; id_number: string; relationship: string }[]
+}
+
 export interface LoanDraft {
   id: string
   user_id: string
   draft_name: string
-  form_data: Record<string, any>
+  form_data: LoanDraftFormData
   current_step: string
   completion_percentage: number
   created_at: string
@@ -39,13 +57,13 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
   const [drafts, setDrafts] = useState<LoanDraft[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null)
-  const formDataRef = useRef<Record<string, any>>({})
+  const formDataRef = useRef<LoanDraftFormData>({})
   const currentStepRef = useRef<string>("borrower")
 
   // Calculate completion percentage based on filled required fields.
   // Derived from the form's own validation config so the percentage can
   // actually reach 100% and never counts fields that are optional.
-  const calculateCompletion = useCallback((formData: Record<string, any>): number => {
+  const calculateCompletion = useCallback((formData: Record<string, unknown>): number => {
     if (REQUIRED_FIELD_NAMES.length === 0) return 0
 
     const filledCount = REQUIRED_FIELD_NAMES.filter(field => {
@@ -58,7 +76,7 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
 
   // Save draft to database (gracefully handles missing table)
   const saveDraft = useCallback(async (
-    formData: Record<string, any>,
+    formData: LoanDraftFormData,
     currentStep: string,
     draftName?: string,
     isAutoSave = false
@@ -134,9 +152,9 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
       }
 
       return { success: true, draftId: result.id }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Gracefully handle missing table errors
-      if (error?.code === "42P01") {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === "42P01") {
         // Table doesn't exist - drafts feature not yet deployed
         return { success: false, error: "Draft feature requires database migration" }
       }
@@ -172,8 +190,8 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         throw error
       }
       setDrafts(data || [])
-    } catch (error: any) {
-      if (error?.code === "42P01") {
+    } catch (error: unknown) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === "42P01") {
         setDrafts([])
         return
       }
@@ -202,8 +220,8 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
       }
       setCurrentDraftId(data.id)
       return data
-    } catch (error: any) {
-      if (error?.code === "42P01") {
+    } catch (error: unknown) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === "42P01") {
         return null
       }
       const errorMsg = error instanceof Error ? error.message : "Failed to load draft"
@@ -233,8 +251,8 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
       
       setDrafts(prev => prev.filter(d => d.id !== draftId))
       return true
-    } catch (error: any) {
-      if (error?.code === "42P01") {
+    } catch (error: unknown) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === "42P01") {
         return false
       }
       const errorMsg = error instanceof Error ? error.message : "Failed to delete draft"
@@ -244,7 +262,7 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
   }, [supabase, currentDraftId, onError])
 
   // Start auto-save timer
-  const startAutoSave = useCallback((formData: Record<string, any>, currentStep: string) => {
+  const startAutoSave = useCallback((formData: LoanDraftFormData, currentStep: string) => {
     formDataRef.current = formData
     currentStepRef.current = currentStep
 
@@ -268,7 +286,7 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
   }, [])
 
   // Update form data ref for auto-save
-  const updateFormData = useCallback((formData: Record<string, any>, currentStep: string) => {
+  const updateFormData = useCallback((formData: LoanDraftFormData, currentStep: string) => {
     formDataRef.current = formData
     currentStepRef.current = currentStep
   }, [])

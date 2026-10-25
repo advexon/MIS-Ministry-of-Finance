@@ -34,36 +34,52 @@ async function loadLocale(locale: Locale): Promise<TranslationType> {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>('en')
-  const [t, setT] = useState<TranslationType>(enTranslations.en)
-  const pendingLocale = useRef<Locale>('en')
+  const [{ locale, t }, setLanguage] = useState<{ locale: Locale; t: TranslationType }>({
+    locale: 'en',
+    t: enTranslations.en,
+  })
+  const localeRequest = useRef(0)
+
+  const applyLocale = useCallback(async (newLocale: Locale) => {
+    const request = ++localeRequest.current
+    try {
+      const loaded = await loadLocale(newLocale)
+      if (localeRequest.current === request) {
+        setLanguage({ locale: newLocale, t: loaded })
+      }
+    } catch {
+      // Keep the currently usable language if a translation chunk cannot load.
+    }
+  }, [])
 
   useEffect(() => {
-    // Restore saved preference from localStorage
+    const requests = localeRequest
+    const request = ++requests.current
     try {
-      const saved = localStorage.getItem('cgf-locale') as Locale | null
-      if (saved && (['en', 'ru', 'tj'] as string[]).includes(saved)) {
-        setLocaleState(saved as Locale)
-        loadLocale(saved as Locale).then(setT)
+      const saved = localStorage.getItem('cgf-locale')
+      if (saved === 'en' || saved === 'ru' || saved === 'tj') {
+        loadLocale(saved).then(loaded => {
+          if (requests.current === request) {
+            setLanguage({ locale: saved, t: loaded })
+          }
+        }).catch(() => {
+          // Keep English if the saved language cannot load.
+        })
       }
     } catch {
       // Silently ignore storage access errors
     }
+    return () => { requests.current++ }
   }, [])
 
   const setLocale = useCallback((newLocale: Locale) => {
-    pendingLocale.current = newLocale
-    setLocaleState(newLocale)
     try {
       localStorage.setItem('cgf-locale', newLocale)
     } catch {
       // Silently ignore storage errors
     }
-    loadLocale(newLocale).then((loaded) => {
-      // Guard against a race where the user switches twice quickly
-      if (pendingLocale.current === newLocale) setT(loaded)
-    })
-  }, [])
+    void applyLocale(newLocale)
+  }, [applyLocale])
 
   return (
     <I18nContext.Provider value={{ locale, setLocale, t }}>

@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { hasPermission, Permission, PermissionOverrides } from '@/lib/utils/permissions'
-import { Role } from '@/lib/types/database'
+import type { Profile, Role } from '@/lib/types/database'
+import type { User } from '@supabase/supabase-js'
+
+type RouteContext = { params?: Promise<Record<string, string | string[]>> }
+
+export type ProtectedRouteContext = RouteContext & {
+  user: User
+  profile: Profile | null
+  caller: {
+    userId: string
+    roleCode: string
+    tier: number
+    bankId: string | null
+    isBankScoped: boolean
+    overrides: PermissionOverrides | null
+  }
+}
 
 export interface ProtectedRouteOptions {
   resource: string
@@ -24,7 +40,7 @@ async function logAccess(
   resource: string,
   success: boolean,
   failureReason?: string,
-  metadata?: Record<string, any>,
+  metadata?: Record<string, unknown>,
 ) {
   if (!userId) return
   try {
@@ -53,9 +69,9 @@ async function logAccess(
  */
 export function withPermission(
   options: ProtectedRouteOptions,
-  handler: (req: NextRequest, context: any) => Promise<Response>
+  handler: (req: NextRequest, context: ProtectedRouteContext) => Promise<Response>
 ) {
-  return async (req: NextRequest, context: any) => {
+  return async (req: NextRequest, context: RouteContext = {}) => {
     const supabase = await createClient()
     
     try {
@@ -115,7 +131,7 @@ export function withPermission(
           .select('resource, can_view, can_create, can_update, can_delete, can_approve')
           .eq('role_id', roleId)
 
-        if (permRows && permRows.length > 0) {
+        if (permRows) {
           overrides = {}
           for (const row of permRows) {
             overrides[row.resource] = {
@@ -156,8 +172,8 @@ export function withPermission(
 
       return await handler(req, {
         ...context,
-        user,
-        profile,
+        user: user!,
+        profile: profile as Profile | null,
         caller: {
           userId: user!.id,
           roleCode: role?.code ?? '',

@@ -1,9 +1,14 @@
+import type { ParsedLoan, ParsedPayment } from './excel-parser'
+
+type LoanValidationInput = Partial<ParsedLoan> & { duration_months?: number }
+type PaymentValidationInput = Partial<ParsedPayment>
+
 export interface ValidationError {
   field: string
   message: string
 }
 
-export function validateLoan(loan: any, reportType: 'blank_guarantee' | 'disbursements'): ValidationError[] {
+export function validateLoan(loan: LoanValidationInput, reportType: 'blank_guarantee' | 'disbursements'): ValidationError[] {
   const errors: ValidationError[] = []
 
   // Required fields for all report types
@@ -70,7 +75,7 @@ export function validateLoan(loan: any, reportType: 'blank_guarantee' | 'disburs
   return errors
 }
 
-export function validatePayment(payment: any): ValidationError[] {
+export function validatePayment(payment: PaymentValidationInput): ValidationError[] {
   const errors: ValidationError[] = []
 
   if (!payment.loan_number?.trim()) {
@@ -94,8 +99,8 @@ export function validatePayment(payment: any): ValidationError[] {
   }
 
   // Validate total_amount equals principal + interest
-  const calculatedTotal = (parseFloat(payment.principal_amount) || 0) + (parseFloat(payment.interest_amount) || 0)
-  const providedTotal = parseFloat(payment.total_amount) || 0
+  const calculatedTotal = (parseFloat(String(payment.principal_amount)) || 0) + (parseFloat(String(payment.interest_amount)) || 0)
+  const providedTotal = parseFloat(String(payment.total_amount)) || 0
 
   if (Math.abs(calculatedTotal - providedTotal) > 0.01) {
     errors.push({ field: 'total_amount', message: 'Total amount should equal principal + interest' })
@@ -107,8 +112,8 @@ export function validatePayment(payment: any): ValidationError[] {
 export function validateReport(reportData: {
   bankId: string
   reportMonth: string
-  loans: any[]
-  payments: any[]
+  loans: LoanValidationInput[]
+  payments: PaymentValidationInput[]
   reportType: 'blank_guarantee' | 'disbursements'
 }): { isValid: boolean; errors: ValidationError[] } {
   const errors: ValidationError[] = []

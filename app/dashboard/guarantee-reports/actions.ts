@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { one } from '@/lib/utils/supabase-relation'
 
 export async function getGuaranteeReports(filters?: {
   status?: string
@@ -289,12 +290,14 @@ export async function requestRevisionGuaranteeReport(id: string, reviewNotes: st
 export async function deleteGuaranteeReport(id: string) {
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('guarantee_reports')
     .delete()
     .eq('id', id)
+    .select('id')
+    .single()
 
-  if (error) {
+  if (error || data?.id !== id) {
     console.error('Error deleting guarantee report:', error)
     throw new Error('Failed to delete guarantee report')
   }
@@ -405,8 +408,8 @@ export async function autoPopulateFromLoanApplications(
   }
 
   const reportLoans = loanApplications.map((loan, index) => {
-    const borrower = loan.borrower
-    const customerName = (borrower as any)?.name || 'Unknown'
+    const borrower = one(loan.borrower)
+    const customerName = borrower?.name || 'Unknown'
 
     return {
       report_id: reportId,
@@ -414,7 +417,7 @@ export async function autoPopulateFromLoanApplications(
       row_number: index + 1,
       loan_request_number: loan.loan_number || `LOAN-${loan.id.slice(0, 8)}`,
       customer_name: customerName,
-      tin_number: (borrower as any)?.tin_number || null,
+      tin_number: borrower?.tin_number || null,
       loan_purpose: loan.purpose || null,
       currency: loan.currency || 'TJS',
       approved_amount: loan.approved_amount,

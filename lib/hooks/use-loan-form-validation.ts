@@ -2,6 +2,13 @@
 
 import { useMemo, useCallback } from "react"
 import { validateTIN, validateEmail, validatePhone, validateCurrency, validatePercentage, validateNumeric, ValidationResult } from "@/lib/utils/validation"
+import { FORM_DEFS, isEmptyValue } from "@/lib/forms/field-requirements"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+
+const LOAN_FORM_FIELD_KEYS = new Set(
+  FORM_DEFS.find((d) => d.id === "loan_application")?.fields.map((f) => f.key) ?? [],
+)
+const registryHasField = (key: string) => LOAN_FORM_FIELD_KEYS.has(key)
 
 export type FormStep = "borrower" | "legal_rep" | "loan" | "collateral" | "additional"
 
@@ -9,7 +16,7 @@ export interface FieldValidation {
   field: string
   label: string
   required: boolean
-  validate: (value: any, formData?: Record<string, any>) => ValidationResult
+  validate: (value: string, formData?: Record<string, unknown>) => ValidationResult
 }
 
 export interface StepValidation {
@@ -95,6 +102,12 @@ const stepValidations: StepValidation[] = [
         label: "Email Address",
         required: false,
         validate: (v) => validateEmail(v, false)
+      },
+      {
+        field: "workforce",
+        label: "Number of Employees",
+        required: true,
+        validate: (v) => validateNumeric(v, { required: false, min: 1, allowDecimal: false, fieldName: "Number of employees" })
       },
     ],
   },
@@ -199,6 +212,10 @@ const stepValidations: StepValidation[] = [
         required: true,
         validate: (v) => v ? { isValid: true } : { isValid: false, error: "Please select loan purpose" }
       },
+      { field: "branchId", label: "Branch", required: true, validate: () => ({ isValid: true }) },
+      { field: "currency", label: "Loan Currency", required: true, validate: () => ({ isValid: true }) },
+      { field: "guaranteeType", label: "Guarantee Product", required: true, validate: () => ({ isValid: true }) },
+      { field: "applicationDate", label: "Application Date", required: true, validate: () => ({ isValid: true }) },
     ],
   },
   {
@@ -225,17 +242,41 @@ const stepValidations: StepValidation[] = [
   },
 ]
 
-export function useLoanFormValidation(formData: Record<string, any>) {
+export function useLoanFormValidation(formData: Record<string, unknown>) {
+  // Admin-configurable (Required fields page). The asterisk on each label and
+  // this check both read the same setting, so they can never disagree.
+  const requirements = useFieldRequirements("loan_application")
+
+  const isFieldRequired = useCallback(
+    (field: FieldValidation) =>
+      registryHasField(field.field) ? requirements.isRequired(field.field) : field.required,
+    [requirements],
+  )
+
+  // Empty + required → "required" error; empty + optional → valid; otherwise
+  // the field's own format rules run (TIN length, coverage cap, …).
+  const runField = useCallback((field: FieldValidation, value: unknown): ValidationResult => {
+    if (isEmptyValue(value)) {
+      return isFieldRequired(field)
+        ? { isValid: false, error: `${field.label} is required` }
+        : { isValid: true }
+    }
+    if (typeof value !== 'string' && typeof value !== 'number') {
+      return { isValid: false, error: `${field.label} has an invalid value` }
+    }
+    return field.validate(String(value), formData)
+  }, [formData, isFieldRequired])
+
   // Validate a single field
-  const validateField = useCallback((fieldName: string, value: any): ValidationResult => {
+  const validateField = useCallback((fieldName: string, value: unknown): ValidationResult => {
     for (const stepVal of stepValidations) {
       const field = stepVal.fields.find(f => f.field === fieldName)
       if (field) {
-        return field.validate(value, formData)
+        return runField(field, value)
       }
     }
     return { isValid: true }
-  }, [formData])
+  }, [runField])
 
   // Validate all fields in a step
   const validateStep = useCallback((step: FormStep): { isValid: boolean; errors: { field: string; label: string; error: string }[] } => {
@@ -246,7 +287,7 @@ export function useLoanFormValidation(formData: Record<string, any>) {
 
     for (const field of stepConfig.fields) {
       const value = formData[field.field]
-      const result = field.validate(value, formData)
+      const result = runField(field, value)
       if (!result.isValid && result.error) {
         errors.push({
           field: field.field,
@@ -260,7 +301,7 @@ export function useLoanFormValidation(formData: Record<string, any>) {
       isValid: errors.length === 0,
       errors,
     }
-  }, [formData])
+  }, [formData, runField])
 
   // Get validation status for all steps
   const stepsStatus = useMemo((): StepStatus[] => {
@@ -321,10 +362,11 @@ export function useLoanFormValidation(formData: Record<string, any>) {
   const getRequiredFields = useCallback((step: FormStep): string[] => {
     const stepConfig = stepValidations.find(s => s.step === step)
     if (!stepConfig) return []
-    return stepConfig.fields.filter(f => f.required).map(f => f.field)
-  }, [])
+    return stepConfig.fields.filter(isFieldRequired).map(f => f.field)
+  }, [isFieldRequired])
 
   return {
+    isRequired: requirements.isRequired,
     validateField,
     validateStep,
     stepsStatus,

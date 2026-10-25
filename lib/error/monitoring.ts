@@ -7,7 +7,7 @@ export interface ErrorContext {
   email?: string
   loanId?: string
   action?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -41,6 +41,8 @@ export function addBreadcrumb(
   category = "user-action",
   level: "fatal" | "error" | "warning" | "info" | "debug" = "info"
 ) {
+  // Keep the monitoring API compatible while the provider is disabled.
+  void level
   if (process.env.NODE_ENV === "development") {
     console.log(`[Breadcrumb] ${category}: ${message}`)
   }
@@ -50,7 +52,9 @@ export function addBreadcrumb(
  * Set user context for all subsequent errors
  */
 export function setErrorUser(userId: string, email?: string) {
-  // No-op without Sentry
+  // No-op without Sentry; retain the API without storing user identifiers.
+  void userId
+  void email
 }
 
 /**

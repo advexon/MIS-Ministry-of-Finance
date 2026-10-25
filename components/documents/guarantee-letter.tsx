@@ -14,8 +14,8 @@ interface GuaranteeLetterProps {
       tin_number?: string
       tin?: string
       legal_address?: string
-      address_street?: string
-      address_city?: string
+      address_street?: string | null
+      address_city?: string | null
     }
     bank?: {
       name_en?: string
@@ -52,7 +52,7 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 export const GuaranteeLetter = forwardRef<HTMLDivElement, GuaranteeLetterProps>(
-  ({ loan, guaranteeNumber, issueDate, validUntil, approvedBy, className, isDraft = false }, ref) => {
+  ({ loan, guaranteeNumber, issueDate, validUntil, className, isDraft = false }, ref) => {
     const borrowerName = loan.borrower?.name || loan.borrower?.company_name || loan.borrower?.legal_name || '—'
     const borrowerTIN = loan.borrower?.tin_number || loan.borrower?.tin || '—'
     const borrowerAddress = loan.borrower?.address_street 

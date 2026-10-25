@@ -108,6 +108,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { key: 'interest_rate', label: 'Rate %', type: 'percent', visible: true, align: 'right', width: 80 },
       { key: 'maturity_date', label: 'Maturity', type: 'date', visible: true, width: 100 },
       { key: 'status', label: 'Status', type: 'badge', visible: true, width: 100 },
+      { key: 'balance_as_of', label: 'Balance As Of', type: 'date', visible: true, width: 110 },
     ],
     filters: [],
     sortRules: [{ column: 'approved_amount', direction: 'desc' }],
@@ -184,6 +185,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { key: 'overdue_principal', label: 'Overdue Principal', type: 'currency', visible: true, align: 'right', width: 140 },
       { key: 'overdue_interest', label: 'Overdue Interest', type: 'currency', visible: true, align: 'right', width: 130 },
       { key: 'last_payment_date', label: 'Last Payment', type: 'date', visible: true, width: 110 },
+      { key: 'balance_as_of', label: 'Report As Of', type: 'date', visible: true, width: 110 },
     ],
     filters: [
       { id: '1', column: 'days_overdue', operator: 'gt', value: '0', enabled: true },
@@ -257,7 +259,7 @@ export const BUILT_IN_TEMPLATES: Omit<DocumentTemplate, 'createdAt' | 'updatedAt
       { key: 'bank_name', label: 'Bank', type: 'text', visible: true, width: 180 },
       { key: 'period', label: 'Period', type: 'text', visible: true, width: 100 },
       { key: 'fee_rate', label: 'Rate %', type: 'percent', visible: true, align: 'right', width: 80 },
-      { key: 'guarantee_amount', label: 'Guarantee Amt', type: 'currency', visible: true, align: 'right', width: 130 },
+      { key: 'guarantee_amount', label: 'Fee Base', type: 'currency', visible: true, align: 'right', width: 130 },
       { key: 'fee_amount', label: 'Fee Amount', type: 'currency', visible: true, align: 'right', width: 120 },
       { key: 'due_date', label: 'Due Date', type: 'date', visible: true, width: 100 },
       { key: 'paid_date', label: 'Paid Date', type: 'date', visible: true, width: 100 },
@@ -326,6 +328,7 @@ export function applyFilters(
   return rows.filter(row =>
     active.every(f => {
       const val = row[f.column]
+      if (val === null || val === undefined || val === '') return false
       const fVal = f.value.toLowerCase()
       const numVal = Number(val)
       const numFVal = Number(f.value)
@@ -371,6 +374,7 @@ export function getConditionalStyles(
     .filter(r => r.enabled)
     .filter(r => {
       const val = row[r.column]
+      if (val === null || val === undefined || val === '') return false
       const numVal = Number(val)
       const numFVal = Number(r.value)
       switch (r.operator) {
@@ -388,31 +392,116 @@ export function getConditionalStyles(
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
-const currFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 })
-const numFmt = new Intl.NumberFormat('en-US')
+const numFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
 
-export function formatCellValue(value: unknown, type: DocumentColumn['type']): string {
-  if (value === null || value === undefined) return '—'
+export function currencyCode(value: unknown): string | null {
+  return typeof value === 'string' && /^[A-Z]{3}$/.test(value) ? value : null
+}
+
+export function formatCellValue(value: unknown, type: DocumentColumn['type'], currency?: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (['currency', 'number', 'percent'].includes(type) && !Number.isFinite(Number(value))) return '—'
   switch (type) {
-    case 'currency': return currFmt.format(Number(value))
+    case 'currency': return `${numFmt.format(Number(value))} ${currencyCode(currency) ?? '(currency unspecified)'}`
     case 'percent': return `${Number(value).toFixed(1)}%`
     case 'number': return numFmt.format(Number(value))
-    case 'date': return value ? new Date(String(value)).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+    case 'date': {
+      const date = new Date(String(value))
+      return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    }
     default: return String(value)
   }
 }
 
+export function selectDocumentRows(rows: Record<string, unknown>[], template: DocumentTemplate, search = '') {
+  const sorted = applySorting(applyFilters(rows, template.filters), template.sortRules)
+  const query = search.trim().toLowerCase()
+  return query ? sorted.filter(row => template.columns.some(col => {
+    const value = row[col.key]
+    return value != null && String(value).toLowerCase().includes(query)
+  })) : sorted
+}
+
+export function documentTotal(rows: Record<string, unknown>[], column: DocumentColumn): string {
+  if (column.type !== 'currency' && column.type !== 'number') return ''
+  const groups = column.type === 'currency'
+    ? [...new Set(rows.map(row => currencyCode(row.currency)))] : [null]
+  return groups.map(currency => {
+    const group = column.type === 'currency' ? rows.filter(row => currencyCode(row.currency) === currency) : rows
+    if ((column.type === 'currency' && !currency) || group.some(row => row[column.key] == null || row[column.key] === '' || !Number.isFinite(Number(row[column.key])))) {
+      return currency ? `Unavailable (${currency})` : 'Unavailable'
+    }
+    return formatCellValue(group.reduce((sum, row) => sum + Number(row[column.key]), 0), column.type, currency)
+  }).join(' / ')
+}
+
 // ─── Export: Excel ────────────────────────────────────────────────────────────
 
-export async function exportExcel(
+export async function buildExcelWorkbook(
   template: DocumentTemplate,
   rows: Record<string, unknown>[]
-): Promise<void> {
+) {
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const visibleCols = template.columns.filter(c => c.visible)
+  if (!visibleCols.length) throw new Error('Select at least one column to export')
 
-  // Summary sheet
+  // Keep loan-level details first so Excel opens on borrowers and amounts, not metadata.
+  // Main data sheet
+  const headers = visibleCols.map(c => c.label)
+  const dataRows = rows.map(row =>
+    visibleCols.map(col => {
+      const raw = row[col.key]
+      if (col.type === 'currency' || col.type === 'number' || col.type === 'percent') return raw == null || raw === '' || !Number.isFinite(Number(raw)) ? null : Number(raw)
+      if (col.type === 'date') return raw ? formatCellValue(raw, 'date') : ''
+      return String(raw ?? '')
+    })
+  )
+
+  // Totals row
+  if (template.includeTotals) {
+    const totalsRow = visibleCols.map(col => {
+      if (col.type === 'currency' || col.type === 'number') {
+        const formatted = documentTotal(rows, col)
+        const currencies = new Set(rows.map(row => currencyCode(row.currency)))
+        const complete = rows.every(row => row[col.key] != null && row[col.key] !== '' && Number.isFinite(Number(row[col.key])))
+        if (!complete || (col.type === 'currency' && (currencies.size !== 1 || currencies.has(null)))) return formatted
+        const total = rows.reduce((sum, row) => sum + Number(row[col.key]), 0)
+        return col.type === 'currency' ? Number(total.toFixed(2)) : total
+      }
+      if (col.key === visibleCols[0].key) return 'TOTAL'
+      return ''
+    })
+    dataRows.push(totalsRow)
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
+
+  // Column widths
+  ws['!cols'] = visibleCols.map(c => ({ wch: Math.round((c.width || 120) / 7) }))
+
+  if (rows.length) {
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: rows.length, c: visibleCols.length - 1 },
+    }) }
+  }
+  visibleCols.forEach((col, columnIndex) => {
+    const format = col.type === 'currency' ? '#,##0.00'
+      : col.type === 'number' ? '#,##0.########'
+      : col.type === 'percent' ? '0.0"%"' : null
+    if (!format) return
+    for (let rowIndex = 1; rowIndex <= dataRows.length; rowIndex++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })]
+      if (cell?.t === 'n') {
+        const currency = currencyCode(rows[rowIndex - 1]?.currency ?? rows[0]?.currency)
+        cell.z = col.type === 'currency' ? `${format} "${currency ?? '(currency unspecified)'}"` : format
+      }
+    }
+  })
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Data')
+
   if (template.includeSummary) {
     const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
     const summaryData = [
@@ -426,69 +515,69 @@ export async function exportExcel(
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary')
   }
 
-  // Main data sheet
-  const headers = visibleCols.map(c => c.label)
-  const dataRows = rows.map(row =>
-    visibleCols.map(col => {
-      const raw = row[col.key]
-      if (col.type === 'currency' || col.type === 'number' || col.type === 'percent') return Number(raw) || 0
-      if (col.type === 'date') return raw ? new Date(String(raw)).toLocaleDateString('en-GB') : ''
-      return String(raw ?? '')
-    })
-  )
+  return wb
+}
 
-  // Totals row
-  if (template.includeTotals) {
-    const totalsRow = visibleCols.map(col => {
-      if (col.type === 'currency' || col.type === 'number') {
-        const total = rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0)
-        return total
-      }
-      if (col.key === visibleCols[0].key) return 'TOTAL'
-      return ''
-    })
-    dataRows.push(totalsRow)
-  }
-
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows])
-
-  // Column widths
-  ws['!cols'] = visibleCols.map(c => ({ wch: Math.round((c.width || 120) / 7) }))
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Data')
+export async function exportExcel(
+  template: DocumentTemplate,
+  rows: Record<string, unknown>[]
+): Promise<void> {
+  const wb = await buildExcelWorkbook(template, rows)
+  const XLSX = await import('xlsx')
   XLSX.writeFile(wb, `${template.name.replace(/\s+/g, '_')}_${Date.now()}.xlsx`)
 }
 
 // ─── Export: CSV ──────────────────────────────────────────────────────────────
 
-export function exportCSV(template: DocumentTemplate, rows: Record<string, unknown>[]): void {
+export function buildDocumentCSV(template: DocumentTemplate, rows: Record<string, unknown>[]): string {
   const visibleCols = template.columns.filter(c => c.visible)
-  const escape = (v: string) => (v.includes(',') || v.includes('"') || v.includes('\n')) ? `"${v.replace(/"/g, '""')}"` : v
-  const lines = [
-    visibleCols.map(c => escape(c.label)).join(','),
-    ...rows.map(row =>
-      visibleCols.map(col => escape(formatCellValue(row[col.key], col.type))).join(',')
-    ),
-  ]
-  if (template.includeTotals) {
-    const totalsRow = visibleCols.map(col => {
-      if (col.type === 'currency' || col.type === 'number') {
-        return escape(formatCellValue(rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0), col.type))
-      }
-      return col.key === visibleCols[0].key ? 'TOTAL' : ''
-    })
-    lines.push(totalsRow.join(','))
+  if (!visibleCols.length) throw new Error('Select at least one column to export')
+  const escape = (value: string) => {
+    const safe = /^[\s\p{Cc}]*[=+@-]|^[\t\r\n]/u.test(value) ? `'${value}` : value
+    return `"${safe.replace(/"/g, '""')}"`
   }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${template.name.replace(/\s+/g, '_')}_${Date.now()}.csv` })
-  a.click()
-  URL.revokeObjectURL(a.href)
+  const lines = [
+    visibleCols.map(col => escape(col.label)).join(','),
+    ...rows.map(row => visibleCols.map(col => escape(formatCellValue(row[col.key], col.type, row.currency))).join(',')),
+  ]
+  if (template.includeTotals) lines.push(visibleCols.map((col, index) =>
+    escape(documentTotal(rows, col) || (index === 0 ? 'TOTAL' : '')),
+  ).join(','))
+  return '\ufeff' + lines.join('\r\n')
+}
+
+export function exportCSV(template: DocumentTemplate, rows: Record<string, unknown>[]): void {
+  downloadDocumentBlob(new Blob([buildDocumentCSV(template, rows)], { type: 'text/csv;charset=utf-8;' }), template.name, 'csv')
+}
+
+function downloadDocumentBlob(blob: Blob, name: string, extension: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = Object.assign(document.createElement('a'), { href: url, download: `${name.replace(/[^\p{L}\p{N}_.-]+/gu, '_')}_${Date.now()}.${extension}` })
+  document.body.appendChild(anchor)
+  try { anchor.click() } finally {
+    anchor.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+}
+
+export function escapeDocumentHTML(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
+}
+
+function printCounterContent(value: string): string {
+  return value.split(/(\{page\}|\{total\})/g).map(part => part === '{page}' ? 'counter(page)' : part === '{total}' ? 'counter(pages)'
+    : `"${Array.from(part).map(char => `\\${char.codePointAt(0)!.toString(16)} `).join('')}"`).join(' ')
+}
+
+function safeAlignment(value: unknown) {
+  return value === 'right' || value === 'center' ? value : 'left'
 }
 
 // ─── Export: PDF (via styled HTML print window) ───────────────────────────────
 
-export function exportPDF(template: DocumentTemplate, rows: Record<string, unknown>[]): void {
+export function buildDocumentPDFHTML(template: DocumentTemplate, rows: Record<string, unknown>[]): string {
   const visibleCols = template.columns.filter(c => c.visible)
+  if (!visibleCols.length) throw new Error('Select at least one column to export')
   const hf = template.headerFooter
   const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const colWidth = Math.floor(100 / visibleCols.length)
@@ -513,7 +602,7 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
   }
 
   const getBadgeStyle = (val: string) => {
-    const style = badgeColors[val] || '#f3f4f6;color:#374151'
+    const style = Object.hasOwn(badgeColors, val) ? badgeColors[val] : '#f3f4f6;color:#374151'
     const [bg, fg] = style.split(';')
     return `background:${bg};${fg};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600`
   }
@@ -524,6 +613,7 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
     if (styles.includes('red')) css += 'background:#fff1f2;'
     else if (styles.includes('green')) css += 'background:#f0fdf4;'
     else if (styles.includes('yellow')) css += 'background:#fefce8;'
+    else if (styles.includes('highlight')) css += 'background:#eff6ff;'
     if (styles.includes('bold')) css += 'font-weight:700;'
     if (styles.includes('italic')) css += 'font-style:italic;'
     return css
@@ -533,8 +623,7 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
     <tr style="background:#1e3a5f;color:#fff;font-weight:700;">
       ${visibleCols.map((col, i) => {
     if (col.type === 'currency' || col.type === 'number') {
-      const total = rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0)
-      return `<td style="padding:8px 10px;text-align:${col.align || 'left'}">${formatCellValue(total, col.type)}</td>`
+      return `<td style="padding:8px 10px;text-align:${safeAlignment(col.align)}">${escapeDocumentHTML(documentTotal(rows, col))}</td>`
     }
     return `<td style="padding:8px 10px">${i === 0 ? 'TOTAL' : ''}</td>`
   }).join('')}
@@ -544,9 +633,16 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>${template.name}</title>
+  <title>${escapeDocumentHTML(template.name)}</title>
   <style>
-    @page { size: ${template.pageSize} ${template.orientation}; margin: 18mm 14mm; }
+    @page { size: ${['A4', 'A3', 'Letter', 'Legal'].includes(template.pageSize) ? template.pageSize : 'A4'} ${template.orientation === 'landscape' ? 'landscape' : 'portrait'}; margin: 18mm 14mm;
+      @bottom-right { content: ${hf.showPageNumber ? printCounterContent(hf.footerRight) : 'none'}; font: 10px Arial, sans-serif; }
+    }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    td, th { overflow-wrap: anywhere; }
+    .report-logo { width: 44px; height: 44px; object-fit: contain; }
+    @media print { .screen-page-number { display: none; } }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1e293b; background: #fff; }
     .page-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 2px solid #1e3a5f; margin-bottom: 16px; }
@@ -570,10 +666,12 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
 <body>
   <div class="page-header">
     <div>
-      <div class="org">${hf.headerLeft}</div>
-      <h1>${hf.headerCenter || template.name}</h1>
+      ${hf.showLogo ? '<img class="report-logo" src="/logo.png" alt="Credit Guarantee Fund" />' : ''}
+      <div class="org">${escapeDocumentHTML(hf.headerLeft)}</div>
+      ${template.includeTitle ? `<h1>${escapeDocumentHTML(hf.headerCenter || template.name)}</h1>` : ''}
     </div>
     <div class="meta">
+      <div>${escapeDocumentHTML(hf.headerRight)}</div>
       ${hf.showDate ? `<div>Generated: ${now}</div>` : ''}
       <div>Records: ${rows.length}</div>
     </div>
@@ -582,14 +680,14 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
   ${template.includeSummary ? `
   <div class="summary-grid">
     <div class="summary-card"><div class="label">Total Records</div><div class="value">${rows.length}</div></div>
-    <div class="summary-card"><div class="label">Data Source</div><div class="value" style="font-size:12px">${template.dataSource.replace(/_/g, ' ')}</div></div>
+    <div class="summary-card"><div class="label">Data Source</div><div class="value" style="font-size:12px">${escapeDocumentHTML(template.dataSource.replace(/_/g, ' '))}</div></div>
     <div class="summary-card"><div class="label">Report Period</div><div class="value" style="font-size:12px">${now}</div></div>
   </div>` : ''}
 
   <table>
     <thead>
       <tr>
-        ${visibleCols.map(c => `<th style="width:${colWidth}%;text-align:${c.align || 'left'}">${c.label}</th>`).join('')}
+        ${visibleCols.map(c => `<th style="width:${colWidth}%;text-align:${safeAlignment(c.align)}">${escapeDocumentHTML(c.label)}</th>`).join('')}
       </tr>
     </thead>
     <tbody>
@@ -597,10 +695,10 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
         <tr style="${getRowStyle(row)}">
           ${visibleCols.map(col => {
     const raw = row[col.key]
-    const formatted = formatCellValue(raw, col.type)
+    const formatted = escapeDocumentHTML(formatCellValue(raw, col.type, row.currency))
     const isRight = col.align === 'right' || col.type === 'currency' || col.type === 'number' || col.type === 'percent'
     if (col.type === 'badge') {
-      return `<td style="text-align:${col.align || 'left'}"><span style="${getBadgeStyle(String(raw))}">${formatted}</span></td>`
+      return `<td style="text-align:${safeAlignment(col.align)}"><span style="${getBadgeStyle(String(raw))}">${formatted}</span></td>`
     }
     return `<td style="text-align:${isRight ? 'right' : 'left'}">${formatted}</td>`
   }).join('')}
@@ -611,65 +709,57 @@ export function exportPDF(template: DocumentTemplate, rows: Record<string, unkno
   </table>
 
   <div class="page-footer">
-    <span>${hf.footerLeft}</span>
-    <span>${hf.footerCenter}</span>
-    <span>${hf.showPageNumber ? hf.footerRight : ''}</span>
+    <span>${escapeDocumentHTML(hf.footerLeft)}</span>
+    <span>${escapeDocumentHTML(hf.footerCenter)}</span>
+    <span class="screen-page-number">${hf.showPageNumber ? 'Page numbers are calculated when printing.' : ''}</span>
   </div>
 </body>
 </html>`
 
+  return html
+}
+
+export async function exportPDF(template: DocumentTemplate, rows: Record<string, unknown>[]): Promise<void> {
+  const html = buildDocumentPDFHTML(template, rows)
   const win = window.open('', '_blank')
-  if (!win) return
-  win.document.write(html)
-  win.document.close()
-  setTimeout(() => { win.print() }, 600)
+  if (!win) throw new Error('The print window was blocked. Allow popups for this site and try again.')
+  win.opener = null
+  try {
+    win.document.write(html)
+    win.document.close()
+    await win.document.fonts.ready
+    await Promise.all(Array.from(win.document.images).map(image => image.decode()))
+    if (win.closed) throw new Error('The print window was closed before it was ready.')
+    win.focus()
+    win.print()
+  } catch (error) {
+    win.close()
+    throw error
+  }
 }
 
 // ─── Export: Word (via HTML blob) ─────────────────────────────────────────────
 
-export function exportWord(template: DocumentTemplate, rows: Record<string, unknown>[]): void {
-  const visibleCols = template.columns.filter(c => c.visible)
-  const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+export function buildDocumentWordHTML(template: DocumentTemplate, rows: Record<string, unknown>[]): string {
+  const html = buildDocumentPDFHTML(template, rows)
+  const pageNumber = template.headerFooter.showPageNumber
+    ? template.headerFooter.footerRight.split(/(\{page\}|\{total\})/g).map(part => part === '{page}'
+      ? '<span style="mso-field-code:PAGE"></span>' : part === '{total}'
+        ? '<span style="mso-field-code:NUMPAGES"></span>' : escapeDocumentHTML(part)).join('') : ''
+  return html.replace('<html>', '<html xmlns:w="urn:schemas-microsoft-com:office:word">')
+    .replace(/<span class="screen-page-number">[\s\S]*?<\/span>/, () => `<span>${pageNumber}</span>`)
+}
 
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8"><title>${template.name}</title>
-<style>
-  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
-  h1 { font-size: 18pt; color: #1e3a5f; }
-  table { width: 100%; border-collapse: collapse; }
-  th { background: #1e3a5f; color: white; padding: 6pt 8pt; font-size: 9pt; }
-  td { padding: 5pt 8pt; border-bottom: 1pt solid #e2e8f0; font-size: 10pt; }
-  tr:nth-child(even) td { background: #f8fafc; }
-  .footer { margin-top: 14pt; color: #64748b; font-size: 9pt; }
-</style>
-</head>
-<body>
-  <h1>${template.name}</h1>
-  <p style="color:#64748b;font-size:10pt">Generated: ${now} | Records: ${rows.length}</p>
-  <br/>
-  <table>
-    <thead><tr>${visibleCols.map(c => `<th>${c.label}</th>`).join('')}</tr></thead>
-    <tbody>
-      ${rows.map(row => `<tr>${visibleCols.map(col => `<td>${formatCellValue(row[col.key], col.type)}</td>`).join('')}</tr>`).join('')}
-      ${template.includeTotals ? `<tr style="font-weight:bold;background:#1e3a5f;color:white">
-        ${visibleCols.map((col, i) => {
-    if (col.type === 'currency' || col.type === 'number') {
-      const total = rows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0)
-      return `<td>${formatCellValue(total, col.type)}</td>`
-    }
-    return `<td>${i === 0 ? 'TOTAL' : ''}</td>`
-  }).join('')}
-      </tr>` : ''}
-    </tbody>
-  </table>
-  <div class="footer">${template.headerFooter.footerLeft}</div>
-</body>
-</html>`
-
-  const blob = new Blob(['\ufeff', html], { type: 'application/msword' })
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${template.name.replace(/\s+/g, '_')}_${Date.now()}.doc` })
-  a.click()
-  URL.revokeObjectURL(a.href)
+export async function exportWord(template: DocumentTemplate, rows: Record<string, unknown>[]): Promise<void> {
+  let html = buildDocumentWordHTML(template, rows)
+  if (template.headerFooter.showLogo) {
+    const response = await fetch('/logo.png')
+    if (!response.ok) throw new Error('Unable to load the report logo. Disable the logo or try again.')
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    const encoded = btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(''))
+    html = html.replace('src="/logo.png"', `src="data:image/png;base64,${encoded}"`)
+  }
+  downloadDocumentBlob(new Blob(['\ufeff', html], { type: 'application/msword' }), template.name, 'doc')
 }
 
 // ─── Master Export Dispatcher ─────────────────────────────────────────────────
@@ -677,10 +767,11 @@ export function exportWord(template: DocumentTemplate, rows: Record<string, unkn
 export async function runExport(
   template: DocumentTemplate,
   format: ExportFormat,
-  rawRows: Record<string, unknown>[]
+  rawRows: Record<string, unknown>[],
+  search = ''
 ): Promise<void> {
-  const filtered = applyFilters(rawRows, template.filters)
-  const sorted = applySorting(filtered, template.sortRules)
+  if (!template.columns.some(column => column.visible)) throw new Error('Select at least one column to export')
+  const sorted = selectDocumentRows(rawRows, template, search)
 
   switch (format) {
     case 'excel': return exportExcel(template, sorted)

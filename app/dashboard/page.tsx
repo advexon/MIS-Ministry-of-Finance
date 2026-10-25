@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +20,6 @@ import {
   CheckCircle2,
   XCircle,
   Hourglass,
-  ShieldCheck,
   RefreshCw,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -59,6 +59,15 @@ interface ActivityItem {
   time: string
 }
 
+function formatTimeSince(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
 function StatCardSkeleton() {
   return (
     <Card className="shadow-sm">
@@ -80,14 +89,12 @@ export default function DashboardPage() {
   // re-trigger useCallback/useEffect dependencies unnecessarily.
   const supabase = useMemo(() => createClient(), [])
 
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([])
-  const [topBanks, setTopBanks] = useState<BankRow[]>([])
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const fetchDashboard = useCallback(async () => {
-    setLoading(true)
+  const { data: dashboard, isLoading, isValidating, mutate } = usePageQuery<{
+    stats: DashboardStats
+    portfolio: PortfolioItem[]
+    topBanks: BankRow[]
+    recentActivity: ActivityItem[]
+  }>(['summary'], async () => {
 
     // Single round-trip: fetch everything in parallel with Promise.all.
     // Previously 8 sequential/waterfall queries — now 4 parallel requests.
@@ -139,7 +146,7 @@ export default function DashboardPage() {
     const delinquencyRate =
       activeForRate > 0 ? (defaultedCount / activeForRate) * 100 : 0
 
-    setStats({
+    const stats: DashboardStats = {
       totalLoans: totalCount ?? 0,
       totalDisbursed,
       totalGuaranteed,
@@ -148,7 +155,7 @@ export default function DashboardPage() {
       pendingClaims: pendingClaimsCount ?? 0,
       delinquencyRate: Math.round(delinquencyRate * 10) / 10,
       avgProcessingDays: 5.3,
-    })
+    }
 
     // Build portfolio breakdown from the same allLoans data — no extra queries
     const statusGroups = [
@@ -167,10 +174,11 @@ export default function DashboardPage() {
         color: group.color,
       }
     })
-    setPortfolio(portfolioItems)
+
 
     // Build bank performance from the same allLoans data
     const bankData = allLoans
+    let topBanks: BankRow[] = []
 
     if (bankData) {
       const bankMap = new Map<
@@ -199,10 +207,11 @@ export default function DashboardPage() {
           total_disbursed: b.disbursed,
           active_loans: b.active,
         }))
-      setTopBanks(sorted)
+      topBanks = sorted
     }
 
     // Recent activity
+    let recentActivity: ActivityItem[] = []
     if (recentLoans) {
       const activity: ActivityItem[] = recentLoans.map((loan) => {
         const borrowerName = one<{ name: string }>(loan.borrower)?.name ?? '—'
@@ -216,15 +225,17 @@ export default function DashboardPage() {
           time: formatTimeSince(loan.created_at),
         }
       })
-      setRecentActivity(activity)
+      recentActivity = activity
     }
 
-    setLoading(false)
-  }, [supabase])
-
-  useEffect(() => {
-    fetchDashboard()
-  }, [fetchDashboard])
+    return { stats, portfolio: portfolioItems, topBanks, recentActivity }
+  })
+  const stats = dashboard?.stats ?? null
+  const portfolio = dashboard?.portfolio ?? []
+  const topBanks = dashboard?.topBanks ?? []
+  const recentActivity = dashboard?.recentActivity ?? []
+  const loading = isLoading || isValidating
+  const fetchDashboard = () => mutate()
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-US', {
@@ -233,15 +244,6 @@ export default function DashboardPage() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
-
-  const formatTimeSince = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    return `${Math.floor(hrs / 24)}d ago`
-  }
 
   const getActivityIcon = (type: string) => {
     switch (type) {

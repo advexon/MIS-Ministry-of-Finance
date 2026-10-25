@@ -1,8 +1,9 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react"
+import React, { createContext, useContext, useCallback, useMemo, ReactNode } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
-import type { ColumnConfiguration, ColumnFieldGroup, ColumnInputType } from "@/lib/types/database"
+import type { ColumnConfiguration, ColumnFieldGroup } from "@/lib/types/database"
 
 // Default column configurations (used when database table doesn't exist)
 const defaultColumns: Partial<ColumnConfiguration>[] = [
@@ -65,7 +66,7 @@ interface ColumnConfigContextType {
   getColumnsByGroup: (group: ColumnFieldGroup) => Partial<ColumnConfiguration>[]
   
   // Validation
-  validateField: (columnKey: string, value: any) => { valid: boolean; error?: string }
+  validateField: (columnKey: string, value: unknown) => { valid: boolean; error?: string }
   
   // Refresh
   refreshColumns: () => Promise<void>
@@ -74,40 +75,16 @@ interface ColumnConfigContextType {
 const ColumnConfigContext = createContext<ColumnConfigContextType | undefined>(undefined)
 
 export function ColumnConfigProvider({ children }: { children: ReactNode }) {
-  const [columns, setColumns] = useState<Partial<ColumnConfiguration>[]>(defaultColumns)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchColumns = useCallback(async () => {
-    try {
-      const supabase = createClient()
-      const { data, error: fetchError } = await supabase
-        .from("column_configurations")
-        .select("*")
-        .eq("entity_type", "loan_applications")
-        .order("display_order", { ascending: true })
-
-      if (fetchError) {
-        // Table might not exist, use defaults
-        console.log("[ColumnConfig] Using default configurations")
-        setColumns(defaultColumns)
-      } else if (data && data.length > 0) {
-        setColumns(data)
-      } else {
-        setColumns(defaultColumns)
-      }
-    } catch (err) {
-      console.error("[ColumnConfig] Error loading configurations:", err)
-      setError("Failed to load column configurations")
-      setColumns(defaultColumns)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchColumns()
-  }, [fetchColumns])
+  const { data: columns = defaultColumns, error: queryError, isLoading, isValidating, mutate } = usePageQuery<Partial<ColumnConfiguration>[]>(["column-configurations"], async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase.from("column_configurations").select("*")
+      .eq("entity_type", "loan_applications").order("display_order", { ascending: true })
+    // Preserve defaults when older installations do not have the configuration table.
+    if (error || !data?.length) return defaultColumns
+    return data
+  })
+  const loading = isLoading || isValidating
+  const error = queryError ? "Failed to load column configurations" : null
 
   const getColumn = useCallback((columnKey: string) => {
     return columns.find(c => c.column_key === columnKey)
@@ -163,7 +140,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
   }, [columns])
 
-  const validateField = useCallback((columnKey: string, value: any): { valid: boolean; error?: string } => {
+  const validateField = useCallback((columnKey: string, value: unknown): { valid: boolean; error?: string } => {
     const col = columns.find(c => c.column_key === columnKey)
     if (!col) return { valid: true }
 
@@ -179,7 +156,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
 
     // Type-specific validation
     if (col.validation_type === 'number' || col.input_type === 'number' || col.input_type === 'currency') {
-      const numValue = parseFloat(value)
+      const numValue = parseFloat(String(value))
       if (isNaN(numValue)) {
         return { valid: false, error: `${col.display_name_en} must be a valid number` }
       }
@@ -193,14 +170,14 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
 
     if (col.validation_type === 'email') {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(value)) {
+      if (!emailRegex.test(String(value))) {
         return { valid: false, error: 'Please enter a valid email address' }
       }
     }
 
     if (col.validation_type === 'phone') {
       const phoneRegex = /^\+?[\d\s\-()]{7,15}$/
-      if (!phoneRegex.test(value)) {
+      if (!phoneRegex.test(String(value))) {
         return { valid: false, error: 'Please enter a valid phone number' }
       }
     }
@@ -213,7 +190,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
     }
 
     if (col.validation_type === 'percentage') {
-      const numValue = parseFloat(value)
+      const numValue = parseFloat(String(value))
       if (isNaN(numValue) || numValue < 0 || numValue > 100) {
         return { valid: false, error: `${col.display_name_en} must be between 0 and 100` }
       }
@@ -242,10 +219,7 @@ export function ColumnConfigProvider({ children }: { children: ReactNode }) {
     return { valid: true }
   }, [columns])
 
-  const refreshColumns = useCallback(async () => {
-    setLoading(true)
-    await fetchColumns()
-  }, [fetchColumns])
+  const refreshColumns = useCallback(async () => { await mutate() }, [mutate])
 
   const value = useMemo(() => ({
     columns,
@@ -298,7 +272,7 @@ export function useColumnVisibility(columnKey: string, view: 'table' | 'form' | 
 export function useColumnValidation() {
   const { validateField, isColumnRequired, columns } = useColumnConfig()
   
-  const validateForm = useCallback((formData: Record<string, any>) => {
+  const validateForm = useCallback((formData: Record<string, unknown>) => {
     const errors: Record<string, string> = {}
     let isValid = true
     
@@ -322,7 +296,7 @@ export function useColumnValidation() {
 export function useGroupedValidation() {
   const { columns, validateField } = useColumnConfig()
   
-  const getMissingFieldsByGroup = useCallback((formData: Record<string, any>) => {
+  const getMissingFieldsByGroup = useCallback((formData: Record<string, unknown>) => {
     const groups: Record<ColumnFieldGroup, Array<{ field: string; label: string; error: string }>> = {
       borrower: [],
       legal_rep: [],

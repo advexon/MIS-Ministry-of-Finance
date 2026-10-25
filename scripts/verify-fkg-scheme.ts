@@ -22,9 +22,12 @@ import {
   getNextStatuses,
   getStepByNumber,
   requiresAssessment,
-  requiredQuorum,
+  requiresRiskReview,
   toUsd,
+  tallyVotes,
 } from '@/lib/workflow/fkg-scheme'
+import * as scheme from '@/lib/workflow/fkg-scheme'
+import { workflowRequestSchema } from '@/lib/workflow/transition-input'
 import { ROLE_CODES } from '@/lib/types/database'
 import type { LoanStatus } from '@/lib/types/database'
 
@@ -53,7 +56,7 @@ const happyPath: LoanStatus[] = [
   'draft', 'submitted', 'uko_registration', 'eligibility_review', 'assessment',
   'risk_review', 'kkg_scheduled', 'kkg_review', 'kkg_protocol',
   'formal_application', 'uko_reconciliation', 'compliance_check',
-  'management_review', 'approved', 'guarantee_issued',
+  'deputy_review', 'management_review', 'approved', 'guarantee_issued',
 ]
 for (let i = 0; i < happyPath.length - 1; i++) {
   check(
@@ -73,46 +76,74 @@ check('verification returns to kkg_review', canTransition('verification', 'kkg_r
 check('uko_reconciliation can send back to ККГ on mismatch', canTransition('uko_reconciliation', 'kkg_review'))
 
 // ── 5. The 10,000 USD routing gate ───────────────────────────────────────────
-check('9,999 USD does not require assessment', requiresAssessment(9_999) === false)
-check('10,000 USD requires assessment (inclusive bound)', requiresAssessment(10_000) === true)
-check('10,001 USD requires assessment', requiresAssessment(10_001) === true)
+for (const amount of [0, 9_999, 10_000, 10_001, null]) {
+  check(`assessment required at ${amount ?? 'unknown'} USD`, requiresAssessment(amount) === true)
+}
 check('threshold constant is 10000', ASSESSMENT_THRESHOLD_USD === 10_000)
-// A missing FX rate must be undecidable rather than silently "no assessment".
-check('null amount is undecidable', requiresAssessment(null) === null)
+check('small low-risk case skips separate risk review', !requiresRiskReview(9_999, 'low'))
+check('threshold requires separate risk review', requiresRiskReview(10_000, 'low'))
+check('elevated small case requires risk review', requiresRiskReview(9_999, 'elevated'))
+check('high-risk small case requires risk review', requiresRiskReview(9_999, 'high'))
+check('unknown exposure requires risk review', requiresRiskReview(null, 'low'))
+check('unknown rating requires risk review', requiresRiskReview(9_999, null))
 check('toUsd refuses a null rate', toUsd(100_000, null) === null)
 check('toUsd refuses a zero rate', toUsd(100_000, 0) === null)
 check('toUsd converts correctly', toUsd(109_500, 10.95) === 10_000)
 // Both routes out of the gate exist.
 check('gate D can route to assessment', canTransition('eligibility_review', 'assessment'))
-check('gate D can skip to risk_review', canTransition('eligibility_review', 'risk_review'))
+check('eligibility cannot bypass the assessment', !canTransition('eligibility_review', 'risk_review'))
+check('assessment can route small low-risk cases to committee', canTransition('assessment', 'kkg_scheduled'))
+check('committee clarification returns to assessment', canTransition('docs_incomplete', 'assessment'))
 
-// ── 5b. Quorum bands read the same boundary the same way ─────────────────────
-// The 10,000 constant drives both routing and quorum. If the two disagreed, an
-// exposure of exactly 10,000 would need a full assessment yet sit in the
-// smallest quorum band, so the boundary is pinned in both directions.
-check('9,999 USD needs quorum of 3', requiredQuorum(9_999) === 3)
-check('10,000 USD needs quorum of 4 (inclusive)', requiredQuorum(10_000) === 4)
-check('99,999 USD needs quorum of 4', requiredQuorum(99_999) === 4)
-check('100,000 USD needs quorum of 5 (inclusive)', requiredQuorum(100_000) === 5)
-check('unknown exposure demands the strictest quorum', requiredQuorum(null) === 5)
-check(
-  'assessment and quorum agree at the boundary',
-  requiresAssessment(10_000) === true && requiredQuorum(10_000) > 3,
-)
+check('legacy exposure-based quorum calculator is not exported', !('requiredQuorum' in scheme))
+check('legacy client-side committee evaluator is not exported', !('evaluateCommitteeOutcome' in scheme))
 
 // ── 6. Role lanes ────────────────────────────────────────────────────────────
 const step2 = STEP_BY_STATUS['uko_registration']!
 const step6 = STEP_BY_STATUS['risk_review']!
 const step16 = getStepByNumber(16)!
-check('УКО officer may act on step 2', canActOnStep(ROLE_CODES.UKO_OFFICER, step2))
+check('base analyst may register at step 2', canActOnStep(ROLE_CODES.PRSF_ANALYST, step2))
+check('retired UKO role cannot register', !canActOnStep(ROLE_CODES.UKO_OFFICER, step2))
 check('bank officer may not act on step 2', !canActOnStep(ROLE_CODES.BANK_OFFICER, step2))
 check('credit risk officer may act on step 6', canActOnStep(ROLE_CODES.CREDIT_RISK_OFFICER, step6))
 check('УКО officer may not act on step 6', !canActOnStep(ROLE_CODES.UKO_OFFICER, step6))
 check('management may issue the ПВГ', canActOnStep(ROLE_CODES.FKG_MANAGEMENT, step16))
 check('compliance officer may not issue the ПВГ', !canActOnStep(ROLE_CODES.COMPLIANCE_OFFICER, step16))
 check('an unknown role may act nowhere', !canActOnStep(null, step2))
-// Admin break-glass is deliberate and should stay visible.
-check('super admin retains break-glass on step 6', canActOnStep(ROLE_CODES.SUPER_ADMIN, step6))
+for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR]) {
+  check(`${code} cannot complete any workflow step`, SCHEME_STEPS.every((step) => !canActOnStep(code, step)))
+}
+const committeeStep = getStepByNumber(8)!
+const secretaryStep = getStepByNumber(7)!
+const committeeFlags = { department: 'operations', is_loan_committee_member: true, is_committee_secretary: true }
+check('flagged analyst may convene', canActOnStep(ROLE_CODES.PRSF_ANALYST, secretaryStep, committeeFlags))
+check('unflagged analyst cannot convene', !canActOnStep(ROLE_CODES.PRSF_ANALYST, secretaryStep))
+check('flagged operations analyst may participate', canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep, committeeFlags))
+check('unflagged analyst cannot participate', !canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep))
+check('product tags never restrict membership', canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep, { ...committeeFlags, product_tags: ['green'] }))
+for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR, ROLE_CODES.BANK_ADMIN, ROLE_CODES.BANK_OFFICER]) {
+  check(`${code} cannot gain committee rights through flags`, !canActOnStep(code, secretaryStep, committeeFlags) && !canActOnStep(code, committeeStep, committeeFlags))
+}
+for (const code of [ROLE_CODES.KKG_MEMBER, ROLE_CODES.KKG_SECRETARY, ROLE_CODES.UKO_OFFICER]) {
+  check(`${code} retired role has no workflow authority`, SCHEME_STEPS.every((step) => !canActOnStep(code, step, committeeFlags)))
+}
+for (const [label, votes, expected] of [
+  ['empty', [], { for: 0, against: 0, abstain: 0, total: 0 }],
+  ['all for', [{ vote: 'for' }, { vote: 'for' }, { vote: 'for' }], { for: 3, against: 0, abstain: 0, total: 3 }],
+  ['all against', [{ vote: 'against' }, { vote: 'against' }], { for: 0, against: 2, abstain: 0, total: 2 }],
+  ['mixed', [{ vote: 'for' }, { vote: 'against' }, { vote: 'abstain' }], { for: 1, against: 1, abstain: 1, total: 3 }],
+  ['abstentions', [{ vote: 'abstain' }, { vote: 'abstain' }], { for: 0, against: 0, abstain: 2, total: 2 }],
+] as const) {
+  const input = votes.map(vote => Object.freeze({ ...vote }))
+  const before = JSON.stringify(input)
+  const actual = tallyVotes(input)
+  check(`${label} display tally counts every category`, JSON.stringify(actual) === JSON.stringify(expected))
+  check(`${label} display tally preserves its input`, JSON.stringify(input) === before)
+}
+check('valid registration payload accepted', workflowRequestSchema.safeParse({ to: 'eligibility_review', payload: { usd_rate: 10.95 } }).success)
+for (const value of [null, [], { to: 'approved', payload: { status: 'approved' } }, { to: 'approved', payload: { usd_rate: 1, bank_id: 'other-bank' } }, { to: 'eligibility_review', payload: { usd_rate: 0 } }, { to: 'eligibility_review', payload: { usd_rate: -1 } }]) {
+  check(`unsafe request rejected: ${JSON.stringify(value)}`, !workflowRequestSchema.safeParse(value).success)
+}
 
 // ── 7. Cancellation is always available, terminal states are terminal ────────
 for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
@@ -141,39 +172,41 @@ for (const [from, targets] of Object.entries(ALLOWED_TRANSITIONS)) {
   }
 }
 
-// ── 9. Known gap, asserted so it cannot be forgotten ─────────────────────────
-// The Guideline numbers its steps 1..16, but step 14 has no entry in this table.
-// It is recorded here as a KNOWN GAP rather than left as a silent hole: the
-// assertion documents the omission and will start failing once step 14 is added,
-// prompting this note to be removed.
+// ── 9. Every step, including mandatory deputy confirmation, is present ───────
 const missing = Array.from({ length: 16 }, (_, i) => i + 1).filter((n) => !stepNumbers.includes(n))
-check('the only unimplemented step is 14', missing.length === 1 && missing[0] === 14)
+check('all sixteen steps are implemented', missing.length === 0)
+check('compliance cannot skip deputy confirmation', !canTransition('compliance_check', 'management_review'))
+check('deputy review belongs to the Deputy Director', canActOnStep(ROLE_CODES.DEPUTY_DIRECTOR, getStepByNumber(14)!))
+check('Director cannot self-confirm the deputy review', !canActOnStep(ROLE_CODES.FKG_MANAGEMENT, getStepByNumber(14)!))
 
-// ── 10. Every evidence-bearing step must be gated server-side ────────────────
-// The checks above all read the registry, so they cannot see whether the API
-// actually enforces a step's evidence. Steps 9, 11 and 12 were fully built —
-// table, RLS and form — yet had no gate, so an application could advance past a
-// site visit, a signed formal application and the УКО/ККГ reconciliation without
-// any of them existing. This asserts against the route source so a future step
-// cannot ship its form and table while quietly skipping its gate.
-const routeSource = readFileSync(
-  new URL('../app/api/loans/[id]/workflow/route.ts', import.meta.url),
-  'utf8',
-)
-const requiredGateCodes = [
-  'ELIGIBILITY_MISSING',
-  'ASSESSMENT_NOT_SUBMITTED',
-  'RISK_REVIEW_MISSING',
-  'QUORUM_NOT_MET',
-  'VERIFICATION_MISSING',
-  'FORMAL_APPLICATION_MISSING',
-  'RECONCILIATION_MISSING',
-  'COMPLIANCE_MISSING',
-  'MGMT_DECISION_MISSING',
-]
-for (const code of requiredGateCodes) {
-  check(`workflow route enforces gate ${code}`, routeSource.includes(code))
+// ── 10. Atomic RPC and trigger guard source checks ───────────────────────────
+// These are regression checks on committed source, not proof that the migration
+// is installed or that live RLS/transaction behavior passes integration tests.
+const readSource = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
+const routeSource = readSource('../app/api/loans/[id]/workflow/route.ts')
+const pipelineSource = readSource('./033_cgf_pipeline_repairs.sql')
+const committeeSource = readSource('./024_cgf_committee_lifecycle.sql')
+check('workflow delegates to the atomic RPC', routeSource.includes("supabase.rpc('cgf_transition_loan'"))
+check('workflow validates input before the RPC', routeSource.includes('workflowRequestSchema.safeParse'))
+check('workflow route does not update tables separately', !/\.from\([^)]*\)\.\s*(update|insert|delete)\(/.test(routeSource))
+check('RPC locks the application before changing it', pipelineSource.includes('where id=p_loan for update;'))
+check('RPC rejects stale application state', pipelineSource.includes("if l.status is distinct from p_from then raise exception 'TRANSITION_CONFLICT:"))
+check('direct writes run the same workflow guard', /create trigger cgf_pipeline_guard before insert or update on public\.loan_applications/.test(pipelineSource))
+check('history is written by the transactional trigger', /insert into public\.loan_application_history\(loan_id,action,old_status,new_status,performed_by,notes\)/.test(pipelineSource))
+check('notifications are written by the transactional trigger', pipelineSource.includes('insert into public.notifications(user_id,title,message,type,link)'))
+for (const code of [
+  'ELIGIBILITY_MISSING', 'ASSESSMENT_NOT_SUBMITTED', 'RISK_REVIEW_MISSING',
+  'QUORUM_NOT_MET', 'VERIFICATION_MISSING', 'FORMAL_APPLICATION_MISSING',
+  'RECONCILIATION_MISSING', 'COMPLIANCE_MISSING', 'MGMT_DECISION_MISSING',
+  'UNANIMOUS_DECISION_REQUIRED', 'READ_ONLY_ROLE', 'INVALID_PAYLOAD',
+]) {
+  check(`database guard raises ${code}`, pipelineSource.includes(`raise exception '${code}:`))
 }
+check('committee rejects invalid vote values', committeeSource.includes("p_data->>'vote' not in ('for','against','abstain')"))
+check('committee counts only assigned members', committeeSource.includes('mm.member_id=v.member_id and mm.meeting_id=mid'))
+check('committee requires unanimous assigned votes', committeeSource.includes("count(*)=cnt and bool_and(vote='for')") && committeeSource.includes('if not coalesce(unanimous_for or unanimous_against,false) then raise exception'))
+check('protocol transition requires every signature', pipelineSource.includes('mm.signed_at is null'))
+check('committee clarification writes audit evidence', pipelineSource.includes("'COMMITTEE_CLARIFICATION',auth.uid()"))
 
 // ── Report ───────────────────────────────────────────────────────────────────
 console.log(`\nФКГ scheme checks: ${passed} passed, ${failures.length} failed`)
@@ -184,4 +217,4 @@ if (failures.length) {
 if (missing.length) {
   console.log(`  NOTE  step ${missing.join(', ')} is not yet implemented (see KNOWN GAP above)`)
 }
-console.log('All ФКГ scheme guarantees hold.\n')
+console.log('ФКГ routing and guard-source checks passed. Live database verification is separate.\n')

@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
+import { one } from '@/lib/utils/supabase-relation'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,7 +16,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Search, TrendingUp, Download, RefreshCw, DollarSign } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
+import { RequiredMark, missingFieldsMessage } from '@/components/forms/required-mark'
 import { toCSV, downloadCSV } from '@/lib/utils/export'
+import type { Bank } from '@/lib/types/database'
 
 interface Recovery {
   id: string
@@ -28,9 +33,19 @@ interface Recovery {
   claims?: {
     claim_number: string
     claim_amount: number
+    bank_id: string
     banks?: { name_en: string; code: string }
     loan_applications?: { loan_number: string | null }
   }
+}
+
+interface RecoveryClaimOption {
+  id: string
+  claim_number: string
+  bank_id: string
+  loan_id: string
+  loan_application_id: string | null
+  banks: { name_en: string } | null
 }
 
 const fmt = (v: number) =>
@@ -48,11 +63,8 @@ const METHOD_LABELS: Record<string, string> = {
 export default function RecoveriesPage() {
   const supabase = createClient()
   const { toast } = useToast()
+  const { isRequired, missingFields } = useFieldRequirements('recovery')
 
-  const [recoveries, setRecoveries] = useState<Recovery[]>([])
-  const [claims, setClaims] = useState<any[]>([])
-  const [banks, setBanks] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [bankFilter, setBankFilter] = useState('all')
   const [methodFilter, setMethodFilter] = useState('all')
@@ -67,35 +79,44 @@ export default function RecoveriesPage() {
     notes: '',
   })
 
-  const fetchRecoveries = useCallback(async () => {
-    setLoading(true)
-    const { data } = await supabase
+  const { data: recoveries = [], isLoading, isValidating, mutate } = usePageQuery<Recovery[]>(['recoveries'], async () => {
+    const { data, error } = await supabase
       .from('recoveries')
-      .select(`
-        *,
-        claims(claim_number, claim_amount, banks(name_en, code), loan_applications!loan_application_id(loan_number))
-      `)
+      .select(`*, claims(claim_number, claim_amount, bank_id, banks(name_en, code), loan_applications!loan_application_id(loan_number))`)
       .order('recovery_date', { ascending: false })
-    setRecoveries(data || [])
-    setLoading(false)
-  }, [])
+    if (error) throw error
+    return (data ?? []).map((recovery) => {
+      const claim = one(recovery.claims)
+      return {
+        ...recovery,
+        claims: claim ? { ...claim, banks: one(claim.banks) ?? undefined, loan_applications: one(claim.loan_applications) ?? undefined } : undefined,
+      }
+    })
+  })
+  const loading = isLoading || isValidating
+  const fetchRecoveries = () => mutate()
 
-  useEffect(() => {
-    fetchRecoveries()
-    supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
-    // `loan_id` is selected because recoveries.loan_id is NOT NULL and must be
-    // derived from the chosen claim.
-    supabase.from('claims').select('id, claim_number, bank_id, loan_id, loan_application_id, banks(name_en)').eq('status', 'paid').order('claim_number').then(({ data }) => setClaims(data || []))
-  }, [fetchRecoveries])
+  const { data: banks = [] } = usePageQuery<Pick<Bank, 'id' | 'name_en' | 'code'>[]>(['recovery-bank-options'], async () => {
+    const { data, error } = await supabase.from('banks').select('id, name_en, code').order('name_en')
+    if (error) throw error
+    return data ?? []
+  })
+  const { data: claims = [] } = usePageQuery<RecoveryClaimOption[]>(['paid-claim-options'], async () => {
+    // recoveries.loan_id is required and comes from the selected paid claim.
+    const { data, error } = await supabase.from('claims').select('id, claim_number, bank_id, loan_id, loan_application_id, banks(name_en)').eq('status', 'paid').order('claim_number')
+    if (error) throw error
+    return (data ?? []).map((claim) => ({ ...claim, banks: one(claim.banks) }))
+  })
 
   const handleCreate = async () => {
-    if (!form.claim_id || !form.recovery_amount || !form.recovery_date) {
-      toast({ title: 'Please fill in all required fields', variant: 'destructive' })
+    const missing = missingFields(form)
+    if (missing.length) {
+      toast({ title: missingFieldsMessage(missing), variant: 'destructive' })
       return
     }
     // recoveries.loan_id is NOT NULL, so it must be resolved from the selected
     // claim — omitting it made every recovery insert fail.
-    const selectedClaimRow = claims.find((c: any) => c.id === form.claim_id) as any
+    const selectedClaimRow = claims.find((c) => c.id === form.claim_id)
     const resolvedLoanId = selectedClaimRow?.loan_id || selectedClaimRow?.loan_application_id
     if (!resolvedLoanId) {
       toast({
@@ -138,7 +159,7 @@ export default function RecoveriesPage() {
       r.claims?.claim_number?.toLowerCase().includes(search.toLowerCase()) ||
       r.claims?.loan_applications?.loan_number?.toLowerCase().includes(search.toLowerCase()) ||
       r.claims?.banks?.name_en?.toLowerCase().includes(search.toLowerCase())
-    const matchBank = bankFilter === 'all' || (r.claims?.banks as any)?.id === bankFilter
+    const matchBank = bankFilter === 'all' || r.claims?.bank_id === bankFilter
     const matchMethod = methodFilter === 'all' || r.recovery_method === methodFilter
     return matchSearch && matchBank && matchMethod
   })
@@ -190,14 +211,14 @@ export default function RecoveriesPage() {
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label>Related Claim *</Label>
+                  <Label>Related Claim<RequiredMark show={isRequired('claim_id')} /></Label>
                   <Select value={form.claim_id} onValueChange={v => setForm(p => ({ ...p, claim_id: v }))}>
                     <SelectTrigger><SelectValue placeholder="Select paid claim..." /></SelectTrigger>
                     <SelectContent>
                       {claims.length === 0 && <SelectItem value="_none" disabled>No paid claims found</SelectItem>}
                       {claims.map(c => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.claim_number} — {(c.banks as any)?.name_en}
+                          {c.claim_number} — {c.banks?.name_en}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -205,24 +226,24 @@ export default function RecoveriesPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Recovery Amount (TJS) *</Label>
+                    <Label>Recovery Amount (TJS)<RequiredMark show={isRequired('recovery_amount')} /></Label>
                     <Input type="number" placeholder="0.00" value={form.recovery_amount}
                       onChange={e => setForm(p => ({ ...p, recovery_amount: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
-                    <Label>PRSF Share (TJS)</Label>
+                    <Label>PRSF Share (TJS)<RequiredMark show={isRequired('prsf_share')} /></Label>
                     <Input type="number" placeholder="Auto: 50%" value={form.prsf_share}
                       onChange={e => setForm(p => ({ ...p, prsf_share: e.target.value }))} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Recovery Date *</Label>
+                    <Label>Recovery Date<RequiredMark show={isRequired('recovery_date')} /></Label>
                     <Input type="date" value={form.recovery_date}
                       onChange={e => setForm(p => ({ ...p, recovery_date: e.target.value }))} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Recovery Method</Label>
+                    <Label>Recovery Method<RequiredMark show={isRequired('recovery_method')} /></Label>
                     <Select value={form.recovery_method} onValueChange={v => setForm(p => ({ ...p, recovery_method: v }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -232,8 +253,8 @@ export default function RecoveriesPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Notes</Label>
-                  <Textarea placeholder="Optional notes about this recovery..." rows={3} value={form.notes}
+                  <Label>Notes<RequiredMark show={isRequired('notes')} /></Label>
+                  <Textarea placeholder="Notes about this recovery..." rows={3} value={form.notes}
                     onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
                 </div>
                 <div className="flex justify-end gap-2">

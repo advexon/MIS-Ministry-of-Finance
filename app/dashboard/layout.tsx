@@ -28,7 +28,7 @@ export default async function DashboardLayout({
 
   return (
     <I18nProvider>
-      <PermissionProvider user={user} role={profile?.role || null}>
+      <PermissionProvider user={user} role={profile?.role || null} profile={profile}>
         <ColumnConfigProvider>
           <DashboardShell user={user}>
             {children}

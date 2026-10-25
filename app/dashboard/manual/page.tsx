@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useI18n } from '@/lib/i18n/context'
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import {
   Search,
@@ -141,7 +139,7 @@ const manualSections: ManualSection[] = [
         'Save applications as drafts to complete later',
         'Use application templates for common loan types',
         'Attach clear, legible document scans',
-        'Monitor email notifications for status updates',
+        'Monitor the notification bell for in-app status updates',
       ],
     },
   },
@@ -510,7 +508,6 @@ const manualSections: ManualSection[] = [
 ]
 
 export default function UserManualPage() {
-  const { t } = useI18n()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSection, setSelectedSection] = useState<string | null>('getting-started')
 

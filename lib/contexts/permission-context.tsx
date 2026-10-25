@@ -1,7 +1,9 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { Role } from '@/lib/types/database'
+import React, { createContext, useContext, ReactNode } from 'react'
+import useSWR from 'swr'
+import { type Role, type Profile } from '@/lib/types/database'
+import type { User } from '@supabase/supabase-js'
 import {
   hasPermission,
   Permission,
@@ -12,7 +14,8 @@ import {
 } from '@/lib/utils/permissions'
 
 interface PermissionContextType {
-  user: any
+  profile: Profile | null
+  user: User
   role: Role | null
   can: (resource: string, permission: Permission | Permission[]) => boolean
   getPermissions: (resource: string) => ResourcePermission | null
@@ -25,43 +28,27 @@ interface PermissionContextType {
 const PermissionContext = createContext<PermissionContextType | undefined>(undefined)
 
 interface PermissionProviderProps {
+  profile?: Profile | null
   children: ReactNode
-  user: any
+  user: User
   role: Role | null
 }
 
 /**
  * Provider component that makes permissions available to all child components
  */
-export function PermissionProvider({ children, user, role }: PermissionProviderProps) {
+export function PermissionProvider({ children, user, role, profile = null }: PermissionProviderProps) {
   // Permissions live in the `role_permissions` table so the Role Management
   // page can actually change access. Until they load (or if they cannot be
   // read), `hasPermission` falls back to the static matrix, which the table
   // was seeded from — so access is never wrongly granted or blanket-denied.
-  const [overrides, setOverrides] = useState<PermissionOverrides | null>(null)
-  const [permissionsLoading, setPermissionsLoading] = useState(true)
-
-  const loadPermissions = React.useCallback(async () => {
-    if (!role?.id) {
-      setOverrides(null)
-      setPermissionsLoading(false)
-      return
-    }
-    const perms = await fetchRolePermissions(role.id)
-    setOverrides(perms)
-    setPermissionsLoading(false)
-  }, [role?.id])
-
-  useEffect(() => {
-    let active = true
-    setPermissionsLoading(true)
-    fetchRolePermissions(role?.id).then((perms) => {
-      if (!active) return
-      setOverrides(perms)
-      setPermissionsLoading(false)
-    })
-    return () => { active = false }
-  }, [role?.id])
+  const { data: overrides = null, isLoading, isValidating, mutate } = useSWR<PermissionOverrides | null>(
+    ['permissions', user.id, role?.id],
+    () => fetchRolePermissions(role?.id),
+    { revalidateOnFocus: false, shouldRetryOnError: false },
+  )
+  const permissionsLoading = isLoading || isValidating
+  const loadPermissions = React.useCallback(async () => { await mutate() }, [mutate])
 
   const can = (resource: string, permission: Permission | Permission[]): boolean => {
     if (Array.isArray(permission)) {
@@ -74,6 +61,7 @@ export function PermissionProvider({ children, user, role }: PermissionProviderP
     getResourcePermissions(role, resource, overrides)
 
   const value: PermissionContextType = {
+    profile,
     user,
     role,
     can,
@@ -216,8 +204,8 @@ export function CanAccessOrDisable({
         aria-disabled="true"
       >
         {React.Children.map(children, child => {
-          if (React.isValidElement(child)) {
-            return React.cloneElement(child as React.ReactElement<any>, {
+          if (React.isValidElement<Pick<React.ButtonHTMLAttributes<HTMLButtonElement>, 'disabled' | 'aria-disabled' | 'onClick'>>(child)) {
+            return React.cloneElement(child, {
               disabled: true,
               'aria-disabled': true,
               onClick: (e: React.MouseEvent) => e.preventDefault(),

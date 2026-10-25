@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { one } from '@/lib/utils/supabase-relation'
+import { createUserSchema } from '@/lib/admin/accounts'
 
 export async function POST(request: Request) {
   const cookieStore = await cookies()
@@ -30,16 +32,16 @@ export async function POST(request: Request) {
   // Verify caller has admin role
   const { data: profile } = await supabase
     .from('profiles')
-    .select('is_active, role:roles(code, tier)')
+    .select('is_active, role:roles(code, tier, is_active)')
     .eq('id', user.id)
     .single()
-  const callerRole = (profile?.role as { code?: string; tier?: number } | null) ?? null
+  const callerRole = one<{ code?: string; tier?: number; is_active?: boolean }>(profile?.role)
   const roleCode = callerRole?.code ?? ''
   const callerTier = callerRole?.tier ?? 99
 
   // A deactivated account keeps a valid session cookie until it expires, so it
   // has to be rejected here and not only at login.
-  if (profile?.is_active === false) {
+  if (profile?.is_active !== true || callerRole?.is_active !== true) {
     return NextResponse.json({ error: 'Forbidden: Account is disabled' }, { status: 403 })
   }
 
@@ -48,16 +50,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
   }
 
-  // Parse request body
-  const body = await request.json()
-  const { email, password, firstName, lastName, roleId, bankId, branchId, phone, preferredLanguage } = body
-
-  if (!email || !password) {
-    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+  const parsed = createUserSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Provide a valid email, a password of 8–128 characters, and an active role.' },
+      { status: 400 },
+    )
   }
-  if (password.length < 8) {
-    return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
-  }
+  const { email, password, firstName, lastName, roleId, bankId, branchId, phone, preferredLanguage } = parsed.data
 
   // Privilege ceiling. Without this, a prsf_admin (tier 2) could pass the
   // super_admin role id and mint a tier-1 account, then log into it — a
@@ -67,6 +67,7 @@ export async function POST(request: Request) {
     const { data: targetRole } = await supabase
       .from('roles')
       .select('code, tier')
+      .eq('is_active', true)
       .eq('id', roleId)
       .single()
 
@@ -92,6 +93,10 @@ export async function POST(request: Request) {
     email,
     password,
     email_confirm: true, // Pre-confirm so admin-created accounts work immediately
+    app_metadata: {
+      account_provisioning: 'administrator',
+      created_by: user.id,
+    },
     user_metadata: {
       first_name: firstName || '',
       last_name: lastName || '',

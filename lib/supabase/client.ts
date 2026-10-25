@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * One browser client per tab.
@@ -13,7 +14,7 @@ import { createBrowserClient } from '@supabase/ssr'
  * Caching the instance keeps the client referentially stable, so hook
  * dependencies behave and every call site shares one auth/session state.
  */
-let browserClient: ReturnType<typeof createBrowserClient> | undefined
+let browserClient: SupabaseClient | undefined
 
 export function createClient() {
   // On the server (or during prerender) never reuse an instance across requests —

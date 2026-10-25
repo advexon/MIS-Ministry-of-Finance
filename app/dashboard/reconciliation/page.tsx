@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckCircle2, AlertTriangle, XCircle, RefreshCw, Download, GitCompare } from 'lucide-react'
 import { toCSV, downloadCSV } from '@/lib/utils/export'
+import type { Bank } from '@/lib/types/database'
 
 type ReconciliationStatus = 'matched' | 'discrepancy' | 'missing'
 
@@ -44,19 +46,16 @@ const STATUS_CONFIG = {
 export default function ReconciliationPage() {
   const supabase = createClient()
 
-  const [loading, setLoading] = useState(true)
-  const [rows, setRows] = useState<ReconciliationRow[]>([])
   const [bankFilter, setBankFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7))
-  const [banks, setBanks] = useState<any[]>([])
+  const { data: banks = [] } = usePageQuery<Pick<Bank, 'id' | 'name_en' | 'code'>[]>(['reconciliation-bank-options'], async () => {
+    const { data, error } = await supabase.from('banks').select('id, name_en, code').order('name_en')
+    if (error) throw error
+    return data ?? []
+  })
 
-  useEffect(() => {
-    supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
-  }, [])
-
-  const runReconciliation = useCallback(async () => {
-    setLoading(true)
+  const { data: rows = [], isLoading, isValidating, mutate } = usePageQuery<ReconciliationRow[]>(['reconciliation', bankFilter, period], async () => {
     const periodStart = period + '-01'
     const periodEnd = new Date(period + '-01')
     periodEnd.setMonth(periodEnd.getMonth() + 1)
@@ -93,9 +92,9 @@ export default function ReconciliationPage() {
       const prsfOutstanding = (loans || []).reduce((s, l) => s + (l.disbursed_amount || 0), 0)
       const prsfFees = (fees || []).reduce((s, f) => s + (f.amount || 0), 0)
 
-      const bankLoans = report ? (report as any).total_loans : null
-      const bankOutstanding = report ? (report as any).total_outstanding_principal : null
-      const bankFees = report ? (report as any).total_guarantee_amount : null
+      const bankLoans = report ? report.total_loans : null
+      const bankOutstanding = report ? report.total_outstanding_principal : null
+      const bankFees = report ? report.total_guarantee_amount : null
 
       const loanDisc = bankLoans !== null ? Math.abs(prsfLoans - bankLoans) : 0
       const outstandingDisc = bankOutstanding !== null ? Math.abs(prsfOutstanding - bankOutstanding) : 0
@@ -122,11 +121,10 @@ export default function ReconciliationPage() {
       })
     }
 
-    setRows(results)
-    setLoading(false)
-  }, [bankFilter, period])
-
-  useEffect(() => { runReconciliation() }, [runReconciliation])
+    return results
+  })
+  const loading = isLoading || isValidating
+  const runReconciliation = () => mutate()
 
   const filtered = statusFilter === 'all' ? rows : rows.filter(r => r.status === statusFilter)
   const matched = rows.filter(r => r.status === 'matched').length

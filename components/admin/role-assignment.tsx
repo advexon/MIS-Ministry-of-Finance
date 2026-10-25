@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
 import { usePermissions } from "@/lib/contexts/permission-context"
 import { canManageRole, logPermissionChange } from "@/lib/utils/permissions"
@@ -67,7 +68,11 @@ const tierColors: Record<number, string> = {
   7: "bg-teal-100 text-teal-800 border-teal-200",
 }
 
-export function RoleAssignmentDialog({
+export function RoleAssignmentDialog(props: RoleAssignmentProps) {
+  return <RoleAssignmentForm key={`${props.user.id}:${props.user.role_id}:${props.open}`} {...props} />
+}
+
+function RoleAssignmentForm({
   user,
   open,
   onOpenChange,
@@ -75,39 +80,19 @@ export function RoleAssignmentDialog({
 }: RoleAssignmentProps) {
   const { role: currentUserRole, user: currentUser } = usePermissions()
   const { locale } = useI18n()
-  const [roles, setRoles] = useState<Role[]>([])
   const [selectedRoleId, setSelectedRoleId] = useState<string>(user.role_id || "")
-  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setError] = useState<string | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
 
-  // Fetch available roles
-  useEffect(() => {
-    if (!open) return
-
-    const fetchRoles = async () => {
-      setLoading(true)
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("roles")
-        .select("*")
-        .eq("is_active", true)
-        .order("tier", { ascending: true })
-
-      if (error) {
-        setError("Failed to load roles")
-      } else {
-        setRoles(data || [])
-      }
-      setLoading(false)
-    }
-
-    fetchRoles()
-    setSelectedRoleId(user.role_id || "")
-    setError(null)
-    setShowConfirmation(false)
-  }, [open, user.role_id])
+  const { data: roles = [], error: queryError, isLoading, isValidating } = usePageQuery<Role[]>(open ? ["assignable-roles"] : null, async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase.from("roles").select("*").eq("is_active", true).order("tier", { ascending: true })
+    if (error) throw error
+    return data ?? []
+  })
+  const loading = isLoading || isValidating
+  const error = actionError ?? (queryError ? "Failed to load roles" : null)
 
   // Get roles that can be assigned by current user
   const assignableRoles = roles.filter((role) =>
@@ -147,15 +132,13 @@ export function RoleAssignmentDialog({
     setError(null)
 
     try {
-      const supabase = createClient()
-
-      // Update user's role
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ role_id: selectedRoleId })
-        .eq("id", user.id)
-
-      if (updateError) throw updateError
+      const response = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, role_id: selectedRoleId }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "Failed to assign role")
 
       // Log the permission change
       await logPermissionChange(

@@ -1,8 +1,8 @@
 "use client"
 
-import { use, useEffect, useState, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { useI18n } from "@/lib/i18n/context"
+import { use, useState, useRef } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
+import { usePermissions } from "@/lib/contexts/permission-context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,18 +15,20 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
   ArrowLeft, Printer, CheckCircle2, XCircle, Shield, Banknote,
-  RefreshCw, AlertTriangle, TrendingDown, Loader2, ChevronRight,
+  RefreshCw, AlertTriangle, TrendingDown, Loader2,
   Building2, User, Calendar, DollarSign, FileText, Clock,
   Download, Eye, FileCheck,
 } from "lucide-react"
 import Link from "next/link"
-import type { LoanApplication, LoanStatus } from "@/lib/types/database"
+import type { Claim, LoanApplication, LoanStatus } from "@/lib/types/database"
 import { SchemeStepper } from "@/components/workflow/scheme-stepper"
 import { WorkflowPanel } from "@/components/workflow/workflow-panel"
+import { LoanPackage } from "@/components/workflow/loan-package"
+import { SignatureReviewPanel } from "@/components/workflow/signature-review-panel"
 import { GuaranteeLetter } from "@/components/documents/guarantee-letter"
 import { downloadPDF, printElement } from "@/lib/utils/pdf-generator"
-import { WorkflowTester } from "@/components/admin/workflow-tester"
-import { usePermissions } from "@/lib/contexts/permission-context"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+import { RequiredMark } from "@/components/forms/required-mark"
 
 // ─── Workflow definition ──────────────────────────────────────────────────────
 // Mirrors the 9-step diagram exactly:
@@ -99,6 +101,7 @@ const STATUS_LABELS: Record<string, string> = {
   formal_application: "Formal Application",
   uko_reconciliation: "УКО Reconciliation",
   compliance_check:   "Compliance Check",
+  deputy_review:      "Deputy Director Review",
   management_review:  "Management Decision",
   approved:           "Approved",
   rejected:           "Rejected",
@@ -118,7 +121,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 // ─── Action buttons based on current status ───────────────────────────────────
 function getAvailableActions(status: string, userRole: string): string[] {
-  const isPrsf = ["super_admin", "prsf_admin", "prsf_analyst"].includes(userRole)
+  const isPrsf = userRole === "prsf_analyst"
   const isBank = ["bank_admin", "bank_officer"].includes(userRole)
 
   switch (status) {
@@ -167,9 +170,8 @@ function getAvailableActions(status: string, userRole: string): string[] {
     case "defaulted":
       return isBank ? ["file_claim"] : []
 
-    // Step 8: PRSF reviews claim → approve/reject
     case "claim_pending":
-      return isPrsf ? ["approve_claim", "reject_claim"] : []
+      return ["prsf_analyst", "credit_risk_officer", "compliance_officer", "fkg_management"].includes(userRole) ? ["claims_committee"] : []
 
     default: return []
   }
@@ -178,27 +180,15 @@ function getAvailableActions(status: string, userRole: string): string[] {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
-  const router = useRouter()
   const supabase = createClient()
 
-  const [loan, setLoan]     = useState<LoanApplication | null>(null)
-  const [claims, setClaims] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [userRole, setUserRole] = useState("bank_officer")
+  const { role } = usePermissions()
+  const userRole = role?.code ?? ""
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
 
   // Dialog visibility
   const [dialog, setDialog] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  
-  // Get user permissions for superadmin check
-  let isSuperAdmin = false
-  try {
-    const { role } = usePermissions()
-    isSuperAdmin = role?.tier === 1 || Boolean(role?.name_en?.toLowerCase().includes('admin'))
-  } catch {
-    // Not wrapped in PermissionProvider or error
-  }
   
   // Guarantee letter state
   const [showGuaranteePreview, setShowGuaranteePreview] = useState(false)
@@ -213,6 +203,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const [dateField, setDateField]     = useState(new Date().toISOString().split("T")[0])
   const [dateField2, setDateField2]   = useState("")
   const [reason, setReason]           = useState("")
+
+  const rejectReq = useFieldRequirements("loan_reject")
+  const cancelReq = useFieldRequirements("loan_cancel")
+  const rescheduleReq = useFieldRequirements("loan_reschedule")
+  const extendRequestReq = useFieldRequirements("loan_extend_request")
+  const extendGrantReq = useFieldRequirements("loan_extend_grant")
+  const declineReq = useFieldRequirements("loan_decline")
   const [claimPrincipal, setClaimPrincipal] = useState("")
   const [claimInterest, setClaimInterest]   = useState("")
 
@@ -228,37 +225,23 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchLoan = useCallback(async () => {
-    setLoading(true)
+  const { data: loan = null, isLoading, isValidating, mutate } = usePageQuery<LoanApplication | null>(["loan", resolvedParams.id], async () => {
     const { data, error } = await supabase
       .from("loan_applications")
       .select(`*, bank:banks(*), branch:bank_branches(*), borrower:borrowers(*), product:loan_products(*)`)
       .eq("id", resolvedParams.id)
       .single()
-    if (!error && data) setLoan(data as LoanApplication)
-    setLoading(false)
-  }, [resolvedParams.id, supabase])
+    if (error) throw error
+    return data as LoanApplication | null
+  })
+  const loading = isLoading || isValidating
+  const fetchLoan = async () => { await mutate() }
 
-  useEffect(() => {
-    fetchLoan()
-    // Get current user role
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role:roles(code)")
-          .eq("id", user.id)
-          .single()
-        if (profile?.role) setUserRole((profile.role as any).code)
-      }
-    })
-    // Fetch related claims
-    supabase
-      .from("claims")
-      .select("*")
-      .eq("loan_application_id", resolvedParams.id)
-      .then(({ data }) => setClaims(data || []))
-  }, [fetchLoan, resolvedParams.id, supabase])
+  const { data: claims = [] } = usePageQuery<Claim[]>(["loan-claims", resolvedParams.id], async () => {
+    const { data, error } = await supabase.from("claims").select("*").eq("loan_application_id", resolvedParams.id)
+    if (error) throw error
+    return data ?? []
+  })
 
   // ── Workflow transitions ───────────────────────────────────────────────────
   const transition = async (newStatus: string, extra: Record<string, unknown> = {}) => {
@@ -314,7 +297,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   const handleFileClaim = async () => {
     if (!loan) return
     // claims.bank_id is NOT NULL; report a missing bank instead of sending null.
-    const claimBankId = (loan as any).bank_id
+    const claimBankId = loan.bank_id
     if (!claimBankId) {
       showToast("This loan has no partner bank assigned, so a claim cannot be filed.", "error")
       return
@@ -338,42 +321,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       showToast("Claim filed successfully")
       setDialog(null)
     }
-    setSaving(false)
-  }
-
-  const handleApproveClaim = async () => {
-    if (!loan || !claims[0]) return
-    setSaving(true)
-    const { error } = await supabase.from("claims").update({
-      status: "approved",
-      review_date: dateField,
-      review_notes: notes,
-      approved_amount: parseFloat(amount) || claims[0].claim_amount,
-    }).eq("id", claims[0].id)
-    if (error) {
-      // Stop before moving the loan forward so the claim and loan cannot diverge
-      showToast("Failed to approve claim: " + error.message, "error")
-      setSaving(false)
-      return
-    }
-    await transition("claim_paid", {})
-    setSaving(false)
-  }
-
-  const handleRejectClaim = async () => {
-    if (!loan || !claims[0]) return
-    setSaving(true)
-    const { error } = await supabase
-      .from("claims")
-      .update({ status: "rejected", review_date: dateField, review_notes: reason })
-      .eq("id", claims[0].id)
-    if (error) {
-      // Stop before moving the loan forward so the claim and loan cannot diverge
-      showToast("Failed to reject claim: " + error.message, "error")
-      setSaving(false)
-      return
-    }
-    await transition("claim_rejected", {})
     setSaving(false)
   }
 
@@ -427,8 +374,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       if (!data.already_exists) {
         setShowGuaranteePreview(true)
       }
-    } catch (error: any) {
-      showToast(error.message || 'Failed to issue guarantee', 'error')
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : 'Failed to issue guarantee', 'error')
     } finally {
       setIssuingGuarantee(false)
     }
@@ -439,7 +386,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     if (!guaranteeLetterRef.current || !loan) return
     setDownloadingPDF(true)
     try {
-      const guaranteeNum = (loan as any).guarantee_number || loan.loan_number || loan.id.slice(0, 8)
+      const guaranteeNum = loan.guarantee_number || loan.loan_number || loan.id.slice(0, 8)
       const filename = `Letter_of_Guarantee_${guaranteeNum}.pdf`
       await downloadPDF(guaranteeLetterRef.current, {
         filename,
@@ -448,7 +395,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         quality: 2,
       })
       showToast("PDF downloaded successfully")
-    } catch (error) {
+    } catch {
       showToast("Failed to generate PDF", "error")
     } finally {
       setDownloadingPDF(false)
@@ -476,7 +423,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   )
 
   const actions = getAvailableActions(loan.status, userRole)
-  const borrowerName = (loan.borrower as any)?.name ?? "—"
+  const borrowerName = loan.borrower?.name ?? "—"
 
   return (
     <div className="p-4 lg:p-6">
@@ -501,7 +448,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               {STATUS_LABELS[loan.status] ?? loan.status}
             </Badge>
           </div>
-          <p className="mt-0.5 text-sm text-muted-foreground">{borrowerName} · {(loan.bank as any)?.name_en}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{borrowerName} · {loan.bank?.name_en}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {["guarantee_issued", "disbursed", "active", "approved"].includes(loan.status) && (
@@ -524,14 +471,15 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           {actions.includes("reschedule")        && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent" onClick={() => setDialog("reschedule")}><RefreshCw className="h-3.5 w-3.5" />Reschedule</Button>}
           {actions.includes("mark_defaulted")    && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("defaulted") }}><TrendingDown className="h-3.5 w-3.5" />Mark Defaulted</Button>}
           {actions.includes("file_claim")        && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("claim")}><AlertTriangle className="h-3.5 w-3.5" />File Claim</Button>}
-          {actions.includes("approve_claim")     && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(claims[0]?.claim_amount ?? "")); setDialog("approve_claim") }}>Approve Claim</Button>}
-          {actions.includes("reject_claim")      && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("reject_claim")}>Reject Claim</Button>}
+          {actions.includes("claims_committee") && <Button size="sm" variant="outline" asChild><Link href="/dashboard/committee#claims-committee">Review in claims committee</Link></Button>}
         </div>
       </div>
 
       {/* ── ФКГ scheme: current step and its actions (steps 1-4 wired) ── */}
       <div className="mb-6">
+        <LoanPackage loan={loan} onChanged={fetchLoan} />
         <WorkflowPanel loan={loan} roleCode={userRole} onDone={fetchLoan} />
+      <SignatureReviewPanel loan={loan} onDone={fetchLoan} />
       </div>
 
       {/* ── Workflow Stepper ── */}
@@ -603,13 +551,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         </CardContent>
       </Card>
 
-      {/* ── Superadmin Workflow Tester ── */}
-      {isSuperAdmin && (
-        <div className="mb-6">
-          <WorkflowTester loan={loan} onStatusChange={fetchLoan} />
-        </div>
-      )}
-
       {/* ── Detail Tabs ── */}
       <Tabs defaultValue="overview">
         <TabsList className="mb-4 h-9">
@@ -626,8 +567,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card className="shadow-sm">
               <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Building2 className="h-3.5 w-3.5" />Bank & Branch</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
-                <div className="font-medium">{(loan.bank as any)?.name_en ?? "—"}</div>
-                <div className="text-muted-foreground">{(loan.branch as any)?.name_en ?? "Head Office"}</div>
+                <div className="font-medium">{loan.bank?.name_en ?? "—"}</div>
+                <div className="text-muted-foreground">{loan.branch?.name_en ?? "Head Office"}</div>
                 <div className="text-muted-foreground">Officer: {loan.loan_officer ?? "—"}</div>
               </CardContent>
             </Card>
@@ -664,7 +605,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Card className="shadow-sm">
               <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><FileText className="h-3.5 w-3.5" />Loan Terms</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Product:</span><span className="text-foreground">{(loan.product as any)?.name_en ?? "—"}</span></div>
+                <div className="flex justify-between"><span>Product:</span><span className="text-foreground">{loan.product?.name_en ?? "—"}</span></div>
                 <div className="flex justify-between"><span>Term:</span><span className="text-foreground">{loan.duration_months ?? "—"} months</span></div>
                 <div className="flex justify-between"><span>Interest Rate:</span><span className="text-foreground">{loan.interest_rate ?? "—"}% p.a.</span></div>
                 <div className="flex justify-between"><span>Frequency:</span><span className="text-foreground capitalize">{loan.frequency ?? "—"}</span></div>
@@ -691,21 +632,21 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               {loan.borrower ? (
                 <div className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                   {[
-                    ["Legal Type", (loan.borrower as any).legal_type?.replace("_", " ")],
-                    ["Name", (loan.borrower as any).name],
-                    ["TIN Number", (loan.borrower as any).tin_number],
-                    ["Registration No.", (loan.borrower as any).registration_number],
-                    ["Phone", (loan.borrower as any).phone],
-                    ["Email", (loan.borrower as any).email],
-                    ["City", (loan.borrower as any).address_city],
-                    ["District", (loan.borrower as any).address_district],
-                    ["Address", (loan.borrower as any).address_street],
-                    ["Workforce", (loan.borrower as any).workforce_count],
-                    ["Legal Rep Name", (loan.borrower as any).legal_rep_name],
-                    ["Legal Rep Surname", (loan.borrower as any).legal_rep_surname],
-                    ["Legal Rep Gender", (loan.borrower as any).legal_rep_gender],
-                    ["Legal Rep Birthdate", fmtDate((loan.borrower as any).legal_rep_birthdate)],
-                    ["Legal Rep TIN", (loan.borrower as any).legal_rep_tin],
+                    ["Legal Type", loan.borrower.legal_type?.replace("_", " ")],
+                    ["Name", loan.borrower.name],
+                    ["TIN Number", loan.borrower.tin_number],
+                    ["Registration No.", loan.borrower.registration_number],
+                    ["Phone", loan.borrower.phone],
+                    ["Email", loan.borrower.email],
+                    ["City", loan.borrower.address_city],
+                    ["District", loan.borrower.address_district],
+                    ["Address", loan.borrower.address_street],
+                    ["Workforce", loan.borrower.workforce_count],
+                    ["Legal Rep Name", loan.borrower.legal_rep_name],
+                    ["Legal Rep Surname", loan.borrower.legal_rep_surname],
+                    ["Legal Rep Gender", loan.borrower.legal_rep_gender],
+                    ["Legal Rep Birthdate", fmtDate(loan.borrower.legal_rep_birthdate)],
+                    ["Legal Rep TIN", loan.borrower.legal_rep_tin],
                   ].map(([label, value]) => value ? (
                     <div key={label as string}>
                       <p className="text-xs text-muted-foreground">{label}</p>
@@ -872,10 +813,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "reject"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Step 4A · Reject Application</DialogTitle><DialogDescription>PRSF credit decision: Reject. Bank will be notified (Step 5A). This is end of process.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Rejection Reason *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Provide detailed reason..." className="mt-1" /></div>
+          <div><Label className="text-xs">Rejection Reason<RequiredMark show={rejectReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Provide detailed reason..." className="mt-1" /></div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleReject} disabled={saving || !reason.trim()}>
+            <Button variant="destructive" onClick={handleReject} disabled={saving || rejectReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reject Application
             </Button>
           </DialogFooter>
@@ -939,10 +880,10 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "cancel"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Step 6A · Cancel Guarantee</DialogTitle><DialogDescription>Cancel the guarantee before disbursement. This is end of process.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Cancellation Reason *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
+          <div><Label className="text-xs">Cancellation Reason<RequiredMark show={cancelReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={saving || !reason.trim()}>
+            <Button variant="destructive" onClick={handleCancel} disabled={saving || cancelReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Cancel Guarantee
             </Button>
           </DialogFooter>
@@ -989,13 +930,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent>
           <DialogHeader><DialogTitle>Step 7B · Reschedule Loan</DialogTitle><DialogDescription>Extend the loan maturity. After rescheduling the loan can still be settled (Step 8A) or proceed to claim (Step 7C).</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Reschedule Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">New Maturity Date</Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Reason for Rescheduling *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
+            <div><Label className="text-xs">Reschedule Date<RequiredMark show={rescheduleReq.isRequired("reschedule_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">New Maturity Date<RequiredMark show={rescheduleReq.isRequired("new_maturity_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">Reason for Rescheduling<RequiredMark show={rescheduleReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={handleReschedule} disabled={saving || !reason.trim()}>
+            <Button onClick={handleReschedule} disabled={saving || rescheduleReq.missingFields({ reschedule_date: dateField, new_maturity_date: dateField2, reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reschedule
             </Button>
           </DialogFooter>
@@ -1018,38 +959,6 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleFileClaim} disabled={saving || !claimPrincipal}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}File Claim
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Approve Claim — Step 8B2 */}
-      <Dialog open={dialog === "approve_claim"} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Step 8B2 · Approve & Pay Claim</DialogTitle><DialogDescription>Approve the claim and record payment. Recoveries tracking begins (Step 9).</DialogDescription></DialogHeader>
-          <div className="space-y-3">
-            <div><Label className="text-xs">Review Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Approved Amount ({loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Review Notes</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1" /></div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleApproveClaim} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve & Pay Claim
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Claim — Step 8B1 */}
-      <Dialog open={dialog === "reject_claim"} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Step 8B1 · Reject Claim</DialogTitle><DialogDescription>Reject the guarantee claim. This is end of process for this claim.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Rejection Reason *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleRejectClaim} disabled={saving || !reason.trim()}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reject Claim
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1084,11 +993,11 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           </DialogHeader>
           <div className="space-y-3">
             <div><Label className="text-xs">Request Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Reason for Extension *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Explain why additional time is needed before disbursement..." className="mt-1" /></div>
+            <div><Label className="text-xs">Reason for Extension<RequiredMark show={extendRequestReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Explain why additional time is needed before disbursement..." className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button className="bg-yellow-600 hover:bg-yellow-700 text-white" onClick={handleRequestExtension} disabled={saving || !reason.trim()}>
+            <Button className="bg-yellow-600 hover:bg-yellow-700 text-white" onClick={handleRequestExtension} disabled={saving || extendRequestReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit Extension Request
             </Button>
           </DialogFooter>
@@ -1100,20 +1009,20 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Grant Extension Request</DialogTitle>
-            <DialogDescription>Approve the bank's extension request. The loan returns to Approved status with the new validity date.</DialogDescription>
+            <DialogDescription>Approve the bank&apos;s extension request. The loan returns to Approved status with the new validity date.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-lg bg-secondary/50 p-3 text-sm">
               <p className="text-xs text-muted-foreground">Extension requested on {fmtDate(loan?.extension_requested_date)}</p>
               <p className="mt-1 font-medium">{loan?.extension_reason ?? "—"}</p>
             </div>
-            <div><Label className="text-xs">Grant Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">New Guarantee Validity / Maturity Date *</Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Notes (optional)</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" /></div>
+            <div><Label className="text-xs">Grant Date<RequiredMark show={extendGrantReq.isRequired("grant_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">New Guarantee Validity / Maturity Date<RequiredMark show={extendGrantReq.isRequired("new_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">Notes<RequiredMark show={extendGrantReq.isRequired("notes")} /></Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleGrantExtension} disabled={saving || !dateField2}>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleGrantExtension} disabled={saving || extendGrantReq.missingFields({ grant_date: dateField, new_date: dateField2, notes }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Grant Extension
             </Button>
           </DialogFooter>
@@ -1125,17 +1034,17 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Decline Extension Request</DialogTitle>
-            <DialogDescription>Decline the bank's extension request. The guarantee will be cancelled.</DialogDescription>
+            <DialogDescription>Decline the bank&apos;s extension request. The guarantee will be cancelled.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
               Declining this request will cancel the guarantee. The bank will need to reapply if they still wish to proceed.
             </div>
-            <div><Label className="text-xs">Reason for Declining *</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
+            <div><Label className="text-xs">Reason for Declining<RequiredMark show={declineReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDeclineExtension} disabled={saving || !reason.trim()}>
+            <Button variant="destructive" onClick={handleDeclineExtension} disabled={saving || declineReq.missingFields({ reason }).length > 0}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Decline & Cancel
             </Button>
           </DialogFooter>
@@ -1148,17 +1057,17 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileCheck className="h-5 w-5 text-teal-600" />
-              Letter of Guarantee {(loan as any).guarantee_number ? '' : '(Preview)'}
+              Letter of Guarantee {loan.guarantee_number ? '' : '(Preview)'}
             </DialogTitle>
             <DialogDescription>
-              {(loan as any).guarantee_number 
-                ? `Guarantee Number: ${(loan as any).guarantee_number} · Issued: ${fmtDate(loan.guarantee_issued_date)}`
+              {loan.guarantee_number
+                ? `Guarantee Number: ${loan.guarantee_number} · Issued: ${fmtDate(loan.guarantee_issued_date)}`
                 : 'Preview the Letter of Guarantee before issuing. This is a draft preview.'}
             </DialogDescription>
           </DialogHeader>
           
           {/* Status Banner for Draft */}
-          {!(loan as any).guarantee_number && loan.status === 'approved' && (
+          {!loan.guarantee_number && loan.status === 'approved' && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-amber-800">
                 <AlertTriangle className="h-4 w-4" />
@@ -1178,9 +1087,9 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           <div className="flex items-center gap-3 border-b pb-4 flex-shrink-0">
             <Button
               onClick={handleDownloadPDF}
-              disabled={downloadingPDF || !(loan as any).guarantee_number}
+              disabled={downloadingPDF || !loan.guarantee_number}
               className="gap-2 bg-teal-600 hover:bg-teal-700 text-white"
-              title={!(loan as any).guarantee_number ? 'Issue the guarantee first to download' : ''}
+              title={!loan.guarantee_number ? 'Issue the guarantee first to download' : ''}
             >
               {downloadingPDF ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1193,13 +1102,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               variant="outline" 
               onClick={handlePrintGuarantee} 
               className="gap-2"
-              disabled={!(loan as any).guarantee_number}
-              title={!(loan as any).guarantee_number ? 'Issue the guarantee first to print' : ''}
+              disabled={!loan.guarantee_number}
+              title={!loan.guarantee_number ? 'Issue the guarantee first to print' : ''}
             >
               <Printer className="h-4 w-4" />
               Print
             </Button>
-            {(loan as any).guarantee_number && (
+            {loan.guarantee_number && (
               <div className="ml-auto text-xs text-muted-foreground">
                 Valid until: {fmtDate(loan.maturity_date)}
               </div>
@@ -1213,14 +1122,14 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 ref={guaranteeLetterRef}
                 loan={{
                   ...loan,
-                  borrower: loan.borrower as any,
-                  bank: loan.bank as any,
-                  branch: loan.branch as any,
+                  borrower: loan.borrower,
+                  bank: loan.bank,
+                  branch: loan.branch,
                 }}
-                guaranteeNumber={(loan as any).guarantee_number || `DRAFT-${loan.loan_number || loan.id.slice(0, 8)}`}
+                guaranteeNumber={loan.guarantee_number || `DRAFT-${loan.loan_number || loan.id.slice(0, 8)}`}
                 issueDate={loan.guarantee_issued_date || undefined}
                 validUntil={loan.maturity_date || undefined}
-                isDraft={!(loan as any).guarantee_number}
+                isDraft={!loan.guarantee_number}
               />
             </div>
           </div>

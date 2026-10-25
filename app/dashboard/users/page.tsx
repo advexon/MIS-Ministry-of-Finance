@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
-import { usePermissions, CanAccess } from "@/lib/contexts/permission-context"
+import { usePermissions } from "@/lib/contexts/permission-context"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -59,8 +59,14 @@ import {
   Lock,
 } from "lucide-react"
 import type { Profile, Role, Bank, BankBranch } from "@/lib/types/database"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 
-interface UserWithRelations extends Profile {
+import { EmployeeFlagsEditor, employeeFlagsFromProfile, type EmployeeFlags } from "@/components/admin/employee-flags-editor"
+import { employeeFlagsSchema } from "@/lib/employee-flags"
+import { AdminPasswordReset } from "@/components/admin/password-reset"
+
+interface UserWithRelations extends Profile, Partial<EmployeeFlags> {
   role?: Role
   bank?: Bank
 }
@@ -75,7 +81,6 @@ const roleColors: Record<string, string> = {
 }
 
 export default function UsersPage() {
-  const { t, locale } = useI18n()
   const permissions = usePermissions()
 
   // Permission check: only admin can access users page
@@ -88,7 +93,7 @@ export default function UsersPage() {
               <Lock className="h-12 w-12 text-destructive" />
               <h3 className="font-semibold text-destructive">Access Denied</h3>
               <p className="text-sm text-muted-foreground">
-                You don't have permission to access the users management page.
+                You don&apos;t have permission to access the users management page.
               </p>
             </div>
           </CardContent>
@@ -97,11 +102,12 @@ export default function UsersPage() {
     )
   }
 
-  const [users, setUsers] = useState<UserWithRelations[]>([])
-  const [roles, setRoles] = useState<Role[]>([])
-  const [banks, setBanks] = useState<Bank[]>([])
-  const [branches, setBranches] = useState<BankBranch[]>([])
-  const [loading, setLoading] = useState(true)
+  return <UserManagement />
+}
+
+function UserManagement() {
+  const { t, locale } = useI18n()
+  const permissions = usePermissions()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterRole, setFilterRole] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -123,7 +129,7 @@ export default function UsersPage() {
   const [newPhone, setNewPhone] = useState("")
   const [newRoleId, setNewRoleId] = useState("")
   const [newBankId, setNewBankId] = useState("")
-  const [newBranchId, setNewBranchId] = useState("")
+  const [, setNewBranchId] = useState("")
   const [creating, setCreating] = useState(false)
 
   // Edit form state
@@ -133,32 +139,29 @@ export default function UsersPage() {
   const [editRoleId, setEditRoleId] = useState("")
   const [editBankId, setEditBankId] = useState("")
   const [editIsActive, setEditIsActive] = useState(true)
+  const [editFlags, setEditFlags] = useState<EmployeeFlags>(() => employeeFlagsFromProfile({}))
+  const [editProductTags, setEditProductTags] = useState("")
+  const canEditFlags = permissions.can("users", "update") &&
+    ["super_admin", "prsf_admin"].includes(permissions.role?.code ?? "") &&
+    !!permissions.user?.id && permissions.user.id !== selectedUser?.id
+  const flagsInput = { ...editFlags, product_tags: editProductTags.split(",").map((tag) => tag.trim()).filter(Boolean) }
+  const flagsChanged = selectedUser && JSON.stringify(flagsInput) !== JSON.stringify(employeeFlagsFromProfile(selectedUser))
 
-  const fetchData = useCallback(async () => {
-    try {
-      console.log("[v0] Fetching user data...")
-      const res = await fetch("/api/users", { credentials: "include" })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        console.error("[v0] API error:", res.status, body)
-        return
-      }
-      const data = await res.json()
-      console.log("[v0] Fetched users:", data.users?.map((u: any) => ({ email: u.email, role_id: u.role_id, role: u.role })))
-      setUsers(data.users ?? [])
-      setRoles(data.roles ?? [])
-      setBanks(data.banks ?? [])
-      setBranches(data.branches ?? [])
-    } catch (err) {
-      console.error("[v0] Fetch error:", err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  const { data: directory, isLoading, isValidating, mutate } = usePageQuery<{
+    users: UserWithRelations[]
+    roles: Role[]
+    banks: Bank[]
+    branches: BankBranch[]
+  }>(["user-directory"], async () => {
+    const response = await fetch("/api/users", { credentials: "include" })
+    if (!response.ok) throw new Error("Failed to load users")
+    return response.json()
+  })
+  const users = directory?.users ?? []
+  const roles = directory?.roles ?? []
+  const banks = directory?.banks ?? []
+  const loading = isLoading || isValidating
+  const fetchData = () => mutate()
 
   const showMessage = (type: "success" | "error", message: string) => {
     if (type === "success") {
@@ -199,6 +202,8 @@ export default function UsersPage() {
     setEditRoleId(user.role_id || "")
     setEditBankId(user.bank_id || "")
     setEditIsActive(user.is_active)
+    setEditFlags(employeeFlagsFromProfile(user))
+    setEditProductTags((user.product_tags ?? []).join(", "))
     setEditDialogOpen(true)
   }
 
@@ -209,6 +214,11 @@ export default function UsersPage() {
 
   const handleSaveUser = async () => {
     if (!selectedUser) return
+    const parsedFlags = employeeFlagsSchema.safeParse(flagsInput)
+    if (canEditFlags && flagsChanged && !parsedFlags.success) {
+      showMessage("error", parsedFlags.error.issues[0]?.message ?? "Check employee responsibilities")
+      return
+    }
     setSaving(true)
     try {
       // Use the admin API endpoint to bypass RLS
@@ -220,9 +230,10 @@ export default function UsersPage() {
           first_name: editFirstName,
           last_name: editLastName,
           phone: editPhone,
-          role_id: editRoleId,
-          bank_id: editBankId,
+          ...(editRoleId && editRoleId !== selectedUser.role_id ? { role_id: editRoleId } : {}),
+          bank_id: editBankId && editBankId !== "none" ? editBankId : null,
           is_active: editIsActive,
+          ...(canEditFlags && flagsChanged && parsedFlags.success ? parsedFlags.data : {}),
         }),
       })
 
@@ -240,7 +251,26 @@ export default function UsersPage() {
     }
   }
 
+  const userReq = useFieldRequirements("user_create")
+  const newUserMissing = userReq.missingFields({
+    first_name: newFirstName,
+    last_name: newLastName,
+    email: newEmail,
+    password: newPassword,
+    phone: newPhone,
+    role: newRoleId,
+    bank: newBankId === "none" ? "" : newBankId,
+  })
+
   const handleCreateUser = async () => {
+    if (!newRoleId) {
+      showMessage('error', 'Select a role for the new account')
+      return
+    }
+    if (newUserMissing.length) {
+      showMessage("error", missingFieldsMessage(newUserMissing))
+      return
+    }
     setCreating(true)
     try {
       const res = await fetch('/api/admin/create-user', {
@@ -272,14 +302,14 @@ export default function UsersPage() {
   }
 
   const handleToggleActive = async (user: UserWithRelations) => {
-    const supabase = createClient()
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_active: !user.is_active })
-        .eq("id", user.id)
-
-      if (error) throw error
+      const response = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, is_active: !user.is_active }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "Failed to update user status")
 
       showMessage("success", `User ${getUserName(user)} ${!user.is_active ? "activated" : "deactivated"}`)
       fetchData()
@@ -328,10 +358,12 @@ export default function UsersPage() {
             Manage system users, assign roles and bank affiliations
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" />
-          Create User
-        </Button>
+        {['super_admin', 'prsf_admin'].includes(permissions.role?.code ?? '') && (
+          <Button onClick={() => setCreateDialogOpen(true)} className="gap-2 shrink-0">
+            <Plus className="h-4 w-4" />
+            Create User
+          </Button>
+        )}
       </div>
 
       {/* Status Messages */}
@@ -545,35 +577,35 @@ export default function UsersPage() {
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
             <DialogDescription>
-              Create a new account. The user can log in immediately with these credentials.
+              Create an account and assign its role. Share credentials through an approved secure channel. The user can sign in immediately; no email or verification link is sent.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>{t.auth.firstName}</Label>
+                <Label>{t.auth.firstName}<RequiredMark show={userReq.isRequired("first_name")} /></Label>
                 <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="First name" />
               </div>
               <div className="space-y-2">
-                <Label>{t.auth.lastName}</Label>
+                <Label>{t.auth.lastName}<RequiredMark show={userReq.isRequired("last_name")} /></Label>
                 <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Last name" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{t.auth.email} <span className="text-destructive">*</span></Label>
+              <Label>{t.auth.email}<RequiredMark show={userReq.isRequired("email")} /></Label>
               <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@bank.tj" required />
             </div>
             <div className="space-y-2">
-              <Label>{t.auth.password} <span className="text-destructive">*</span></Label>
+              <Label>{t.auth.password}<RequiredMark show={userReq.isRequired("password")} /></Label>
               <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 characters" required />
             </div>
             <div className="space-y-2">
-              <Label>Phone</Label>
+              <Label>Phone<RequiredMark show={userReq.isRequired("phone")} /></Label>
               <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+992 XX XXX XXXX" />
             </div>
             <Separator />
             <div className="space-y-2">
-              <Label>{t.users.role}</Label>
+              <Label>{t.users.role}<RequiredMark show={userReq.isRequired("role")} /></Label>
               <Select value={newRoleId} onValueChange={setNewRoleId}>
                 <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                 <SelectContent>
@@ -585,7 +617,7 @@ export default function UsersPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>{t.loans.bank}</Label>
+                <Label>{t.loans.bank}<RequiredMark show={userReq.isRequired("bank")} /></Label>
                 <Select value={newBankId} onValueChange={(v) => { setNewBankId(v); setNewBranchId("") }}>
                   <SelectTrigger><SelectValue placeholder="Select bank (optional)" /></SelectTrigger>
                   <SelectContent>
@@ -602,7 +634,7 @@ export default function UsersPage() {
             <Button variant="outline" className="bg-transparent" onClick={() => setCreateDialogOpen(false)}>
               {t.common.cancel}
             </Button>
-            <Button onClick={handleCreateUser} disabled={creating || !newEmail || !newPassword} className="gap-2">
+            <Button onClick={handleCreateUser} disabled={creating || newUserMissing.length > 0} className="gap-2">
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Create User
             </Button>
@@ -694,7 +726,7 @@ export default function UsersPage() {
 
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>
@@ -747,6 +779,11 @@ export default function UsersPage() {
 
               <Separator />
 
+              {selectedUser.id !== permissions.user?.id &&
+                ['super_admin', 'prsf_admin'].includes(permissions.role?.code ?? '') && (
+                  <AdminPasswordReset key={selectedUser.id} userId={selectedUser.id} name={getUserName(selectedUser)} />
+                )}
+
               <div className="space-y-2">
                 <Label>{t.users.role}</Label>
                 <Select value={editRoleId} onValueChange={setEditRoleId}>
@@ -783,6 +820,13 @@ export default function UsersPage() {
                 </Select>
               </div>
 
+              <EmployeeFlagsEditor
+                value={editFlags}
+                onChange={setEditFlags}
+                tagsText={editProductTags}
+                onTagsChange={setEditProductTags}
+                disabled={!canEditFlags || saving}
+              />
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="text-sm font-medium">Account Active</p>

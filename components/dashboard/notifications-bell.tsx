@@ -1,6 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
+import useSWR from 'swr'
+import { toast } from 'sonner'
+import { usePermissions } from '@/lib/contexts/permission-context'
 import { Bell, CheckCheck, ShieldCheck, FileText, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,6 +13,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { notificationHref } from '@/lib/notifications'
+import { useCurrentTime } from '@/hooks/use-current-time'
+import { notificationAge } from '@/lib/utils/display-time'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
@@ -18,60 +24,87 @@ interface Notification {
   type: string
   title: string
   message: string
-  related_type: string | null
-  related_id: string | null
+  link: string | null
   is_read: boolean
   created_at: string
 }
 
 export function NotificationsBell() {
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const now = useCurrentTime()
   const [open, setOpen] = useState(false)
+  const { user } = usePermissions()
+  const userId: string | undefined = user?.id
   const supabase = createClient()
-
-  const fetchNotifications = useCallback(async () => {
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(20)
-    if (data) setNotifications(data)
-  }, [supabase])
+  const { data: notifications = [], error, isLoading, mutate } = useSWR<Notification[]>(
+    userId ? ['notifications', userId] : null,
+    async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id, type, title, message, link, is_read, created_at')
+        .eq('user_id', userId!)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      return data ?? []
+    },
+    { refreshInterval: 30000 },
+  )
 
   useEffect(() => {
-    fetchNotifications()
-
-    // Realtime subscription for new notifications
+    if (!userId) return
     const channel = supabase
-      .channel('notifications-bell')
+      .channel(`notifications-bell-${userId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications' },
-        () => fetchNotifications()
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        () => {
+          void mutate()
+          toast.info('You have a new notification', { description: 'Open the notification bell to view it.' })
+        },
       )
-      .subscribe()
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        () => { void mutate() },
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') void mutate()
+      })
 
-    return () => { supabase.removeChannel(channel) }
-  }, [fetchNotifications, supabase])
+    return () => { void supabase.removeChannel(channel) }
+  }, [mutate, supabase, userId])
 
   const markAsRead = async (id: string) => {
-    await supabase
+    if (!userId) return
+    const { data, error } = await supabase
       .from('notifications')
       .update({ is_read: true })
+      .eq('user_id', userId)
       .eq('id', id)
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, is_read: true } : n)
-    )
+      .select('id')
+    if (error || !data?.length) {
+      toast.error('Could not mark the notification as read')
+      return
+    }
+    await mutate(current => current?.map(n => n.id === id ? { ...n, is_read: true } : n))
   }
 
   const markAllAsRead = async () => {
+    if (!userId) return
     const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id)
     if (unreadIds.length === 0) return
-    await supabase
+    const { data, error } = await supabase
       .from('notifications')
       .update({ is_read: true })
+      .eq('user_id', userId)
       .in('id', unreadIds)
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+      .select('id')
+    if (error || data?.length !== unreadIds.length) {
+      toast.error('Could not mark all notifications as read')
+      void mutate()
+      return
+    }
+    await mutate(current => current?.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true } : n))
   }
 
   const unreadCount = notifications.filter(n => !n.is_read).length
@@ -84,22 +117,6 @@ export function NotificationsBell() {
       default:
         return <FileText className="h-4 w-4 text-muted-foreground" />
     }
-  }
-
-  const getHref = (n: Notification) => {
-    if (n.related_type === 'guarantee_report' && n.related_id) {
-      return `/dashboard/guarantee-reports/${n.related_id}`
-    }
-    return '/dashboard'
-  }
-
-  const formatTime = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    return `${Math.floor(hrs / 24)}d ago`
   }
 
   return (
@@ -141,7 +158,14 @@ export function NotificationsBell() {
 
         {/* Notification List */}
         <ScrollArea className="max-h-[360px]">
-          {notifications.length === 0 ? (
+          {error ? (
+            <div className="flex flex-col gap-3 p-4" role="alert">
+              <p className="text-sm text-destructive">Could not load notifications.</p>
+              <Button variant="outline" size="sm" onClick={() => { void mutate() }}>Try again</Button>
+            </div>
+          ) : isLoading ? (
+            <p className="p-4 text-sm text-muted-foreground" role="status">Loading notifications…</p>
+          ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-10">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
                 <Bell className="h-5 w-5 text-muted-foreground" />
@@ -171,7 +195,7 @@ export function NotificationsBell() {
                   {/* Content */}
                   <div className="flex-1 overflow-hidden">
                     <Link
-                      href={getHref(n)}
+                      href={notificationHref(n.link)}
                       onClick={() => { markAsRead(n.id); setOpen(false) }}
                       className="block"
                     >
@@ -185,7 +209,7 @@ export function NotificationsBell() {
                         {n.message}
                       </p>
                       <p className="mt-1 text-[10px] text-muted-foreground/70">
-                        {formatTime(n.created_at)}
+                        {notificationAge(n.created_at, now)}
                       </p>
                     </Link>
                   </div>
@@ -197,6 +221,7 @@ export function NotificationsBell() {
                       size="icon"
                       className="h-6 w-6 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                       onClick={() => markAsRead(n.id)}
+                      aria-label={`Mark ${n.title} as read`}
                     >
                       <X className="h-3 w-3" />
                     </Button>

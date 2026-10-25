@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
 import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,7 +13,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   DollarSign, Receipt, TrendingUp, Download, Plus, MoreHorizontal,
@@ -20,7 +20,21 @@ import {
 } from "lucide-react"
 import type { Fee } from "@/lib/types/database"
 import { one } from "@/lib/utils/supabase-relation"
+import { renderFeeInvoice } from "@/lib/utils/fee-invoice"
 import { toCSV, downloadCSV } from "@/lib/utils/export"
+import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
+import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
+
+interface FeeRow extends Fee {
+  loan_application?: {
+    id: string
+    loan_number: string | null
+    currency: string | null
+    bank_id: string | null
+    borrower: { name: string } | null
+    bank: { name_en: string } | null
+  } | null
+}
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -42,9 +56,6 @@ export default function FeesPage() {
     borrower: { name: string } | null
   }
 
-  const [fees, setFees] = useState<Fee[]>([])
-  const [loans, setLoans] = useState<LoanOption[]>([])
-  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("all")
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -61,7 +72,7 @@ export default function FeesPage() {
 
   // Mark paid dialog
   const [payOpen, setPayOpen] = useState(false)
-  const [selectedFee, setSelectedFee] = useState<Fee | null>(null)
+  const [selectedFee, setSelectedFee] = useState<FeeRow | null>(null)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
   const [paymentRef, setPaymentRef] = useState("")
 
@@ -78,36 +89,37 @@ export default function FeesPage() {
     setTimeout(() => { setSuccessMsg(null); setErrorMsg(null) }, 5000)
   }
 
-  const fetchFees = useCallback(async () => {
-    setLoading(true)
+  const { data: fees = [], isLoading, isValidating, mutate } = usePageQuery<FeeRow[]>(["fees"], async () => {
     const { data, error } = await supabase
       .from("fees")
       .select(`*, loan_application:loan_applications!loan_application_id(id,loan_number,currency,bank_id,bank:banks(name_en),borrower:borrowers(name))`)
       .order("created_at", { ascending: false })
-    if (!error && data) setFees(data)
-    setLoading(false)
-  }, [supabase])
+    if (error) throw error
+    return (data ?? []).map((fee) => {
+      const loan = one(fee.loan_application)
+      return { ...fee, loan_application: loan ? { ...loan, bank: one(loan.bank), borrower: one(loan.borrower) } : null }
+    })
+  })
+  const loading = isLoading || isValidating
+  const fetchFees = () => mutate()
 
-  useEffect(() => {
-    fetchFees()
-    supabase
+  const { data: loans = [] } = usePageQuery<LoanOption[]>(["fee-loan-options"], async () => {
+    const { data, error } = await supabase
       .from("loan_applications")
       .select("id,loan_number,approved_amount,currency,guarantee_coverage,bank_id,borrower:borrowers(name)")
       .in("status", ["approved", "disbursed", "active"])
       .order("loan_number")
-      .then(({ data }) => {
-        // PostgREST returns embedded relations as arrays; flatten to one record.
-        if (data) setLoans(data.map((l) => ({ ...l, borrower: one(l.borrower) })))
-      })
-  }, [fetchFees, supabase])
+    if (error) throw error
+    return (data ?? []).map((loan) => ({ ...loan, borrower: one(loan.borrower) }))
+  })
 
   const formatCurrency = (val: number | null | undefined, cur = "TJS") => {
     if (!val && val !== 0) return "—"
     return new Intl.NumberFormat("en-US", { style: "currency", currency: cur, minimumFractionDigits: 0 }).format(val)
   }
 
-  const getBorrowerName = (fee: Fee) => {
-    const b = (fee as any).loan_application?.borrower
+  const getBorrowerName = (fee: FeeRow) => {
+    const b = fee.loan_application?.borrower
     if (!b) return "—"
     return b.name || "—"
   }
@@ -128,7 +140,7 @@ export default function FeesPage() {
     if (!filteredFees.length) { showMessage("error", "There are no fee records to export"); return }
     const headers = ["Loan", "Borrower", "Bank", "Type", "Period Start", "Period End", "Base Amount", "Rate (%)", "Fee Amount", "Currency", "Invoice No.", "Invoice Date", "Due Date", "Status", "Payment Date"]
     const rows = filteredFees.map((fee) => {
-      const la = (fee as any).loan_application
+      const la = fee.loan_application
       return [
         la?.loan_number ?? "",
         getBorrowerName(fee),
@@ -150,8 +162,19 @@ export default function FeesPage() {
     downloadCSV(toCSV(headers, rows), `fees-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`)
   }
 
+  const createReq = useFieldRequirements("fee_create")
+  const invoiceReq = useFieldRequirements("fee_invoice")
+  const paymentReq = useFieldRequirements("fee_payment")
+
   const handleCreateFee = async () => {
-    if (!newLoanId || !newBaseAmount) { showMessage("error", "Please select a loan and enter base amount"); return }
+    const missing = createReq.missingFields({
+      loan_id: newLoanId,
+      fee_type: newFeeType,
+      ...(newFeeType === "quarterly" ? { period_start: newPeriodStart, period_end: newPeriodEnd } : {}),
+      base_amount: newBaseAmount,
+      fee_rate: newFeeRate,
+    })
+    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     const base = parseFloat(newBaseAmount)
@@ -182,7 +205,9 @@ export default function FeesPage() {
   }
 
   const handleGenerateInvoice = async () => {
-    if (!selectedFee || !invoiceDate) return
+    if (!selectedFee) return
+    const missing = invoiceReq.missingFields({ invoice_date: invoiceDate })
+    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
     setSaving(true)
     const { error } = await supabase.from("fees").update({ status: "invoiced", invoice_date: invoiceDate }).eq("id", selectedFee.id)
     if (error) { showMessage("error", error.message); setSaving(false); return }
@@ -193,7 +218,9 @@ export default function FeesPage() {
   }
 
   const handleMarkPaid = async () => {
-    if (!selectedFee || !paymentDate) return
+    if (!selectedFee) return
+    const missing = paymentReq.missingFields({ payment_date: paymentDate, payment_reference: paymentRef })
+    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
     setSaving(true)
     const { error } = await supabase.from("fees").update({ status: "paid", payment_date: paymentDate, payment_reference: paymentRef || null }).eq("id", selectedFee.id)
     if (error) { showMessage("error", error.message); setSaving(false); return }
@@ -203,28 +230,25 @@ export default function FeesPage() {
     setSaving(false)
   }
 
-  const printInvoice = (fee: Fee) => {
-    const borrower = (fee as any).loan_application?.borrower
+  const printInvoice = (fee: FeeRow) => {
+    const borrower = fee.loan_application?.borrower
     const borrowerName = borrower?.name || "—"
-    const bank = (fee as any).loan_application?.bank?.name_en || "—"
+    const bank = fee.loan_application?.bank?.name_en || "—"
     const today = new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" })
     const invoiceNum = fee.invoice_number || `INV-PENDING-${fee.id.substring(0, 8)}`
-    const html = `<!DOCTYPE html><html><head><title>Fee Invoice ${invoiceNum}</title>
-<style>body{font-family:Arial,sans-serif;font-size:12pt;margin:40px;color:#222}.header{text-align:center;margin-bottom:30px}.table{width:100%;border-collapse:collapse;margin:20px 0}.table td,.table th{border:1px solid #ccc;padding:8px 12px}.table th{background:#f0f0f0;font-weight:bold}.total-row{font-weight:bold;background:#f8f8f8}</style>
-</head><body>
-<div class="header"><h1>CREDIT GUARANTEE FUND - GUARANTEE FEE INVOICE</h1><h2>Credit Guarantee Fund – Ministry of Finance</h2></div>
-<p><strong>Invoice No.:</strong> ${invoiceNum}<br><strong>Date:</strong> ${today}<br><strong>Loan Ref.:</strong> ${(fee as any).loan_application?.loan_number || "—"}</p>
-<p><strong>To:</strong> ${bank}<br>Re: ${borrowerName}</p>
-<table class="table">
-<tr><th>Description</th><th>Base Amount</th><th>Rate</th><th>Fee Amount</th></tr>
-<tr><td>${fee.fee_type === "upfront" ? "Upfront Guarantee Fee" : `Quarterly Guarantee Commission${fee.period_start ? ` (${new Date(fee.period_start).toLocaleDateString()} – ${fee.period_end ? new Date(fee.period_end).toLocaleDateString() : ""})` : ""}`}</td><td>${formatCurrency(fee.base_amount)}</td><td>${(fee.fee_rate * 100).toFixed(2)}%</td><td>${formatCurrency(fee.fee_amount)}</td></tr>
-<tr class="total-row"><td colspan="3" style="text-align:right">Total Due:</td><td>${formatCurrency(fee.fee_amount)}</td></tr>
-</table>
-<p>Please remit payment to the PRSF Trust Fund Account within 30 days of this invoice date.</p>
-<p style="margin-top:40px;font-size:10pt;color:#666">Generated: ${today}</p>
-</body></html>`
+    const html = renderFeeInvoice({
+      invoiceNumber: invoiceNum,
+      date: today,
+      loanReference: fee.loan_application?.loan_number || "—",
+      bank,
+      borrower: borrowerName,
+      description: fee.fee_type === "upfront" ? "Upfront Guarantee Fee" : `Quarterly Guarantee Commission${fee.period_start ? ` (${new Date(fee.period_start).toLocaleDateString()} – ${fee.period_end ? new Date(fee.period_end).toLocaleDateString() : ""})` : ""}`,
+      baseAmount: formatCurrency(fee.base_amount),
+      rate: `${(fee.fee_rate * 100).toFixed(2)}%`,
+      feeAmount: formatCurrency(fee.fee_amount),
+    })
     const win = window.open("", "_blank")
-    if (win) { win.document.write(html); win.document.close(); win.print() }
+    if (win) { win.opener = null; win.document.write(html); win.document.close(); win.print() }
   }
 
   // Auto-calculate quarterly fees for all active loans
@@ -240,7 +264,7 @@ export default function FeesPage() {
     const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
     const quarterEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0)
 
-    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.auth.getUser()
     let created = 0
 
     for (const loan of activeLoans) {
@@ -351,7 +375,7 @@ export default function FeesPage() {
                       ) : (
                         filteredFees.map((fee) => (
                           <TableRow key={fee.id}>
-                            <TableCell className="font-medium text-primary text-sm">{(fee as any).loan_application?.loan_number || "—"}</TableCell>
+                            <TableCell className="font-medium text-primary text-sm">{fee.loan_application?.loan_number || "—"}</TableCell>
                             <TableCell className="text-sm">{getBorrowerName(fee)}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="capitalize">{fee.fee_type === "upfront" ? "Upfront" : "Quarterly"}</Badge>
@@ -413,7 +437,7 @@ export default function FeesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Loan Application *</Label>
+              <Label>Loan Application<RequiredMark show={createReq.isRequired("loan_id")} /></Label>
               <Select value={newLoanId} onValueChange={(v) => { setNewLoanId(v); const l = loans.find((x) => x.id === v); if (l) setNewBaseAmount(String(((l.approved_amount || 0) * (l.guarantee_coverage || 50) / 100).toFixed(0))) }}>
                 <SelectTrigger><SelectValue placeholder="Select loan" /></SelectTrigger>
                 <SelectContent>
@@ -426,7 +450,7 @@ export default function FeesPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Fee Type *</Label>
+              <Label>Fee Type<RequiredMark show={createReq.isRequired("fee_type")} /></Label>
               <Select value={newFeeType} onValueChange={(v) => setNewFeeType(v as "upfront" | "quarterly")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -438,22 +462,22 @@ export default function FeesPage() {
             {newFeeType === "quarterly" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Period Start</Label>
+                  <Label>Period Start<RequiredMark show={createReq.isRequired("period_start")} /></Label>
                   <Input type="date" value={newPeriodStart} onChange={(e) => setNewPeriodStart(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Period End</Label>
+                  <Label>Period End<RequiredMark show={createReq.isRequired("period_end")} /></Label>
                   <Input type="date" value={newPeriodEnd} onChange={(e) => setNewPeriodEnd(e.target.value)} />
                 </div>
               </div>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Base Amount (Guarantee Amount) *</Label>
+                <Label>Base Amount (Guarantee Amount)<RequiredMark show={createReq.isRequired("base_amount")} /></Label>
                 <Input type="number" value={newBaseAmount} onChange={(e) => setNewBaseAmount(e.target.value)} placeholder="Auto-filled from loan" />
               </div>
               <div className="space-y-2">
-                <Label>Fee Rate (%)</Label>
+                <Label>Fee Rate (%)<RequiredMark show={createReq.isRequired("fee_rate")} /></Label>
                 <Input type="number" step="0.1" value={newFeeRate} onChange={(e) => setNewFeeRate(e.target.value)} />
               </div>
             </div>
@@ -480,7 +504,7 @@ export default function FeesPage() {
             <DialogDescription>Issue a fee invoice for {selectedFee ? formatCurrency(selectedFee.fee_amount) : ""}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Invoice Date *</Label>
+            <Label>Invoice Date<RequiredMark show={invoiceReq.isRequired("invoice_date")} /></Label>
             <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
           </div>
           <DialogFooter>
@@ -501,11 +525,11 @@ export default function FeesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Payment Date *</Label>
+              <Label>Payment Date<RequiredMark show={paymentReq.isRequired("payment_date")} /></Label>
               <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Payment Reference</Label>
+              <Label>Payment Reference<RequiredMark show={paymentReq.isRequired("payment_reference")} /></Label>
               <Input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="Bank transfer / receipt number" />
             </div>
           </div>

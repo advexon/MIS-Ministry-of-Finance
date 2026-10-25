@@ -1,4 +1,4 @@
-import type { Role, RoleTier, RoleCode } from '@/lib/types/database'
+import type { Role, RoleTier } from '@/lib/types/database'
 import { ROLE_TIERS, ROLE_CODES } from '@/lib/types/database'
 
 /**

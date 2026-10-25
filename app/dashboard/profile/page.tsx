@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useState } from "react"
+import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
 import { useI18n } from "@/lib/i18n/context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,56 +38,41 @@ export default function ProfilePage() {
   const { t, locale, setLocale } = useI18n()
   const supabase = createClient()
 
-  const [profile, setProfile] = useState<ProfileWithRelations | null>(null)
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Form state for profile
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [phone, setPhone] = useState("")
-  const [preferredLanguage, setPreferredLanguage] = useState("en")
+  const [firstNameEdit, setFirstName] = useState<string>()
+  const [lastNameEdit, setLastName] = useState<string>()
+  const [phoneEdit, setPhone] = useState<string>()
+  const [languageEdit, setPreferredLanguage] = useState<string>()
 
   // Form state for password change
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmNewPassword, setConfirmNewPassword] = useState("")
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(`
-          *,
-          role:roles(*),
-          bank:banks(*)
-        `)
-        .eq("id", user.id)
-        .single()
-
-      if (error) throw error
-
-      setProfile(data)
-      setFirstName(data.first_name || "")
-      setLastName(data.last_name || "")
-      setPhone(data.phone || "")
-      setPreferredLanguage(data.preferred_language || "en")
-    } catch (err) {
-      console.error("Error fetching profile:", err)
-    } finally {
-      setLoading(false)
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    fetchProfile()
-  }, [fetchProfile])
+  const { data: profile = null, isLoading, mutate } = usePageQuery<ProfileWithRelations | null>(["my-profile"], async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Not authenticated")
+    const { data, error } = await supabase.from("profiles").select(`*, role:roles(*), bank:banks(*)`).eq("id", user.id).single()
+    if (error) throw error
+    return data
+  })
+  const loading = isLoading
+  const firstName = firstNameEdit ?? profile?.first_name ?? ""
+  const lastName = lastNameEdit ?? profile?.last_name ?? ""
+  const phone = phoneEdit ?? profile?.phone ?? ""
+  const preferredLanguage = languageEdit ?? profile?.preferred_language ?? "en"
+  const fetchProfile = async () => {
+    await mutate()
+    setFirstName(undefined)
+    setLastName(undefined)
+    setPhone(undefined)
+    setPreferredLanguage(undefined)
+  }
 
   const showMessage = (type: "success" | "error", message: string) => {
     if (type === "success") {

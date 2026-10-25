@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Save, Settings as SettingsIcon, Bell, Shield, Database } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { CgfWorkflowControls } from '@/components/admin/cgf-workflow-controls'
+import { FinancialPolicyControls } from '@/components/admin/financial-policy-controls'
 
 interface SettingRow { key: string; value: Record<string, unknown>; description: string }
 
@@ -38,12 +40,16 @@ export default function SettingsPage() {
     supabase.from('system_settings').select('*').then(({ data }) => {
       if (data) {
         const map: Record<string, SettingRow> = {}
-        for (const row of data) map[row.key] = row
+        for (const row of data) {
+          let value: unknown = row.value
+          try { value = JSON.parse(row.value) } catch { value = {} }
+          map[row.key] = { ...row, value: value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
+        }
         setSettings(map)
       }
       setLoading(false)
     })
-  }, [])
+  }, [supabase])
 
   const getVal = (key: string, field: string, fallback: unknown) => {
     return (settings[key]?.value?.[field] ?? fallback) as string | number | boolean
@@ -61,13 +67,15 @@ export default function SettingsPage() {
 
   const saveSection = async (keys: string[]) => {
     setSaving(true)
-    for (const key of keys) {
-      const row = settings[key]
-      if (!row) continue
-      await supabase.from('system_settings').upsert({ key, value: row.value, description: row.description }, { onConflict: 'key' })
-    }
-    toast({ title: 'Settings saved' })
-    setSaving(false)
+    try {
+      const rows = keys.flatMap((key) => settings[key] ? [{ key, value: JSON.stringify(settings[key].value), description: settings[key].description }] : [])
+      if (!rows.length) return
+      const { error } = await supabase.from('system_settings').upsert(rows, { onConflict: 'key' })
+      if (error) throw new Error(error.message)
+      toast({ title: 'Settings saved' })
+    } catch (error) {
+      toast({ title: 'Settings not saved', description: error instanceof Error ? error.message : 'The update failed', variant: 'destructive' })
+    } finally { setSaving(false) }
   }
 
   if (loading) return (
@@ -85,10 +93,12 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="general" className="gap-2"><SettingsIcon className="h-4 w-4" />{t.settings.general}</TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2"><Bell className="h-4 w-4" />{t.settings.notifications}</TabsTrigger>
           <TabsTrigger value="security" className="gap-2"><Shield className="h-4 w-4" />{t.settings.security}</TabsTrigger>
+          <TabsTrigger value="workflow">CGF workflow</TabsTrigger>
+          <TabsTrigger value="financial">Financial policy</TabsTrigger>
           <TabsTrigger value="backup" className="gap-2"><Database className="h-4 w-4" />Backup</TabsTrigger>
         </TabsList>
 
@@ -131,25 +141,13 @@ export default function SettingsPage() {
 
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Fee Configuration</CardTitle>
-              <CardDescription>Default fee rates applied to new guarantees</CardDescription>
+              <CardTitle className="text-base">Financial policy</CardTitle>
+              <CardDescription>Configure claim-payment limits, recovery allocation, fee rates, proration and currency policy in the Financial policy tab. Saved policy revisions are audited; financial execution integration remains pending.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Upfront Fee Rate (%)</Label>
-                <Input type="number" step="0.01" value={String(Number(getVal('upfront_fee_rate', 'rate', 0.005)) * 100)}
-                  onChange={e => setVal('upfront_fee_rate', 'rate', Number(e.target.value) / 100)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Quarterly Fee Rate (%)</Label>
-                <Input type="number" step="0.01" value={String(Number(getVal('quarterly_fee_rate', 'rate', 0.005)) * 100)}
-                  onChange={e => setVal('quarterly_fee_rate', 'rate', Number(e.target.value) / 100)} />
-              </div>
-            </CardContent>
           </Card>
 
           <div className="flex justify-end">
-            <Button onClick={() => saveSection(['loan_threshold','default_coverage','report_deadline_day','claim_processing_days','upfront_fee_rate','quarterly_fee_rate'])} disabled={saving} className="gap-2">
+            <Button onClick={() => saveSection(['loan_threshold','default_coverage','report_deadline_day','claim_processing_days'])} disabled={saving} className="gap-2">
               <Save className="h-4 w-4" />{saving ? 'Saving...' : t.common.save}
             </Button>
           </div>
@@ -159,8 +157,8 @@ export default function SettingsPage() {
         <TabsContent value="notifications" className="space-y-6">
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Email Notifications</CardTitle>
-              <CardDescription>Configure when the system sends automated alerts</CardDescription>
+              <CardTitle className="text-base">In-app Notifications</CardTitle>
+              <CardDescription>Alerts appear in the MIS notification bell without email. Automatic reminders require a configured alert generator.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {NOTIFICATION_KEYS.map(item => (
@@ -243,6 +241,9 @@ export default function SettingsPage() {
             </Button>
           </div>
         </TabsContent>
+
+        <TabsContent value="workflow"><CgfWorkflowControls /></TabsContent>
+        <TabsContent value="financial"><FinancialPolicyControls /></TabsContent>
 
         {/* Backup */}
         <TabsContent value="backup" className="space-y-6">

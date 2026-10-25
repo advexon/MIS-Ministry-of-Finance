@@ -1,551 +1,168 @@
 'use client'
 
-/**
- * One ККГ sitting: seating and quorum (step 7), voting (step 8) and the
- * protocol (step 10).
- *
- * The tallies rendered here mirror the engine, but the server re-evaluates
- * quorum and majority in /api/loans/[id]/workflow before it will allow the
- * protocol transition. A tampered client can therefore show a false "carried"
- * but cannot obtain a protocol the votes do not support.
- */
-
+/** Committee writes are serialized and authorized by cgf_committee_action. */
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
-import { AlertTriangle, Check, Loader2, ThumbsDown, ThumbsUp, MinusCircle } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-
-import {
-  evaluateCommitteeOutcome, requiredQuorum, tallyVotes, toUsd,
-} from '@/lib/workflow/fkg-scheme'
-import type { LoanStatus } from '@/lib/types/database'
-import {
-  memberName, type AgendaItem, type CommitteeMeeting, type CommitteeMember, type VoteValue,
-} from '@/components/committee/types'
+import { tallyVotes } from '@/lib/workflow/fkg-scheme'
+import { memberName, type CommitteeMeeting, type CommitteeMember } from '@/components/committee/types'
 
 interface Props {
   meeting: CommitteeMeeting
   allMembers: CommitteeMember[]
-  awaiting: { id: string; loan_number: string | null }[]
   myId: string | null
   myRole: string | null
-  onChanged: () => void | Promise<void>
+  secretaryAuthorized: boolean
+  onChanged: () => void | Promise<unknown>
+  onAction?: (action: string, data: Record<string, unknown>) => Promise<void>
+  claimContext?: { claimNumber: string; recommendedAmount: number; originalAmount: number; directorThreshold: number }
 }
 
-export function MeetingCard({ meeting, allMembers, awaiting, myId, myRole, onChanged }: Props) {
-  const supabase = createClient()
+export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthorized, onChanged, onAction, claimContext }: Props) {
   const { toast } = useToast()
-
   const [busy, setBusy] = useState(false)
-  const [seating, setSeating] = useState(false)
-  const [tabling, setTabling] = useState(false)
   const [protocolOpen, setProtocolOpen] = useState(false)
-  const [tableLoanId, setTableLoanId] = useState('')
-  const [protocol, setProtocol] = useState({ no: meeting.protocol_no ?? '', notes: meeting.protocol_notes ?? '' })
+  const [protocol, setProtocol] = useState({ no: '', notes: '' })
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [clarificationLoan, setClarificationLoan] = useState<string | null>(null)
+  const [clarificationReason, setClarificationReason] = useState('')
+  const finalized = ['closed', 'protocol_issued', 'cancelled'].includes(meeting.status ?? '')
+  const signing = meeting.status === 'signing'
+  const secretary = secretaryAuthorized && meeting.secretary_id === myId
+  const mySeat = meeting.seats.find((seat) => seat.member_id === myId)
+  const readOnly = !myRole || ['super_admin', 'prsf_admin', 'auditor', 'bank_admin', 'bank_officer'].includes(myRole)
+  const allSigned = meeting.seats.length > 0 && meeting.seats.every((seat) => seat.signed_at)
 
-  const isSecretary =
-    myRole === 'kkg_secretary' || myRole === 'super_admin' || myRole === 'prsf_admin' ||
-    (myId != null && meeting.secretary_id === myId)
-  const mySeat = meeting.seats.find((s) => s.member_id === myId)
-  const closed = meeting.status === 'closed'
-
-  // Supabase query builders are thenable but are not real Promises, so this
-  // accepts PromiseLike rather than Promise.
-  async function run(
-    fn: () => PromiseLike<{ error: { message: string } | null }>,
-    ok: string,
-  ) {
+  async function act(action: string, data: Record<string, unknown> = {}) {
     setBusy(true)
     try {
-      const res = await fn()
-      const err = res?.error ?? null
-      if (err) {
-        toast({ title: 'Rejected', description: err.message, variant: 'destructive' })
-        return false
+      if (onAction) {
+        await onAction(action, data)
+      } else {
+        const { error } = await createClient().rpc('cgf_committee_action', { p_action: action, p_meeting: meeting.id, p_data: data })
+        if (error) throw error
       }
-      toast({ title: ok })
+      setProtocolOpen(false)
+      setAcknowledged(false)
       await onChanged()
-      return true
+      toast({ title: action === 'issue' ? 'Signed protocol issued' : 'Committee record updated' })
+    } catch (error) {
+      toast({ title: 'Action refused', description: error && typeof error === 'object' && 'message' in error ? String(error.message) : 'Could not save this action.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
   }
 
-  /** Moves a loan's status through the validated workflow route. */
-  async function transition(loanId: string, to: LoanStatus, reason?: string) {
-    const res = await fetch(`/api/loans/${loanId}/workflow`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, reason }),
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      toast({
-        title: 'The transition was refused',
-        description: json.error ?? 'The server rejected this change.',
-        variant: 'destructive',
-      })
-      return false
-    }
-    return true
-  }
-
-  // ── Step 7: seat a member ──
-  async function seat(memberId: string) {
-    await run(
-      () => supabase.from('committee_meeting_members').insert({
-        meeting_id: meeting.id, member_id: memberId, attended: false, is_chair: false,
-      }),
-      'Member seated',
-    )
-  }
-
-  async function unseat(seatId: string) {
-    await run(() => supabase.from('committee_meeting_members').delete().eq('id', seatId), 'Seat removed')
-  }
-
-  async function setAttended(seatId: string, attended: boolean) {
-    await run(
-      () => supabase.from('committee_meeting_members').update({ attended }).eq('id', seatId),
-      attended ? 'Marked present' : 'Marked absent',
-    )
-  }
-
-  // ── Step 7 → 8: table an application ──
-  async function tableLoan() {
-    if (!tableLoanId) return
+  async function requestVerification(loanId: string) {
     setBusy(true)
-    const { error } = await supabase.from('committee_agenda_items').insert({
-      meeting_id: meeting.id, loan_id: tableLoanId,
-    })
-    if (error) {
-      setBusy(false)
-      toast({ title: 'Could not table the application', description: error.message, variant: 'destructive' })
-      return
-    }
-    // Only now does the loan enter the sitting.
-    const moved = await transition(tableLoanId, 'kkg_review', `Tabled at ${meeting.meeting_no ?? 'ККГ meeting'}`)
-    setBusy(false)
-    if (moved) {
-      setTabling(false)
-      setTableLoanId('')
+    try {
+      const response = await fetch(`/api/loans/${loanId}/workflow`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: 'verification', reason: 'Committee requested verification before deciding' }) })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error ?? 'Verification request refused')
       await onChanged()
-    }
+    } catch (error) {
+      toast({ title: 'Action refused', description: error instanceof Error ? error.message : 'Request failed', variant: 'destructive' })
+    } finally { setBusy(false) }
   }
 
-  // ── Step 8: vote ──
-  async function castVote(item: AgendaItem, vote: VoteValue) {
-    if (!myId) return
-    const existing = item.votes.find((v) => v.member_id === myId)
-    await run(
-      () =>
-        existing
-          ? supabase.from('committee_votes').update({ vote, voted_at: new Date().toISOString() }).eq('id', existing.id)
-          : supabase.from('committee_votes').insert({
-              agenda_item_id: item.id, member_id: myId, vote, voted_at: new Date().toISOString(),
-            }),
-      existing ? 'Vote changed' : 'Vote recorded',
-    )
-  }
-
-  /** Step 8 → 9: the committee wants a site verification before deciding. */
-  async function sendToVerification(item: AgendaItem) {
-    if (!item.loan) return
-    const ok = await transition(item.loan.id, 'verification', 'ККГ requested a site verification')
-    if (ok) await onChanged()
-  }
-
-  /** Step 8 → 10 (reject): the committee declines the application outright. */
-  async function rejectItem(item: AgendaItem) {
-    if (!item.loan) return
-    await supabase.from('committee_agenda_items').update({ outcome: 'rejected', decided_at: new Date().toISOString() }).eq('id', item.id)
-    const ok = await transition(item.loan.id, 'rejected', 'Declined by ККГ')
-    if (ok) await onChanged()
-  }
-
-  // ── Step 10: issue the protocol ──
-  async function issueProtocol() {
-    if (!protocol.no.trim()) {
-      toast({ title: 'A protocol number is required', variant: 'destructive' })
-      return
-    }
+  async function requestClarification() {
+    if (!clarificationLoan || clarificationReason.trim().length < 3) return
     setBusy(true)
-
-    await supabase
-      .from('committee_meetings')
-      .update({
-        protocol_no: protocol.no.trim(),
-        protocol_notes: protocol.notes || null,
-        protocol_date: new Date().toISOString().slice(0, 10),
-        held_at: meeting.held_at ?? new Date().toISOString(),
-        status: 'closed',
-      })
-      .eq('id', meeting.id)
-
-    // Each carried item advances. The server re-checks quorum for every one, so
-    // an item whose votes do not support it stays put and is reported below.
-    const failures: string[] = []
-    for (const item of meeting.items) {
-      if (!item.loan) continue
-      const outcome = outcomeFor(item)
-      if (!outcome.carried) continue
-
-      await supabase
-        .from('committee_agenda_items')
-        .update({ outcome: 'recommended', decided_at: new Date().toISOString() })
-        .eq('id', item.id)
-
-      const res = await fetch(`/api/loans/${item.loan.id}/workflow`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: 'kkg_protocol',
-          reason: `ККГ protocol ${protocol.no.trim()}`,
-        }),
-      })
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        failures.push(`${label(item)}: ${j.error ?? 'refused'}`)
-      }
-    }
-
-    setBusy(false)
-    setProtocolOpen(false)
-
-    if (failures.length) {
-      toast({
-        title: 'Protocol saved, but some items did not advance',
-        description: failures.join(' · '),
-        variant: 'destructive',
-      })
-    } else {
-      toast({ title: 'Protocol issued', description: 'Carried applications have moved to step 11.' })
-    }
-    await onChanged()
+    try {
+      const { error } = await createClient().rpc('cgf_request_clarification', { p_loan: clarificationLoan, p_reason: clarificationReason.trim() })
+      if (error) throw new Error(error.message)
+      setClarificationLoan(null)
+      setClarificationReason('')
+      await onChanged()
+      toast({ title: 'Clarification requested', description: 'The bank was notified. Prior votes are preserved; the clarified file requires a new sitting.' })
+    } catch (error) {
+      toast({ title: 'Action refused', description: error instanceof Error ? error.message : 'Request failed', variant: 'destructive' })
+    } finally { setBusy(false) }
   }
-
-  /** Quorum is what the meeting fixed; the loan's own requirement is the floor. */
-  function outcomeFor(item: AgendaItem) {
-    const usd =
-      item.loan?.amount_usd ??
-      toUsd(item.loan?.guarantee_amount ?? item.loan?.approved_amount ?? null, item.loan?.usd_rate ?? null)
-    const quorum = meeting.required_quorum ?? requiredQuorum(usd)
-    return { ...evaluateCommitteeOutcome(tallyVotes(item.votes), quorum), quorum }
-  }
-
-  const label = (item: AgendaItem) =>
-    item.loan?.loan_number ?? item.loan_id.slice(0, 8)
-
-  const present = meeting.seats.filter((s) => s.attended).length
-  const quorumShort = (meeting.required_quorum ?? 5) - present
-  const seatedIds = new Set(meeting.seats.map((s) => s.member_id))
-  const unseated = allMembers.filter((m) => !seatedIds.has(m.id))
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="flex flex-col gap-1">
-            <CardTitle className="text-base">{meeting.meeting_no ?? 'Untitled meeting'}</CardTitle>
-            <CardDescription className="text-xs">
-              {meeting.scheduled_at
-                ? new Date(meeting.scheduled_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
-                : 'No date set'}
-              {' · '}
-              {present} present of {meeting.seats.length} seated · quorum {meeting.required_quorum ?? 5}
-            </CardDescription>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle>{meeting.meeting_no ?? 'Committee sitting'}</CardTitle>
+            <CardDescription>All {meeting.seats.length} assigned members must agree and sign. Chair selected by seniority.</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            {meeting.protocol_no && <Badge variant="outline">Protocol {meeting.protocol_no}</Badge>}
-            <Badge variant={closed ? 'secondary' : 'default'}>{meeting.status ?? 'scheduled'}</Badge>
-          </div>
+          <Badge variant={finalized ? 'secondary' : 'outline'}>{meeting.status}</Badge>
         </div>
+        {meeting.due_at && <p className="text-sm text-muted-foreground">Voting deadline: {new Date(meeting.due_at).toLocaleString()}{meeting.escalated_at ? ' · Director notified' : ''}</p>}
       </CardHeader>
-
-      <CardContent className="flex flex-col gap-4">
-        {quorumShort > 0 && !closed && (
-          <p className="flex items-start gap-2 text-xs text-amber-700">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            {quorumShort} more member{quorumShort === 1 ? '' : 's'} must be marked present before any
-            recommendation can carry.
-          </p>
-        )}
-
-        {/* ── Seating (step 7) ── */}
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Members
-            </h3>
-            {isSecretary && !closed && unseated.length > 0 && (
-              <Button size="sm" variant="outline" onClick={() => setSeating(true)} disabled={busy}>
-                Seat members
-              </Button>
-            )}
-          </div>
-          {meeting.seats.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No members seated yet.</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {meeting.seats.map((s) => {
-                const m = allMembers.find((x) => x.id === s.member_id)
-                return (
-                  <li key={s.id} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      id={`att-${s.id}`}
-                      checked={!!s.attended}
-                      disabled={!isSecretary || closed || busy}
-                      onCheckedChange={(v) => setAttended(s.id, v === true)}
-                    />
-                    <Label htmlFor={`att-${s.id}`} className="font-normal">
-                      {memberName(m)}
-                      {s.member_id === myId && ' (you)'}
-                    </Label>
-                    {s.is_chair && <Badge variant="outline" className="text-[10px]">Chair</Badge>}
-                    {isSecretary && !closed && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="ml-auto h-6 px-2 text-xs text-muted-foreground"
-                        onClick={() => unseat(s.id)}
-                        disabled={busy}
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+      <CardContent className="flex flex-col gap-6">
+        {claimContext && <p className="text-sm text-muted-foreground">Claim {claimContext.claimNumber} · Proposed approval {claimContext.recommendedAmount.toLocaleString()} TJS · Original loan {claimContext.originalAmount.toLocaleString()} TJS · Director threshold {claimContext.directorThreshold.toLocaleString()} TJS. Approval does not record a payment.</p>}
+        <section aria-label="Assigned committee members" className="flex flex-col gap-3">
+          {meeting.seats.map((seat) => (
+            <div key={seat.id} className="flex flex-wrap items-center gap-3">
+              <Checkbox id={`attendance-${seat.id}`} checked={seat.attended === true} disabled={!secretary || finalized || signing || busy} onCheckedChange={(value) => void act('attendance', { member_id: seat.member_id, attended: value === true })} />
+              <Label htmlFor={`attendance-${seat.id}`}>{memberName(allMembers.find((member) => member.id === seat.member_id))}{seat.member_id === myId ? ' (you)' : ''}</Label>
+              {seat.is_chair && <Badge variant="outline">Chair</Badge>}
+              {seat.signed_at && <Badge variant="secondary">Signed {new Date(seat.signed_at).toLocaleString()}</Badge>}
+            </div>
+          ))}
         </section>
-
-        {/* ── Agenda and voting (step 8) ── */}
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Agenda
-            </h3>
-            {isSecretary && !closed && awaiting.length > 0 && (
-              <Button size="sm" variant="outline" onClick={() => setTabling(true)} disabled={busy}>
-                Table an application
-              </Button>
-            )}
-          </div>
-
-          {meeting.items.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nothing tabled yet.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {meeting.items.map((item) => {
-                const o = outcomeFor(item)
-                const myVote = item.votes.find((v) => v.member_id === myId)?.vote
-                const canVote = !!mySeat?.attended && !closed && !item.decided_at
-
-                return (
-                  <li key={item.id} className="rounded-md border p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{label(item)}</span>
-                      <div className="flex items-center gap-2">
-                        {item.outcome && <Badge variant="outline">{item.outcome}</Badge>}
-                        <Badge variant={o.carried ? 'default' : 'secondary'} className="text-[10px]">
-                          {o.carried ? 'Carried' : o.quorumMet ? 'Not carried' : 'No quorum'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <p className="mt-1 text-xs text-muted-foreground">{o.reason}</p>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                      <span>For {tallyVotes(item.votes).for}</span>
-                      <span>Against {tallyVotes(item.votes).against}</span>
-                      <span>Abstain {tallyVotes(item.votes).abstain}</span>
-                    </div>
-
-                    {canVote && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {([
-                          ['for', 'For', ThumbsUp],
-                          ['against', 'Against', ThumbsDown],
-                          ['abstain', 'Abstain', MinusCircle],
-                        ] as const).map(([v, text, Icon]) => (
-                          <Button
-                            key={v}
-                            size="sm"
-                            variant={myVote === v ? 'default' : 'outline'}
-                            onClick={() => castVote(item, v)}
-                            disabled={busy}
-                          >
-                            <Icon className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> {text}
-                            {myVote === v && <Check className="ml-1 h-3 w-3" aria-hidden="true" />}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-
-                    {!canVote && !closed && !mySeat?.attended && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Only members marked present may vote.
-                      </p>
-                    )}
-
-                    {isSecretary && !closed && !item.decided_at && (
-                      <div className="mt-2 flex flex-wrap gap-2 border-t pt-2">
-                        <Button size="sm" variant="outline" onClick={() => sendToVerification(item)} disabled={busy}>
-                          Request verification (step 9)
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => rejectItem(item)} disabled={busy}>
-                          Decline
-                        </Button>
-                      </div>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+        <section aria-label="Agenda" className="flex flex-col gap-4">
+          {meeting.items.map((item) => {
+            const tally = tallyVotes(item.votes)
+            const myVote = item.votes.find((vote) => vote.member_id === myId)?.vote
+            const unanimous = tally.total === meeting.seats.length && meeting.seats.length > 0 && (tally.for === meeting.seats.length || tally.against === meeting.seats.length)
+            return (
+              <article key={item.id} className="flex flex-col gap-3 rounded-md border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Link className="font-medium underline underline-offset-4" href={`/dashboard/loans/${item.loan_id}`}>{item.loan?.loan_number ?? item.loan_id.slice(0, 8)}</Link>
+                  <Badge variant="outline">{item.outcome ?? (unanimous ? 'Unanimous' : 'Awaiting unanimous decision')}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">For {tally.for} · Against {tally.against} · Abstain {tally.abstain} · {tally.total}/{meeting.seats.length} votes</p>
+                {!readOnly && mySeat?.attended && !finalized && !signing && !item.decided_at && (
+                  <div className="flex flex-wrap gap-2">
+                    {(['for', 'against', 'abstain'] as const).map((vote) => <Button key={vote} size="sm" variant={myVote === vote ? 'default' : 'outline'} disabled={busy} onClick={() => void act('vote', { item_id: item.id, vote })}>{vote === 'for' ? 'For' : vote === 'against' ? 'Against' : 'Abstain'}</Button>)}
+                  </div>
+                )}
+                {secretary && !finalized && !signing && item.loan?.status === 'kkg_review' && <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy} onClick={() => void requestVerification(item.loan_id)}>Request verification</Button>{!claimContext && <Button variant="outline" size="sm" disabled={busy} onClick={() => setClarificationLoan(item.loan_id)}>Request bank clarification</Button>}</div>}
+              </article>
+            )
+          })}
         </section>
-
-        {/* ── Protocol (step 10) ── */}
-        {isSecretary && !closed && meeting.items.length > 0 && (
-          <Button size="sm" className="self-start" onClick={() => setProtocolOpen(true)} disabled={busy}>
-            Issue protocol (step 10)
-          </Button>
+        {meeting.protocol_no && <p className="text-sm">Protocol {meeting.protocol_no} · {meeting.protocol_date}<br />{meeting.protocol_notes}</p>}
+        {meeting.protocol_snapshot && (
+          <details className="rounded-md border p-3">
+            <summary className="cursor-pointer text-sm font-medium">Review frozen protocol and recorded votes</summary>
+            <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-sm">{JSON.stringify(meeting.protocol_snapshot, null, 2)}</pre>
+          </details>
         )}
-        {meeting.protocol_notes && (
-          <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            {meeting.protocol_notes}
-          </p>
-        )}
-        {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />}
-      </CardContent>
-
-      {/* Seat members */}
-      <Dialog open={seating} onOpenChange={setSeating}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Seat committee members</DialogTitle>
-            <DialogDescription>
-              Seating records who may vote. Attendance is marked separately, because quorum counts who
-              actually sat, not who was invited.
-            </DialogDescription>
-          </DialogHeader>
-          <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto">
-            {unseated.map((m) => (
-              <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
-                <span>
-                  {memberName(m)}{' '}
-                  <span className="text-xs text-muted-foreground">
-                    {(m.role as { name_en?: string } | null)?.name_en ?? ''}
-                  </span>
-                </span>
-                <Button size="sm" variant="outline" onClick={() => seat(m.id)} disabled={busy}>
-                  Seat
-                </Button>
-              </li>
-            ))}
-            {unseated.length === 0 && (
-              <li className="text-xs text-muted-foreground">Everyone eligible is already seated.</li>
-            )}
-          </ul>
-        </DialogContent>
-      </Dialog>
-
-      {/* Table an application */}
-      <Dialog open={tabling} onOpenChange={setTabling}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Table an application</DialogTitle>
-            <DialogDescription>
-              Only applications that have cleared Credit Risk (step 6) can be tabled.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="table-loan">Application</Label>
-            <Select value={tableLoanId} onValueChange={setTableLoanId}>
-              <SelectTrigger id="table-loan">
-                <SelectValue placeholder="Select an application" />
-              </SelectTrigger>
-              <SelectContent>
-                {awaiting.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.loan_number ?? l.id.slice(0, 8)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTabling(false)} disabled={busy}>Cancel</Button>
-            <Button onClick={tableLoan} disabled={busy || !tableLoanId}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Table
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Issue protocol */}
-      <Dialog open={protocolOpen} onOpenChange={setProtocolOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Issue the ККГ protocol — step 10</DialogTitle>
-            <DialogDescription>
-              Only items that carried will advance. Anything without quorum or a majority stays on the
-              agenda, and the server checks this again for each one.
-            </DialogDescription>
-          </DialogHeader>
+        {signing && mySeat && !mySeat.signed_at && !readOnly && (
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="protocol-no">Protocol number</Label>
-              <Input
-                id="protocol-no"
-                value={protocol.no}
-                onChange={(e) => setProtocol((p) => ({ ...p, no: e.target.value }))}
-                placeholder="e.g. ККГ-П-2026-07"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="protocol-notes">Protocol notes</Label>
-              <Textarea
-                id="protocol-notes"
-                rows={3}
-                value={protocol.notes}
-                onChange={(e) => setProtocol((p) => ({ ...p, notes: e.target.value }))}
-              />
-            </div>
-            <ul className="flex flex-col gap-1 rounded-md bg-muted/50 px-3 py-2 text-xs">
-              {meeting.items.map((item) => {
-                const o = outcomeFor(item)
-                return (
-                  <li key={item.id} className="flex items-center justify-between gap-2">
-                    <span>{label(item)}</span>
-                    <span className={o.carried ? 'text-emerald-700' : 'text-muted-foreground'}>
-                      {o.carried ? 'will advance' : 'stays'}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
+            <div className="flex items-center gap-3"><Checkbox id={`sign-${meeting.id}`} checked={acknowledged} onCheckedChange={(value) => setAcknowledged(value === true)} /><Label htmlFor={`sign-${meeting.id}`}>I have reviewed and agree to sign this frozen protocol.</Label></div>
+            <Button className="self-start" disabled={busy || !acknowledged} onClick={() => void act('sign')}>Sign protocol</Button>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProtocolOpen(false)} disabled={busy}>Cancel</Button>
-            <Button onClick={issueProtocol} disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Issue protocol
-            </Button>
-          </DialogFooter>
+        )}
+        {finalized && <p className="text-sm text-muted-foreground">This sitting is immutable. Reconsideration requires a new sitting.</p>}
+      </CardContent>
+      <CardFooter className="flex flex-wrap gap-3">
+        {secretary && !finalized && !signing && <><Button disabled={busy || !meeting.items.length} onClick={() => setProtocolOpen(true)}>Prepare protocol for all-member signatures</Button><Button variant="outline" disabled={busy} onClick={() => void act('cancel')}>Cancel sitting</Button></>}
+        {secretary && signing && <Button disabled={busy || !allSigned} onClick={() => void act('issue')}>Issue signed protocol</Button>}
+        {busy && <Loader2 className="size-4 animate-spin" aria-label="Saving committee action" />}
+      </CardFooter>
+      <Dialog open={clarificationLoan !== null} onOpenChange={(open) => { if (!open) setClarificationLoan(null) }}>
+        <DialogContent><DialogHeader><DialogTitle>Request additional information from the bank</DialogTitle><DialogDescription>The current sitting is closed without a decision. Existing votes remain recorded. After the bank responds, the analyst reviews the file and a new sitting is convened.</DialogDescription></DialogHeader><fieldset disabled={busy} className="flex flex-col gap-3"><Label htmlFor={`clarification-${meeting.id}`}>Documents or clarification required</Label><Textarea id={`clarification-${meeting.id}`} maxLength={4000} rows={4} value={clarificationReason} onChange={(event) => setClarificationReason(event.target.value)} /></fieldset><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setClarificationLoan(null)}>Cancel</Button><Button disabled={busy || clarificationReason.trim().length < 3} onClick={() => void requestClarification()}>Notify bank and return file</Button></DialogFooter></DialogContent>
+      </Dialog>
+      <Dialog open={protocolOpen} onOpenChange={setProtocolOpen}>
+        <DialogContent><DialogHeader><DialogTitle>Prepare committee protocol</DialogTitle><DialogDescription>Every assigned member must have voted unanimously. Preparing freezes the text and votes; all members must then sign before issuance.</DialogDescription></DialogHeader>
+          <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor={`protocol-no-${meeting.id}`}>Protocol number</Label><Input id={`protocol-no-${meeting.id}`} maxLength={100} value={protocol.no} onChange={(event) => setProtocol((current) => ({ ...current, no: event.target.value }))} /><Label htmlFor={`protocol-notes-${meeting.id}`}>Protocol notes</Label><Textarea id={`protocol-notes-${meeting.id}`} value={protocol.notes} onChange={(event) => setProtocol((current) => ({ ...current, notes: event.target.value }))} /></fieldset>
+          <DialogFooter><Button variant="outline" onClick={() => setProtocolOpen(false)} disabled={busy}>Cancel</Button><Button disabled={busy || !protocol.no.trim()} onClick={() => void act('prepare', { protocol_no: protocol.no, notes: protocol.notes })}>Freeze protocol for signatures</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>

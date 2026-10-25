@@ -86,9 +86,9 @@ export async function parseExcelFile(file: File): Promise<{
 
     if (loansSheetName) {
       const loansSheet = workbook.Sheets[loansSheetName]
-      const loansData = XLSX.utils.sheet_to_json(loansSheet, { raw: false, defval: '' })
+      const loansData = XLSX.utils.sheet_to_json<Record<string, unknown>>(loansSheet, { raw: false, defval: '' })
 
-      loansData.forEach((row: any, index: number) => {
+      loansData.forEach((row, index) => {
         try {
           const loan: ParsedLoan = {
             row_number: index + 1,
@@ -176,9 +176,9 @@ export async function parseExcelFile(file: File): Promise<{
 
     if (paymentsSheetName) {
       const paymentsSheet = workbook.Sheets[paymentsSheetName]
-      const paymentsData = XLSX.utils.sheet_to_json(paymentsSheet, { raw: false, defval: '' })
+      const paymentsData = XLSX.utils.sheet_to_json<Record<string, unknown>>(paymentsSheet, { raw: false, defval: '' })
 
-      paymentsData.forEach((row: any, index: number) => {
+      paymentsData.forEach((row, index) => {
         try {
           const payment: ParsedPayment = {
             loan_number: String(row['Loan Number'] || row['№ кредита'] || row['Рақами қарз'] || '').trim(),

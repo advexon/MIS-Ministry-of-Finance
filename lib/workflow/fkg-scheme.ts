@@ -15,8 +15,9 @@
 
 import type { LoanStatus, RoleCode } from '@/lib/types/database'
 import { ROLE_CODES } from '@/lib/types/database'
+import { canServeAsSecretary, canServeOnLoanCommittee, type EmployeeFlags } from '@/lib/employee-flags'
 
-/** Guideline threshold that decides whether a full assessment is required. */
+/** Exposure threshold that requires a separate Credit Risk opinion. */
 export const ASSESSMENT_THRESHOLD_USD = 10_000
 
 /** Assessment note SLA from the scheme (step 5). */
@@ -39,9 +40,8 @@ export interface SchemeStep {
 }
 
 /**
- * The 16 steps. `step` matches the numbering on the official scheme diagram, so
- * step 14 is intentionally absent: the diagram routes step 13 straight into the
- * Management decision at 15.
+ * The 16 steps. The approved CGF role document adds mandatory Deputy Director
+ * confirmation at step 14 before the Director's decision and signature.
  */
 export const SCHEME_STEPS: SchemeStep[] = [
   {
@@ -52,7 +52,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'Bank submits guarantee request',
     titleRu: 'Банк направляет заявку на гарантию',
     guidelineRef: '7.1.1',
-    actors: [ROLE_CODES.BANK_OFFICER, ROLE_CODES.BANK_ADMIN],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 2,
@@ -62,7 +62,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'УКО registers request and checks amount',
     titleRu: 'УКО регистрирует заявку и проверяет сумму',
     guidelineRef: '7.1.2',
-    actors: [ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 3,
@@ -72,7 +72,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'Incomplete package returned to bank',
     titleRu: 'Неполный пакет возвращён банку',
     guidelineRef: '7.1.3',
-    actors: [ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.BANK_OFFICER, ROLE_CODES.BANK_ADMIN],
   },
   {
     step: 4,
@@ -113,7 +113,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ККГ members assigned and quorum set',
     titleRu: 'Назначение членов ККГ и определение кворума',
     guidelineRef: '7.1.7',
-    actors: [ROLE_CODES.KKG_SECRETARY],
+    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.COMPLIANCE_OFFICER, ROLE_CODES.CREDIT_RISK_OFFICER],
   },
   {
     step: 8,
@@ -123,7 +123,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ККГ reviews application',
     titleRu: 'ККГ рассматривает заявку',
     guidelineRef: '7.1.8',
-    actors: [ROLE_CODES.KKG_SECRETARY, ROLE_CODES.KKG_MEMBER],
+    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.COMPLIANCE_OFFICER, ROLE_CODES.CREDIT_RISK_OFFICER, ROLE_CODES.FKG_MANAGEMENT],
     isDecision: true,
   },
   {
@@ -144,7 +144,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ККГ protocol issued',
     titleRu: 'Оформление протокола ККГ',
     guidelineRef: '7.1.10',
-    actors: [ROLE_CODES.KKG_SECRETARY],
+    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.COMPLIANCE_OFFICER, ROLE_CODES.CREDIT_RISK_OFFICER],
   },
   {
     step: 11,
@@ -154,7 +154,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'Formal application (Appendix 1.1)',
     titleRu: 'Официальная заявка (Приложение 1.1)',
     guidelineRef: '7.1.11',
-    actors: [ROLE_CODES.PRSF_ANALYST, ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 12,
@@ -164,7 +164,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'УКО decision reconciled with ККГ recommendation',
     titleRu: 'Сверка решения УКО с рекомендацией ККГ',
     guidelineRef: '7.1.12',
-    actors: [ROLE_CODES.UKO_OFFICER],
+    actors: [ROLE_CODES.PRSF_ANALYST],
   },
   {
     step: 13,
@@ -175,6 +175,16 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleRu: 'Записка комплаенс-проверки',
     guidelineRef: '7.1.13',
     actors: [ROLE_CODES.COMPLIANCE_OFFICER],
+  },
+  {
+    step: 14,
+    code: 'deputy_confirmation',
+    status: 'deputy_review',
+    lane: 'management',
+    titleEn: 'Deputy Director reviews and confirms the file',
+    titleRu: 'Заместитель директора проверяет и подтверждает дело',
+    guidelineRef: 'CGF roles, section 1',
+    actors: [ROLE_CODES.DEPUTY_DIRECTOR],
   },
   {
     step: 15,
@@ -195,7 +205,7 @@ export const SCHEME_STEPS: SchemeStep[] = [
     titleEn: 'ПВГ issued electronically',
     titleRu: 'ПВГ выдаётся электронно',
     guidelineRef: '7.1.16',
-    actors: [ROLE_CODES.FKG_MANAGEMENT, ROLE_CODES.PRSF_ADMIN],
+    actors: [ROLE_CODES.FKG_MANAGEMENT],
   },
 ]
 
@@ -225,19 +235,19 @@ export const ALLOWED_TRANSITIONS: Partial<Record<LoanStatus, LoanStatus[]>> = {
   // Step 2 either accepts the package or bounces it back to the bank.
   uko_registration: ['eligibility_review', 'docs_incomplete', 'rejected', 'cancelled'],
   // Step 3 loop: the bank completes the package and resubmits.
-  docs_incomplete: ['uko_registration', 'cancelled'],
-  // Gate D: small exposures skip the assessment note and go straight to risk.
-  eligibility_review: ['assessment', 'risk_review', 'ineligible', 'docs_incomplete', 'cancelled'],
-  assessment: ['risk_review', 'ineligible', 'cancelled'],
+  docs_incomplete: ['uko_registration', 'assessment', 'cancelled'],
+  eligibility_review: ['assessment', 'ineligible', 'docs_incomplete', 'cancelled'],
+  assessment: ['risk_review', 'kkg_scheduled', 'ineligible', 'docs_incomplete', 'cancelled'],
   risk_review: ['kkg_scheduled', 'ineligible', 'cancelled'],
   kkg_scheduled: ['kkg_review', 'cancelled'],
   // Step 8 may send the case out for verification before it can be concluded.
-  kkg_review: ['verification', 'kkg_protocol', 'rejected', 'cancelled'],
-  verification: ['kkg_review', 'kkg_protocol', 'cancelled'],
+  kkg_review: ['verification', 'docs_incomplete', 'kkg_protocol', 'rejected', 'cancelled'],
+  verification: ['kkg_review', 'cancelled'],
   kkg_protocol: ['formal_application', 'rejected', 'cancelled'],
   formal_application: ['uko_reconciliation', 'cancelled'],
   uko_reconciliation: ['compliance_check', 'kkg_review', 'rejected', 'cancelled'],
-  compliance_check: ['management_review', 'rejected', 'cancelled'],
+  compliance_check: ['deputy_review', 'rejected', 'cancelled'],
+  deputy_review: ['management_review', 'rejected', 'cancelled'],
   management_review: ['approved', 'rejected', 'cancelled'],
   approved: ['guarantee_issued', 'cancelled'],
 }
@@ -256,34 +266,16 @@ export function toUsd(amount: number | null, usdRate: number | null): number | n
   return amount / usdRate
 }
 
-/**
- * Gate D routing. Returns null when the USD amount is unknown, which the caller
- * must treat as "cannot decide yet" rather than as "no assessment needed" —
- * silently skipping the assessment would be an audit finding.
- *
- * The threshold is INCLUSIVE: an exposure of exactly 10,000.00 USD requires the
- * full assessment note. Confirmed against the Guideline's "from 10,000 USD and
- * above" reading. Do not weaken this to `>` without a documented basis — it is
- * the difference between a round-number case getting a full review or skipping
- * straight to Credit Risk.
- */
-export function requiresAssessment(amountUsd: number | null): boolean | null {
-  if (amountUsd == null) return null
-  return amountUsd >= ASSESSMENT_THRESHOLD_USD
+/** Every application needs an assessment; exposure and rating govern the separate risk review. */
+export function requiresAssessment(amountUsd: number | null): boolean {
+  // Retain the exposure argument for callers; assessment is mandatory at every amount.
+  void amountUsd
+  return true
 }
 
-/**
- * ККГ quorum. The scheme ties committee composition to exposure, so larger
- * guarantees need more members present.
- */
-export function requiredQuorum(amountUsd: number | null): number {
-  if (amountUsd == null) return 5 // unknown exposure: demand the stricter quorum
-  if (amountUsd >= 100_000) return 5
-  // Inclusive, to match requiresAssessment above. If this stayed exclusive, an
-  // exposure of exactly 10,000 USD would require the full assessment note yet
-  // sit in the smallest quorum band — the same boundary read two ways.
-  if (amountUsd >= ASSESSMENT_THRESHOLD_USD) return 4
-  return 3
+export function requiresRiskReview(amountUsd: number | null, riskRating: string | null): boolean {
+  return amountUsd == null || amountUsd >= ASSESSMENT_THRESHOLD_USD ||
+    !riskRating || riskRating === 'elevated' || riskRating === 'high'
 }
 
 export interface VoteTally {
@@ -299,44 +291,21 @@ export function tallyVotes(votes: { vote: 'for' | 'against' | 'abstain' }[]): Vo
   return t
 }
 
-export interface QuorumResult {
-  quorumMet: boolean
-  carried: boolean
-  reason: string
+export function isWorkflowReadOnlyRole(roleCode: string | null | undefined): boolean {
+  return !roleCode || ['super_admin', 'prsf_admin', 'auditor'].includes(roleCode)
 }
 
-/**
- * A recommendation carries only when quorum is met AND a simple majority of the
- * members present vote in favour. Abstentions count toward quorum but never
- * toward the majority.
- */
-export function evaluateCommitteeOutcome(
-  tally: VoteTally,
-  requiredQuorumCount: number,
-): QuorumResult {
-  if (tally.total < requiredQuorumCount) {
-    return {
-      quorumMet: false,
-      carried: false,
-      reason: `Quorum not met: ${tally.total} of ${requiredQuorumCount} required members voted.`,
-    }
+export function canActOnStep(
+  roleCode: string | null | undefined,
+  step: SchemeStep,
+  flags: EmployeeFlags = {},
+): boolean {
+  if (isWorkflowReadOnlyRole(roleCode)) return false
+  if (step.step === 7 || step.step === 10) return canServeAsSecretary(roleCode, flags)
+  if (step.step === 8) {
+    return roleCode === ROLE_CODES.FKG_MANAGEMENT || canServeAsSecretary(roleCode, flags) || canServeOnLoanCommittee(roleCode, flags)
   }
-  const majority = Math.floor(tally.total / 2) + 1
-  if (tally.for >= majority) {
-    return { quorumMet: true, carried: true, reason: `Carried: ${tally.for} of ${tally.total} in favour.` }
-  }
-  return {
-    quorumMet: true,
-    carried: false,
-    reason: `Not carried: ${tally.for} in favour, ${tally.against} against, ${tally.abstain} abstained (needed ${majority}).`,
-  }
-}
-
-export function canActOnStep(roleCode: string | null | undefined, step: SchemeStep): boolean {
-  if (!roleCode) return false
-  // Admins can act anywhere; they are the break-glass path.
-  if (roleCode === ROLE_CODES.SUPER_ADMIN || roleCode === ROLE_CODES.PRSF_ADMIN) return true
-  return (step.actors as string[]).includes(roleCode)
+  return (step.actors as string[]).includes(roleCode!)
 }
 
 /**

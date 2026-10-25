@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { ReportChartCard as ChartCard } from '@/components/dashboard/report-chart-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,8 +17,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts'
-import { BarChart3, Download, FileSpreadsheet, TrendingUp, RefreshCw } from 'lucide-react'
+import { BarChart3, FileSpreadsheet, RefreshCw } from 'lucide-react'
 import { toCSV, downloadCSV } from '@/lib/utils/export'
+import { aggregatePortfolioReport, reportExportRows, type PortfolioReport, type ReportBank } from '@/lib/utils/portfolio-report'
 
 const COLORS = ['#1e3a8a', '#2d8c7e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16']
 
@@ -29,24 +32,13 @@ export default function ReportsPage() {
   const { t } = useI18n()
   const supabase = useMemo(() => createClient(), [])
 
-  const [loading, setLoading] = useState(true)
-  const [banks, setBanks] = useState<any[]>([])
   const [bankFilter, setBankFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 6); return d.toISOString().slice(0, 10)
   })
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
 
-  // Report data states
-  const [sectorData, setSectorData] = useState<any[]>([])
-  const [bankData, setBankData] = useState<any[]>([])
-  const [monthlyData, setMonthlyData] = useState<any[]>([])
-  const [statusData, setStatusData] = useState<any[]>([])
-  const [summaryStats, setSummaryStats] = useState({ totalLoans: 0, totalAmount: 0, totalClaims: 0, totalFees: 0, totalOutstanding: 0 })
-
-  const fetchReports = useCallback(async () => {
-    setLoading(true)
-    try {
+  const { data: report, isLoading, isValidating, mutate } = usePageQuery<PortfolioReport>(['portfolio-report', bankFilter, dateFrom, dateTo], async () => {
       let loanQuery = supabase
         .from('loan_applications')
         .select('id, status, approved_amount, disbursed_amount, sector_id, disbursement_date, bank_id, banks(name_en, code), sectors(name_en)')
@@ -61,93 +53,23 @@ export default function ReportsPage() {
         supabase.from('fees').select('id, amount, status').gte('created_at', dateFrom).lte('created_at', dateTo + 'T23:59:59'),
       ])
 
-      const allLoans = loans || []
-      const allClaims = claims || []
-      const allFees = fees || []
+      return aggregatePortfolioReport(loans || [], claims || [], fees || [])
+  })
+  const { sectorData, bankData, monthlyData, statusData, summaryStats } = report ?? aggregatePortfolioReport([], [], [])
+  const loading = isLoading || isValidating
+  const fetchReports = () => mutate()
 
-      // Summary
-      setSummaryStats({
-        totalLoans: allLoans.length,
-        totalAmount: allLoans.reduce((s, l) => s + (l.approved_amount || 0), 0),
-        totalOutstanding: allLoans.reduce((s, l) => s + (l.disbursed_amount || 0), 0),
-        totalClaims: allClaims.reduce((s, c) => s + (c.claim_amount || 0), 0),
-        totalFees: allFees.reduce((s, f) => s + (f.amount || 0), 0),
-      })
+  const { data: banks = [] } = usePageQuery<ReportBank[]>(['report-bank-options'], async () => {
+    const { data, error } = await supabase.from('banks').select('id, name_en, code').order('name_en')
+    if (error) throw error
+    return data ?? []
+  })
 
-      // Sector breakdown
-      const sectorMap: Record<string, { count: number; amount: number }> = {}
-      for (const l of allLoans) {
-        const sec = (l as any).sectors?.name_en || 'Other'
-        if (!sectorMap[sec]) sectorMap[sec] = { count: 0, amount: 0 }
-        sectorMap[sec].count++
-        sectorMap[sec].amount += l.approved_amount || 0
-      }
-      setSectorData(Object.entries(sectorMap).map(([sector, d]) => ({ sector, ...d })).sort((a, b) => b.amount - a.amount))
-
-      // Bank breakdown
-      const bankMap: Record<string, { name: string; count: number; amount: number; outstanding: number }> = {}
-      for (const l of allLoans) {
-        const bk = (l.banks as any)?.code || 'Unknown'
-        const bkName = (l.banks as any)?.name_en || 'Unknown'
-        if (!bankMap[bk]) bankMap[bk] = { name: bkName, count: 0, amount: 0, outstanding: 0 }
-        bankMap[bk].count++
-        bankMap[bk].amount += l.approved_amount || 0
-        bankMap[bk].outstanding += l.disbursed_amount || 0
-      }
-      setBankData(Object.entries(bankMap).map(([code, d]) => ({ code, ...d })).sort((a, b) => b.amount - a.amount))
-
-      // Monthly trend
-      const monthMap: Record<string, { month: string; count: number; amount: number }> = {}
-      for (const l of allLoans) {
-        if (!l.disbursement_date) continue
-        const m = l.disbursement_date.slice(0, 7)
-        if (!monthMap[m]) monthMap[m] = { month: m, count: 0, amount: 0 }
-        monthMap[m].count++
-        monthMap[m].amount += l.approved_amount || 0
-      }
-      setMonthlyData(Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month)))
-
-      // Status distribution
-      const statusMap: Record<string, number> = {}
-      for (const l of allLoans) {
-        const s = l.status || 'unknown'
-        statusMap[s] = (statusMap[s] || 0) + 1
-      }
-      setStatusData(Object.entries(statusMap).map(([name, value]) => ({ name: name.replace('_', ' '), value })))
-
-    } finally {
-      setLoading(false)
-    }
-  }, [bankFilter, dateFrom, dateTo])
-
-  useEffect(() => {
-    supabase.from('banks').select('id, name_en, code').order('name_en').then(({ data }) => setBanks(data || []))
-  }, [])
-
-  useEffect(() => { fetchReports() }, [fetchReports])
-
-  const exportCSV = (data: any[], filename: string) => {
+  const exportCSV = <T extends object,>(data: readonly T[], filename: string) => {
     if (!data.length) return
-    const keys = Object.keys(data[0])
-    downloadCSV(toCSV(keys, data.map(row => keys.map(k => row[k]))), filename)
+    const { headers, rows } = reportExportRows(data)
+    downloadCSV(toCSV(headers, rows), filename)
   }
-
-  const ChartCard = ({ title, description, children, onExport }: any) => (
-    <Card className="shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div>
-          <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-          {description && <CardDescription className="text-xs">{description}</CardDescription>}
-        </div>
-        {onExport && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onExport}>
-            <Download className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  )
 
   return (
     <div className="p-6 lg:p-8">
