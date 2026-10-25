@@ -1,5 +1,8 @@
 'use client'
 
+import type { Locale } from '@/lib/i18n/translations'
+import { DOCUMENT_LOCALES, documentText, localizeDocumentTemplate } from '@/lib/i18n/document-translations'
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ExportFormat = 'pdf' | 'excel' | 'word' | 'csv'
@@ -53,6 +56,7 @@ export interface HeaderFooterConfig {
 }
 
 export interface DocumentTemplate {
+  locale?: Locale
   id: string
   name: string
   description: string
@@ -398,16 +402,18 @@ export function currencyCode(value: unknown): string | null {
   return typeof value === 'string' && /^[A-Z]{3}$/.test(value) ? value : null
 }
 
-export function formatCellValue(value: unknown, type: DocumentColumn['type'], currency?: unknown): string {
+export function formatCellValue(value: unknown, type: DocumentColumn['type'], currency?: unknown, locale: Locale = 'en'): string {
+  const numberFormat = locale === 'en' ? numFmt : new Intl.NumberFormat(DOCUMENT_LOCALES[locale], { maximumFractionDigits: 2 })
   if (value === null || value === undefined || value === '') return '—'
   if (['currency', 'number', 'percent'].includes(type) && !Number.isFinite(Number(value))) return '—'
   switch (type) {
-    case 'currency': return `${numFmt.format(Number(value))} ${currencyCode(currency) ?? '(currency unspecified)'}`
-    case 'percent': return `${Number(value).toFixed(1)}%`
-    case 'number': return numFmt.format(Number(value))
+    case 'currency': return `${numberFormat.format(Number(value))} ${currencyCode(currency) ?? documentText('(currency unspecified)', locale)}`
+    case 'percent': return `${Number(value).toLocaleString(DOCUMENT_LOCALES[locale], { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+    case 'number': return numberFormat.format(Number(value))
+    case 'badge': return documentText(String(value), locale)
     case 'date': {
       const date = new Date(String(value))
-      return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+      return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(DOCUMENT_LOCALES[locale], { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
     }
     default: return String(value)
   }
@@ -422,16 +428,16 @@ export function selectDocumentRows(rows: Record<string, unknown>[], template: Do
   })) : sorted
 }
 
-export function documentTotal(rows: Record<string, unknown>[], column: DocumentColumn): string {
+export function documentTotal(rows: Record<string, unknown>[], column: DocumentColumn, locale: Locale = 'en'): string {
   if (column.type !== 'currency' && column.type !== 'number') return ''
   const groups = column.type === 'currency'
     ? [...new Set(rows.map(row => currencyCode(row.currency)))] : [null]
   return groups.map(currency => {
     const group = column.type === 'currency' ? rows.filter(row => currencyCode(row.currency) === currency) : rows
     if ((column.type === 'currency' && !currency) || group.some(row => row[column.key] == null || row[column.key] === '' || !Number.isFinite(Number(row[column.key])))) {
-      return currency ? `Unavailable (${currency})` : 'Unavailable'
+      return currency ? `${documentText('Unavailable', locale)} (${currency})` : documentText('Unavailable', locale)
     }
-    return formatCellValue(group.reduce((sum, row) => sum + Number(row[column.key]), 0), column.type, currency)
+    return formatCellValue(group.reduce((sum, row) => sum + Number(row[column.key]), 0), column.type, currency, locale)
   }).join(' / ')
 }
 
@@ -441,6 +447,9 @@ export async function buildExcelWorkbook(
   template: DocumentTemplate,
   rows: Record<string, unknown>[]
 ) {
+  template = localizeDocumentTemplate(template, template.locale ?? 'en')
+  const locale = template.locale!
+  const text = (key: string) => documentText(key, locale)
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const visibleCols = template.columns.filter(c => c.visible)
@@ -453,7 +462,8 @@ export async function buildExcelWorkbook(
     visibleCols.map(col => {
       const raw = row[col.key]
       if (col.type === 'currency' || col.type === 'number' || col.type === 'percent') return raw == null || raw === '' || !Number.isFinite(Number(raw)) ? null : Number(raw)
-      if (col.type === 'date') return raw ? formatCellValue(raw, 'date') : ''
+      if (col.type === 'date') return raw ? formatCellValue(raw, 'date', undefined, locale) : ''
+      if (col.type === 'badge') return raw == null ? '' : documentText(String(raw), locale)
       return String(raw ?? '')
     })
   )
@@ -462,14 +472,14 @@ export async function buildExcelWorkbook(
   if (template.includeTotals) {
     const totalsRow = visibleCols.map(col => {
       if (col.type === 'currency' || col.type === 'number') {
-        const formatted = documentTotal(rows, col)
+        const formatted = documentTotal(rows, col, locale)
         const currencies = new Set(rows.map(row => currencyCode(row.currency)))
         const complete = rows.every(row => row[col.key] != null && row[col.key] !== '' && Number.isFinite(Number(row[col.key])))
         if (!complete || (col.type === 'currency' && (currencies.size !== 1 || currencies.has(null)))) return formatted
         const total = rows.reduce((sum, row) => sum + Number(row[col.key]), 0)
         return col.type === 'currency' ? Number(total.toFixed(2)) : total
       }
-      if (col.key === visibleCols[0].key) return 'TOTAL'
+      if (col.key === visibleCols[0].key) return text('TOTAL')
       return ''
     })
     dataRows.push(totalsRow)
@@ -495,24 +505,24 @@ export async function buildExcelWorkbook(
       const cell = ws[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })]
       if (cell?.t === 'n') {
         const currency = currencyCode(rows[rowIndex - 1]?.currency ?? rows[0]?.currency)
-        cell.z = col.type === 'currency' ? `${format} "${currency ?? '(currency unspecified)'}"` : format
+        cell.z = col.type === 'currency' ? `${format} "${currency ?? text('(currency unspecified)')}"` : format
       }
     }
   })
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Data')
+  XLSX.utils.book_append_sheet(wb, ws, text('Data'))
 
   if (template.includeSummary) {
-    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+    const now = new Date().toLocaleDateString(DOCUMENT_LOCALES[locale], { day: '2-digit', month: 'long', year: 'numeric' })
     const summaryData = [
-      ['Report Name', template.name],
-      ['Generated', now],
-      ['Total Records', rows.length],
-      ['Data Source', template.dataSource],
-      ['Active Filters', template.filters.filter(f => f.enabled).length],
-      ['Sort By', template.sortRules.map(s => `${s.column} ${s.direction}`).join(', ') || 'Default'],
+      [text('Report Name'), template.name],
+      [text('Generated'), now],
+      [text('Total Records'), rows.length],
+      [text('Data Source'), text(template.dataSource)],
+      [text('Active Filters'), template.filters.filter(f => f.enabled).length],
+      [text('Sort By'), template.sortRules.map(s => `${template.columns.find(c => c.key === s.column)?.label ?? s.column} ${text(s.direction)}`).join(', ') || text('Default')],
     ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), text('Summary'))
   }
 
   return wb
@@ -522,6 +532,7 @@ export async function exportExcel(
   template: DocumentTemplate,
   rows: Record<string, unknown>[]
 ): Promise<void> {
+  template = localizeDocumentTemplate(template, template.locale ?? 'en')
   const wb = await buildExcelWorkbook(template, rows)
   const XLSX = await import('xlsx')
   XLSX.writeFile(wb, `${template.name.replace(/\s+/g, '_')}_${Date.now()}.xlsx`)
@@ -530,6 +541,8 @@ export async function exportExcel(
 // ─── Export: CSV ──────────────────────────────────────────────────────────────
 
 export function buildDocumentCSV(template: DocumentTemplate, rows: Record<string, unknown>[]): string {
+  template = localizeDocumentTemplate(template, template.locale ?? 'en')
+  const locale = template.locale!
   const visibleCols = template.columns.filter(c => c.visible)
   if (!visibleCols.length) throw new Error('Select at least one column to export')
   const escape = (value: string) => {
@@ -538,15 +551,16 @@ export function buildDocumentCSV(template: DocumentTemplate, rows: Record<string
   }
   const lines = [
     visibleCols.map(col => escape(col.label)).join(','),
-    ...rows.map(row => visibleCols.map(col => escape(formatCellValue(row[col.key], col.type, row.currency))).join(',')),
+    ...rows.map(row => visibleCols.map(col => escape(formatCellValue(row[col.key], col.type, row.currency, locale))).join(',')),
   ]
   if (template.includeTotals) lines.push(visibleCols.map((col, index) =>
-    escape(documentTotal(rows, col) || (index === 0 ? 'TOTAL' : '')),
+    escape(documentTotal(rows, col, locale) || (index === 0 ? documentText('TOTAL', locale) : '')),
   ).join(','))
   return '\ufeff' + lines.join('\r\n')
 }
 
 export function exportCSV(template: DocumentTemplate, rows: Record<string, unknown>[]): void {
+  template = localizeDocumentTemplate(template, template.locale ?? 'en')
   downloadDocumentBlob(new Blob([buildDocumentCSV(template, rows)], { type: 'text/csv;charset=utf-8;' }), template.name, 'csv')
 }
 
@@ -576,10 +590,13 @@ function safeAlignment(value: unknown) {
 // ─── Export: PDF (via styled HTML print window) ───────────────────────────────
 
 export function buildDocumentPDFHTML(template: DocumentTemplate, rows: Record<string, unknown>[]): string {
+  template = localizeDocumentTemplate(template, template.locale ?? 'en')
+  const locale = template.locale!
+  const text = (key: string) => escapeDocumentHTML(documentText(key, locale))
   const visibleCols = template.columns.filter(c => c.visible)
   if (!visibleCols.length) throw new Error('Select at least one column to export')
   const hf = template.headerFooter
-  const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+  const now = new Date().toLocaleDateString(DOCUMENT_LOCALES[locale], { day: '2-digit', month: 'long', year: 'numeric' })
   const colWidth = Math.floor(100 / visibleCols.length)
 
   const badgeColors: Record<string, string> = {
@@ -623,14 +640,14 @@ export function buildDocumentPDFHTML(template: DocumentTemplate, rows: Record<st
     <tr style="background:#1e3a5f;color:#fff;font-weight:700;">
       ${visibleCols.map((col, i) => {
     if (col.type === 'currency' || col.type === 'number') {
-      return `<td style="padding:8px 10px;text-align:${safeAlignment(col.align)}">${escapeDocumentHTML(documentTotal(rows, col))}</td>`
+      return `<td style="padding:8px 10px;text-align:${safeAlignment(col.align)}">${escapeDocumentHTML(documentTotal(rows, col, locale))}</td>`
     }
-    return `<td style="padding:8px 10px">${i === 0 ? 'TOTAL' : ''}</td>`
+    return `<td style="padding:8px 10px">${i === 0 ? text('TOTAL') : ''}</td>`
   }).join('')}
     </tr>` : ''
 
   const html = `<!DOCTYPE html>
-<html>
+<html lang="${locale === 'tj' ? 'tg' : locale}">
 <head>
   <meta charset="UTF-8">
   <title>${escapeDocumentHTML(template.name)}</title>
@@ -666,22 +683,22 @@ export function buildDocumentPDFHTML(template: DocumentTemplate, rows: Record<st
 <body>
   <div class="page-header">
     <div>
-      ${hf.showLogo ? '<img class="report-logo" src="/logo.png" alt="Credit Guarantee Fund" />' : ''}
+      ${hf.showLogo ? `<img class="report-logo" src="/logo.png" alt="${text('Credit Guarantee Fund')}" />` : ''}
       <div class="org">${escapeDocumentHTML(hf.headerLeft)}</div>
       ${template.includeTitle ? `<h1>${escapeDocumentHTML(hf.headerCenter || template.name)}</h1>` : ''}
     </div>
     <div class="meta">
       <div>${escapeDocumentHTML(hf.headerRight)}</div>
-      ${hf.showDate ? `<div>Generated: ${now}</div>` : ''}
-      <div>Records: ${rows.length}</div>
+      ${hf.showDate ? `<div>${text('Generated')}: ${now}</div>` : ''}
+      <div>${text('Records')}: ${rows.length}</div>
     </div>
   </div>
 
   ${template.includeSummary ? `
   <div class="summary-grid">
-    <div class="summary-card"><div class="label">Total Records</div><div class="value">${rows.length}</div></div>
-    <div class="summary-card"><div class="label">Data Source</div><div class="value" style="font-size:12px">${escapeDocumentHTML(template.dataSource.replace(/_/g, ' '))}</div></div>
-    <div class="summary-card"><div class="label">Report Period</div><div class="value" style="font-size:12px">${now}</div></div>
+    <div class="summary-card"><div class="label">${text('Total Records')}</div><div class="value">${rows.length}</div></div>
+    <div class="summary-card"><div class="label">${text('Data Source')}</div><div class="value" style="font-size:12px">${text(template.dataSource)}</div></div>
+    <div class="summary-card"><div class="label">${text('Report Period')}</div><div class="value" style="font-size:12px">${now}</div></div>
   </div>` : ''}
 
   <table>
@@ -695,7 +712,7 @@ export function buildDocumentPDFHTML(template: DocumentTemplate, rows: Record<st
         <tr style="${getRowStyle(row)}">
           ${visibleCols.map(col => {
     const raw = row[col.key]
-    const formatted = escapeDocumentHTML(formatCellValue(raw, col.type, row.currency))
+    const formatted = escapeDocumentHTML(formatCellValue(raw, col.type, row.currency, locale))
     const isRight = col.align === 'right' || col.type === 'currency' || col.type === 'number' || col.type === 'percent'
     if (col.type === 'badge') {
       return `<td style="text-align:${safeAlignment(col.align)}"><span style="${getBadgeStyle(String(raw))}">${formatted}</span></td>`
@@ -711,7 +728,7 @@ export function buildDocumentPDFHTML(template: DocumentTemplate, rows: Record<st
   <div class="page-footer">
     <span>${escapeDocumentHTML(hf.footerLeft)}</span>
     <span>${escapeDocumentHTML(hf.footerCenter)}</span>
-    <span class="screen-page-number">${hf.showPageNumber ? 'Page numbers are calculated when printing.' : ''}</span>
+    <span class="screen-page-number">${hf.showPageNumber ? text('Page numbers are calculated when printing.') : ''}</span>
   </div>
 </body>
 </html>`
@@ -741,16 +758,18 @@ export async function exportPDF(template: DocumentTemplate, rows: Record<string,
 // ─── Export: Word (via HTML blob) ─────────────────────────────────────────────
 
 export function buildDocumentWordHTML(template: DocumentTemplate, rows: Record<string, unknown>[]): string {
+  template = localizeDocumentTemplate(template, template.locale ?? 'en')
   const html = buildDocumentPDFHTML(template, rows)
   const pageNumber = template.headerFooter.showPageNumber
     ? template.headerFooter.footerRight.split(/(\{page\}|\{total\})/g).map(part => part === '{page}'
       ? '<span style="mso-field-code:PAGE"></span>' : part === '{total}'
         ? '<span style="mso-field-code:NUMPAGES"></span>' : escapeDocumentHTML(part)).join('') : ''
-  return html.replace('<html>', '<html xmlns:w="urn:schemas-microsoft-com:office:word">')
+  return html.replace('<html ', '<html xmlns:w="urn:schemas-microsoft-com:office:word" ')
     .replace(/<span class="screen-page-number">[\s\S]*?<\/span>/, () => `<span>${pageNumber}</span>`)
 }
 
 export async function exportWord(template: DocumentTemplate, rows: Record<string, unknown>[]): Promise<void> {
+  template = localizeDocumentTemplate(template, template.locale ?? 'en')
   let html = buildDocumentWordHTML(template, rows)
   if (template.headerFooter.showLogo) {
     const response = await fetch('/logo.png')
@@ -768,8 +787,10 @@ export async function runExport(
   template: DocumentTemplate,
   format: ExportFormat,
   rawRows: Record<string, unknown>[],
-  search = ''
+  search = '',
+  locale: Locale = template.locale ?? 'en'
 ): Promise<void> {
+  template = localizeDocumentTemplate(template, locale)
   if (!template.columns.some(column => column.visible)) throw new Error('Select at least one column to export')
   const sorted = selectDocumentRows(rawRows, template, search)
 

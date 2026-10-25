@@ -770,16 +770,18 @@ function queryFixture(data, error = null) {
 {
   let queryState = { data: [{ loan_number: 'VISIBLE-ROW', approved_amount: 10, currency: 'USD' }], isLoading: false, isValidating: false }
   let hideColumns = false, search = '', exports = 0
+  let interfaceLocale = 'en', downloadLocale = null, exportedLocale, exportedTemplate
   const DocumentsPage = loadSource('app/dashboard/documents/page.tsx', {
     react: { ...React, useMemo: factory => factory(), useState: initial => [
       typeof initial === 'object' && initial?.columns && hideColumns ? { ...initial, columns: initial.columns.map(column => ({ ...column, visible: false })) }
-        : initial === '' ? search : initial,
-      () => {},
+        : initial === '' ? search : initial === null ? downloadLocale : initial,
+      value => { if (initial === null) downloadLocale = value },
     ] },
+    '@/lib/i18n/context': { useI18n: () => ({ locale: interfaceLocale }) },
     '@/lib/hooks/use-page-query': { usePageQuery: () => ({ ...queryState, mutate: async () => {} }) },
     '@/lib/supabase/client': { createClient: () => ({}) },
     '@/hooks/use-toast': { useToast: () => ({ toast: () => {} }) },
-    '@/lib/utils/document-engine': { ...loadSource('lib/utils/document-engine.ts'), runExport: async () => { exports++ } },
+    '@/lib/utils/document-engine': { ...loadSource('lib/utils/document-engine.ts'), runExport: async (template, _format, _rows, _search, locale) => { exports++; exportedLocale = locale; exportedTemplate = template } },
   }).default
   function exportButtons(node, result = []) {
     if (!React.isValidElement(node)) return result
@@ -810,7 +812,29 @@ function queryFixture(data, error = null) {
   assert.equal(exports, 0)
   await readyButtons[0].props.onClick()
   assert.equal(exports, 1)
-  console.log('Document Center controls passed: both exports block loading, refresh, failures, no columns and empty search; enabled export runs once')
+  function languageControl(node) {
+    if (!React.isValidElement(node)) return
+    if (node.props.id === 'document-language') return node
+    for (const child of React.Children.toArray(node.props.children)) {
+      const found = languageControl(child)
+      if (found) return found
+    }
+  }
+  const { documentText } = loadSource('lib/i18n/document-translations.ts')
+  for (const language of ['en', 'ru', 'tj']) {
+    interfaceLocale = language
+    const page = DocumentsPage()
+    assert.equal(languageControl(page).props.value, language, 'Download defaults to the interface language')
+    await exportButtons(page)[0].props.onClick()
+    assert.equal(exportedLocale, language)
+    assert.equal(exportedTemplate.name, documentText('Loan Portfolio Report', language))
+  }
+  languageControl(DocumentsPage()).props.onChange({ target: { value: 'ru' } })
+  interfaceLocale = 'en'
+  assert.equal(languageControl(DocumentsPage()).props.value, 'ru', 'Explicit download selection is independent of interface language')
+  await exportButtons(DocumentsPage())[0].props.onClick()
+  assert.equal(exportedLocale, 'ru')
+  console.log('Document Center controls passed: loading/error/export guards, three interface-language defaults, explicit download-language selection and localized export dispatch')
 }
 
 const testTranslations = {
