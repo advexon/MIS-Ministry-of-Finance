@@ -1,8 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import type { Bank, LoanApplication, Claim, Fee } from '@/lib/types/database'
+import { useParams, useRouter } from 'next/navigation'
+import type { LoanApplication, Claim, Fee } from '@/lib/types/database'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
+import { BANK_DIRECTORY_COPY, type BankDirectoryRecord } from '@/lib/admin/bank-directory'
+import { BankDirectoryEditor } from '@/components/admin/bank-directory-editor'
+import { BankBranches } from '@/components/admin/bank-branches'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 import { useI18n } from '@/lib/i18n/context'
 import { getLocalizedName } from '@/lib/utils/localized-name'
@@ -11,18 +15,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft, Building2, Save, Edit2, FileText, DollarSign, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Building2, FileText, DollarSign, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
-import { useToast } from '@/hooks/use-toast'
 
-type BankDetail = Pick<Bank, 'id' | 'code' | 'name_en' | 'name_ru' | 'name_tj'> & {
-  is_active: boolean | null
-}
-type BankForm = Omit<BankDetail, 'id'>
+type BankDetail = BankDirectoryRecord
 type BankLoan = Pick<LoanApplication, 'id' | 'loan_number' | 'approved_amount' | 'disbursed_amount' | 'disbursement_date'> & {
   status: string | null
 }
@@ -42,61 +41,30 @@ const bankTextFields = [
   { label: 'Bank Name (English)', field: 'name_en' },
   { label: 'Bank Name (Russian)', field: 'name_ru' },
   { label: 'Bank Name (Tajik)', field: 'name_tj' },
-] as const satisfies readonly { label: string; field: keyof BankForm }[]
+] as const satisfies readonly { label: string; field: keyof BankDetail }[]
 
 export default function BankDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const supabase = createClient()
-  const { toast } = useToast()
-  const [bank, setBank] = useState<BankDetail | null>(null)
-  const [loans, setLoans] = useState<BankLoan[]>([])
-  const [claims, setClaims] = useState<BankClaim[]>([])
-  const [fees, setFees] = useState<BankFee[]>([])
-  const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<BankForm>({ code: '', name_en: '', name_ru: null, name_tj: null, is_active: null })
+  const router = useRouter()
+  const copy = BANK_DIRECTORY_COPY[locale]
+  const { data, error, isLoading: loading, isValidating, mutate } = usePageQuery(['bank-detail', id], async () => {
+    const [bankResult, loanResult, claimResult, feeResult] = await Promise.all([
+      supabase.from('banks').select('id, code, name_en, name_ru, name_tj, is_active, administration_revision').eq('id', id).single().overrideTypes<BankDetail, { merge: false }>(),
+      supabase.from('loan_applications').select('id, loan_number, status, approved_amount, disbursed_amount, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20).overrideTypes<BankLoan[], { merge: false }>(),
+      supabase.from('claims').select('id, claim_number, status, claim_amount, created_at').eq('bank_id', id).order('created_at', { ascending: false }).limit(10).overrideTypes<BankClaim[], { merge: false }>(),
+      supabase.from('fees').select('id, fee_type, amount, status, due_date').eq('bank_id', id).order('due_date', { ascending: false }).limit(10).overrideTypes<BankFee[], { merge: false }>(),
+    ])
+    for (const result of [bankResult, loanResult, claimResult, feeResult]) if (result.error) throw result.error
+    return { bank: bankResult.data, loans: loanResult.data ?? [], claims: claimResult.data ?? [], fees: feeResult.data ?? [] }
+  })
+  const bank = data?.bank
+  const loans = data?.loans ?? []
+  const claims = data?.claims ?? []
+  const fees = data?.fees ?? []
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true)
-      const [{ data: bankData }, { data: loanData }, { data: claimData }, { data: feeData }] = await Promise.all([
-        supabase.from('banks').select('id, code, name_en, name_ru, name_tj, is_active').eq('id', id).single().overrideTypes<BankDetail, { merge: false }>(),
-        supabase.from('loan_applications').select('id, loan_number, status, approved_amount, disbursed_amount, disbursement_date').eq('bank_id', id).order('created_at', { ascending: false }).limit(20).overrideTypes<BankLoan[], { merge: false }>(),
-        supabase.from('claims').select('id, claim_number, status, claim_amount, created_at').eq('bank_id', id).order('created_at', { ascending: false }).limit(10).overrideTypes<BankClaim[], { merge: false }>(),
-        supabase.from('fees').select('id, fee_type, amount, status, due_date').eq('bank_id', id).order('due_date', { ascending: false }).limit(10).overrideTypes<BankFee[], { merge: false }>(),
-      ])
-      if (bankData) { setBank(bankData); setForm(bankData) }
-      setLoans(loanData || [])
-      setClaims(claimData || [])
-      setFees(feeData || [])
-      setLoading(false)
-    }
-    fetchAll()
-  }, [id, supabase])
-
-  // Helper to get localized bank name
   const getBankName = (b: BankDetail) => getLocalizedName(b, locale)
-
-  const handleSave = async () => {
-    setSaving(true)
-    const { error } = await supabase.from('banks').update({
-      code: form.code,
-      name_en: form.name_en,
-      name_ru: form.name_ru || form.name_en,
-      name_tj: form.name_tj || form.name_en,
-      is_active: form.is_active,
-    }).eq('id', id)
-    if (error) {
-      toast({ title: 'Failed to update bank', description: error.message, variant: 'destructive' })
-    } else {
-      toast({ title: 'Bank updated successfully' })
-      setBank({ ...form, id })
-      setEditing(false)
-    }
-    setSaving(false)
-  }
 
   const fmt = (v: number | null) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TJS', minimumFractionDigits: 0 }).format(v || 0)
   const totalDisbursed = loans.reduce((s, l) => s + (l.approved_amount || 0), 0)
@@ -113,8 +81,8 @@ export default function BankDetailPage() {
     </div>
   )
 
-  if (!bank) return (
-    <div className="p-6 lg:p-8 text-center text-muted-foreground">Bank not found.</div>
+  if (error || !bank) return (
+    <div className="flex flex-col gap-4 p-6 lg:p-8"><Alert variant="destructive"><AlertDescription>{copy.loadFailed}</AlertDescription></Alert><Button variant="outline" onClick={() => void mutate().catch(() => {})}>{copy.refresh}</Button></div>
   )
 
   return (
@@ -122,7 +90,7 @@ export default function BankDetailPage() {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-          <Link href="/dashboard/banks"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link href="/dashboard/banks" aria-label={`${t.common.back}: ${t.nav.banks}`}><ArrowLeft className="h-4 w-4" aria-hidden="true" /></Link>
         </Button>
         <div className="flex flex-1 items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-lg font-bold text-primary">
@@ -137,18 +105,8 @@ export default function BankDetailPage() {
           </Badge>
         </div>
         <div className="flex gap-2">
-          {editing ? (
-            <>
-              <Button variant="outline" onClick={() => { setEditing(false); setForm(bank) }}>Cancel</Button>
-              <Button onClick={handleSave} disabled={saving} className="gap-2">
-                <Save className="h-4 w-4" />{saving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" onClick={() => setEditing(true)} className="gap-2 bg-transparent">
-              <Edit2 className="h-4 w-4" />Edit
-            </Button>
-          )}
+          <Button variant="outline" disabled={isValidating} onClick={() => void mutate().catch(() => {})}>{copy.refresh}</Button>
+          <BankDirectoryEditor record={bank} onSaved={async next => { if (!next) router.push('/dashboard/banks'); else await mutate(current => current ? { ...current, bank: next } : current) }} />
         </div>
       </div>
 
@@ -182,8 +140,9 @@ export default function BankDetailPage() {
       </div>
 
       <Tabs defaultValue="info">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 h-auto flex-wrap justify-start">
           <TabsTrigger value="info" className="gap-2"><Building2 className="h-4 w-4" />Info</TabsTrigger>
+          <TabsTrigger value="branches">{copy.branches}</TabsTrigger>
           <TabsTrigger value="loans" className="gap-2"><FileText className="h-4 w-4" />Loans ({loans.length})</TabsTrigger>
           <TabsTrigger value="claims" className="gap-2"><AlertTriangle className="h-4 w-4" />Claims ({claims.length})</TabsTrigger>
           <TabsTrigger value="fees" className="gap-2"><DollarSign className="h-4 w-4" />Fees ({fees.length})</TabsTrigger>
@@ -197,12 +156,12 @@ export default function BankDetailPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {bankTextFields.map(({ label, field }) => (
                   <div key={field} className="space-y-2">
-                    <Label className="text-xs">{label}</Label>
+                    <Label htmlFor={`bank-${field}`}>{label}</Label>
                     <Input
-                      value={form[field] || ''}
-                      onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))}
-                      readOnly={!editing}
-                      className={!editing ? 'bg-secondary/30 text-sm' : 'text-sm'}
+                      id={`bank-${field}`}
+                      value={bank[field] || ''}
+                      readOnly
+                      className="bg-secondary/30 text-sm"
                     />
                   </div>
                 ))}
@@ -212,15 +171,13 @@ export default function BankDetailPage() {
                   <p className="text-sm font-medium">Active Status</p>
                   <p className="text-xs text-muted-foreground">Enable or disable this bank in the system</p>
                 </div>
-                <Switch
-                  checked={form.is_active ?? false}
-                  onCheckedChange={v => setForm(p => ({ ...p, is_active: v }))}
-                  disabled={!editing}
-                />
+                <Badge variant={bank.is_active ? 'default' : 'secondary'}>{bank.is_active ? copy.active : copy.inactive}</Badge>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="branches"><BankBranches bankId={id} /></TabsContent>
 
         {/* Loans Tab */}
         <TabsContent value="loans">

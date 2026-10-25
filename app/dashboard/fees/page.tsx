@@ -1,569 +1,532 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { usePageQuery } from "@/lib/hooks/use-page-query"
-import { useI18n } from "@/lib/i18n/context"
-import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
+import { usePermissions } from '@/lib/contexts/permission-context'
+import { useI18n } from '@/lib/i18n/context'
+import { createClient } from '@/lib/supabase/client'
 import {
-  DollarSign, Receipt, TrendingUp, Download, Plus, MoreHorizontal,
-  CheckCircle, RefreshCw, Loader2, AlertCircle, CheckCircle2, Printer, Calculator,
-} from "lucide-react"
-import type { Fee } from "@/lib/types/database"
-import { one } from "@/lib/utils/supabase-relation"
-import { renderFeeInvoice } from "@/lib/utils/fee-invoice"
-import { toCSV, downloadCSV } from "@/lib/utils/export"
-import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
-import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
+  FeeActionForm,
+  FeeCreateForm,
+  type FeeLoanOption,
+  type FeeReceipt,
+} from '@/components/admin/fee-forms'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Download, Plus, Printer, RefreshCw } from 'lucide-react'
+import type { Fee } from '@/lib/types/database'
+import { one } from '@/lib/utils/supabase-relation'
+import { renderFeeInvoice } from '@/lib/utils/fee-invoice'
+import { toCSV, downloadCSV } from '@/lib/utils/export'
 
-interface FeeRow extends Fee {
-  loan_application?: {
-    id: string
+interface FeeRow extends Omit<Fee, 'status'> {
+  status: string
+  currency: string | null
+  policy_revision: number | null
+  policy_id: string | null
+  calculation_inputs: Record<string, unknown> | null
+  loan_application: {
     loan_number: string | null
     currency: string | null
-    bank_id: string | null
     borrower: { name: string } | null
     bank: { name_en: string } | null
   } | null
 }
-
-const statusStyles: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-800",
-  invoiced: "bg-blue-100 text-blue-800",
-  paid: "bg-emerald-100 text-emerald-800",
+function feeCurrency(fee: FeeRow) {
+  return fee.currency ?? fee.loan_application?.currency ?? null
+}
+function money(amount: number | null | undefined, currency: string | null) {
+  return amount == null
+    ? '—'
+    : currency
+      ? `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(amount)} ${currency}`
+      : `${amount} · currency unavailable`
+}
+function totals(fees: FeeRow[], predicate: (fee: FeeRow) => boolean) {
+  const grouped = new Map<string, number>()
+  for (const fee of fees.filter(predicate)) {
+    const currency = feeCurrency(fee) ?? 'Unknown'
+    grouped.set(
+      currency,
+      (grouped.get(currency) ?? 0) + Number(fee.fee_amount ?? fee.amount ?? 0),
+    )
+  }
+  return (
+    [...grouped]
+      .map(([currency, amount]) => money(amount, currency))
+      .join(' · ') || 'No records'
+  )
 }
 
 export default function FeesPage() {
   const { t } = useI18n()
   const supabase = createClient()
-
-  interface LoanOption {
-    id: string
-    loan_number: string | null
-    approved_amount: number | null
-    currency: string
-    guarantee_coverage: number | null
-    bank_id: string | null
-    borrower: { name: string } | null
-  }
-
-  const [activeTab, setActiveTab] = useState("all")
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  // New fee dialog
-  const [newOpen, setNewOpen] = useState(false)
-  const [newLoanId, setNewLoanId] = useState("")
-  const [newFeeType, setNewFeeType] = useState<"upfront" | "quarterly">("upfront")
-  const [newBaseAmount, setNewBaseAmount] = useState("")
-  const [newFeeRate, setNewFeeRate] = useState("0.5")
-  const [newPeriodStart, setNewPeriodStart] = useState("")
-  const [newPeriodEnd, setNewPeriodEnd] = useState("")
-
-  // Mark paid dialog
-  const [payOpen, setPayOpen] = useState(false)
-  const [selectedFee, setSelectedFee] = useState<FeeRow | null>(null)
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
-  const [paymentRef, setPaymentRef] = useState("")
-
-  // Invoice dialog
-  const [invoiceOpen, setInvoiceOpen] = useState(false)
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0])
-
-  // Reconciliation state
-  const [reconcileOpen, setReconcileOpen] = useState(false)
-
-  const showMessage = (type: "success" | "error", msg: string) => {
-    if (type === "success") { setSuccessMsg(msg); setErrorMsg(null) }
-    else { setErrorMsg(msg); setSuccessMsg(null) }
-    setTimeout(() => { setSuccessMsg(null); setErrorMsg(null) }, 5000)
-  }
-
-  const { data: fees = [], isLoading, isValidating, mutate } = usePageQuery<FeeRow[]>(["fees"], async () => {
+  const { role, profile } = usePermissions()
+  const canManage =
+    !!profile?.is_active &&
+    !!role?.is_active &&
+    ['super_admin', 'prsf_admin', 'accountant'].includes(role.code) &&
+    !profile.bank_id
+  const [tab, setTab] = useState('all')
+  const [dialog, setDialog] = useState<
+    { action: 'create' } | { action: 'invoice' | 'pay'; fee: FeeRow } | null
+  >(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const {
+    data: fees = [],
+    error,
+    isLoading,
+    isValidating,
+    mutate,
+  } = usePageQuery<FeeRow[]>(['fees'], async () => {
     const { data, error } = await supabase
-      .from("fees")
-      .select(`*, loan_application:loan_applications!loan_application_id(id,loan_number,currency,bank_id,bank:banks(name_en),borrower:borrowers(name))`)
-      .order("created_at", { ascending: false })
+      .from('fees')
+      .select(
+        '*,loan_application:loan_applications!loan_application_id(loan_number,currency,borrower:borrowers(name),bank:banks(name_en))',
+      )
+      .order('created_at', { ascending: false })
     if (error) throw error
     return (data ?? []).map((fee) => {
       const loan = one(fee.loan_application)
-      return { ...fee, loan_application: loan ? { ...loan, bank: one(loan.bank), borrower: one(loan.borrower) } : null }
-    })
-  })
-  const loading = isLoading || isValidating
-  const fetchFees = () => mutate()
-
-  const { data: loans = [] } = usePageQuery<LoanOption[]>(["fee-loan-options"], async () => {
-    const { data, error } = await supabase
-      .from("loan_applications")
-      .select("id,loan_number,approved_amount,currency,guarantee_coverage,bank_id,borrower:borrowers(name)")
-      .in("status", ["approved", "disbursed", "active"])
-      .order("loan_number")
-    if (error) throw error
-    return (data ?? []).map((loan) => ({ ...loan, borrower: one(loan.borrower) }))
-  })
-
-  const formatCurrency = (val: number | null | undefined, cur = "TJS") => {
-    if (!val && val !== 0) return "—"
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: cur, minimumFractionDigits: 0 }).format(val)
-  }
-
-  const getBorrowerName = (fee: FeeRow) => {
-    const b = fee.loan_application?.borrower
-    if (!b) return "—"
-    return b.name || "—"
-  }
-
-  // Auto-fill base amount from loan when selected
-  const selectedLoan = loans.find((l) => l.id === newLoanId)
-  const calculatedFee = newBaseAmount && newFeeRate ? parseFloat(newBaseAmount) * parseFloat(newFeeRate) / 100 : 0
-
-  const totalCollected = fees.filter((f) => f.status === "paid").reduce((s, f) => s + f.fee_amount, 0)
-  const totalPending = fees.filter((f) => f.status !== "paid").reduce((s, f) => s + f.fee_amount, 0)
-  const totalInvoiced = fees.filter((f) => f.status === "invoiced").reduce((s, f) => s + f.fee_amount, 0)
-
-  const filteredFees = activeTab === "all" ? fees : fees.filter((f) => f.fee_type === activeTab)
-
-  // Mirrors the visible table columns and honours the active fee-type tab.
-  // Raw numerics are exported unformatted so the file stays spreadsheet-ready.
-  const exportCSV = () => {
-    if (!filteredFees.length) { showMessage("error", "There are no fee records to export"); return }
-    const headers = ["Loan", "Borrower", "Bank", "Type", "Period Start", "Period End", "Base Amount", "Rate (%)", "Fee Amount", "Currency", "Invoice No.", "Invoice Date", "Due Date", "Status", "Payment Date"]
-    const rows = filteredFees.map((fee) => {
-      const la = fee.loan_application
-      return [
-        la?.loan_number ?? "",
-        getBorrowerName(fee),
-        la?.bank?.name_en ?? "",
-        fee.fee_type,
-        fee.period_start ?? "",
-        fee.period_end ?? "",
-        fee.base_amount ?? "",
-        fee.fee_rate != null ? (fee.fee_rate * 100).toFixed(2) : "",
-        fee.fee_amount ?? "",
-        la?.currency ?? "",
-        fee.invoice_number ?? "",
-        fee.invoice_date ?? "",
-        fee.due_date ?? "",
-        fee.status,
-        fee.payment_date ?? "",
-      ]
-    })
-    downloadCSV(toCSV(headers, rows), `fees-${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`)
-  }
-
-  const createReq = useFieldRequirements("fee_create")
-  const invoiceReq = useFieldRequirements("fee_invoice")
-  const paymentReq = useFieldRequirements("fee_payment")
-
-  const handleCreateFee = async () => {
-    const missing = createReq.missingFields({
-      loan_id: newLoanId,
-      fee_type: newFeeType,
-      ...(newFeeType === "quarterly" ? { period_start: newPeriodStart, period_end: newPeriodEnd } : {}),
-      base_amount: newBaseAmount,
-      fee_rate: newFeeRate,
-    })
-    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
-    setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const base = parseFloat(newBaseAmount)
-    const rate = parseFloat(newFeeRate) / 100
-    const amount = base * rate
-
-    const { error } = await supabase.from("fees").insert({
-      loan_application_id: newLoanId,
-      loan_id: newLoanId,
-      bank_id: selectedLoan?.bank_id || null,
-      fee_type: newFeeType,
-      base_amount: base,
-      fee_rate: rate,
-      fee_amount: amount,
-      amount: amount,
-      due_date: new Date().toISOString().split("T")[0],
-      period_start: newPeriodStart || null,
-      period_end: newPeriodEnd || null,
-      status: "pending",
-    })
-    if (error) { showMessage("error", error.message); setSaving(false); return }
-    await supabase.from("audit_trail").insert({ table_name: "fees", action: "INSERT", new_data: { loan_application_id: newLoanId, fee_type: newFeeType, fee_amount: amount }, changed_by: user?.id })
-    showMessage("success", "Fee created successfully")
-    setNewOpen(false)
-    setNewLoanId(""); setNewBaseAmount(""); setNewFeeRate("0.5")
-    fetchFees()
-    setSaving(false)
-  }
-
-  const handleGenerateInvoice = async () => {
-    if (!selectedFee) return
-    const missing = invoiceReq.missingFields({ invoice_date: invoiceDate })
-    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
-    setSaving(true)
-    const { error } = await supabase.from("fees").update({ status: "invoiced", invoice_date: invoiceDate }).eq("id", selectedFee.id)
-    if (error) { showMessage("error", error.message); setSaving(false); return }
-    showMessage("success", "Invoice generated successfully")
-    setInvoiceOpen(false)
-    fetchFees()
-    setSaving(false)
-  }
-
-  const handleMarkPaid = async () => {
-    if (!selectedFee) return
-    const missing = paymentReq.missingFields({ payment_date: paymentDate, payment_reference: paymentRef })
-    if (missing.length) { showMessage("error", missingFieldsMessage(missing)); return }
-    setSaving(true)
-    const { error } = await supabase.from("fees").update({ status: "paid", payment_date: paymentDate, payment_reference: paymentRef || null }).eq("id", selectedFee.id)
-    if (error) { showMessage("error", error.message); setSaving(false); return }
-    showMessage("success", "Fee marked as paid")
-    setPayOpen(false)
-    fetchFees()
-    setSaving(false)
-  }
-
-  const printInvoice = (fee: FeeRow) => {
-    const borrower = fee.loan_application?.borrower
-    const borrowerName = borrower?.name || "—"
-    const bank = fee.loan_application?.bank?.name_en || "—"
-    const today = new Date().toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "numeric" })
-    const invoiceNum = fee.invoice_number || `INV-PENDING-${fee.id.substring(0, 8)}`
-    const html = renderFeeInvoice({
-      invoiceNumber: invoiceNum,
-      date: today,
-      loanReference: fee.loan_application?.loan_number || "—",
-      bank,
-      borrower: borrowerName,
-      description: fee.fee_type === "upfront" ? "Upfront Guarantee Fee" : `Quarterly Guarantee Commission${fee.period_start ? ` (${new Date(fee.period_start).toLocaleDateString()} – ${fee.period_end ? new Date(fee.period_end).toLocaleDateString() : ""})` : ""}`,
-      baseAmount: formatCurrency(fee.base_amount),
-      rate: `${(fee.fee_rate * 100).toFixed(2)}%`,
-      feeAmount: formatCurrency(fee.fee_amount),
-    })
-    const win = window.open("", "_blank")
-    if (win) { win.opener = null; win.document.write(html); win.document.close(); win.print() }
-  }
-
-  // Auto-calculate quarterly fees for all active loans
-  const handleAutoCalculateQuarterly = async () => {
-    setSaving(true)
-    const { data: activeLoans } = await supabase.from("loan_applications")
-      .select("id,approved_amount,guarantee_coverage,bank_id")
-      .in("status", ["active", "disbursed"])
-
-    if (!activeLoans) { setSaving(false); return }
-
-    const now = new Date()
-    const quarterStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-    const quarterEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 + 3, 0)
-
-    await supabase.auth.getUser()
-    let created = 0
-
-    for (const loan of activeLoans) {
-      const baseAmount = (loan.approved_amount || 0) * (loan.guarantee_coverage || 50) / 100
-      const feeRate = 0.005 // 0.5% quarterly
-      const feeAmount = baseAmount * feeRate
-
-      const { data: existing } = await supabase.from("fees").select("id").eq("loan_application_id", loan.id).eq("fee_type", "quarterly").gte("period_start", quarterStart.toISOString().split("T")[0]).maybeSingle()
-      if (!existing) {
-        await supabase.from("fees").insert({
-          loan_application_id: loan.id,
-          loan_id: loan.id,
-          bank_id: loan.bank_id || null,
-          fee_type: "quarterly",
-          base_amount: baseAmount,
-          fee_rate: feeRate,
-          fee_amount: feeAmount,
-          amount: feeAmount,
-          due_date: quarterEnd.toISOString().split("T")[0],
-          period_start: quarterStart.toISOString().split("T")[0],
-          period_end: quarterEnd.toISOString().split("T")[0],
-          status: "pending",
-        })
-        created++
+      return {
+        ...fee,
+        loan_application: loan
+          ? { ...loan, borrower: one(loan.borrower), bank: one(loan.bank) }
+          : null,
       }
+    })
+  })
+  const { data: loans = [], error: loanError } = usePageQuery<FeeLoanOption[]>(
+    canManage ? ['fee-loan-options'] : null,
+    async () => {
+      const { data, error } = await createClient()
+        .from('loan_applications')
+        .select('id,loan_number,bank_id,currency')
+        .in('status', [
+          'guarantee_issued',
+          'approved',
+          'disbursed',
+          'active',
+          'defaulted',
+          'claim_pending',
+          'claim_paid',
+          'settled',
+          'closed',
+        ])
+        .order('loan_number')
+      if (error) throw error
+      return data ?? []
+    },
+  )
+  const visible =
+    tab === 'all' ? fees : fees.filter((fee) => fee.fee_type === tab)
+  async function recorded(receipt: FeeReceipt) {
+    setDialog(null)
+    setMessage(
+      `Fee ${receipt.id}: ${receipt.status} confirmed and audited · ${money(receipt.fee_amount, receipt.currency)} · policy revision ${receipt.policy_revision}.`,
+    )
+    try {
+      await mutate(undefined, { throwOnError: true })
+    } catch {
+      setMessage(
+        `Fee ${receipt.id} was confirmed and audited, but the register could not refresh. Refresh the list; do not repeat the financial action.`,
+      )
     }
-
-    showMessage("success", `Generated ${created} quarterly fee records`)
-    fetchFees()
-    setSaving(false)
-    setReconcileOpen(false)
   }
-
+  function exportCSV() {
+    const headers = [
+      'Loan',
+      'Borrower',
+      'Bank',
+      'Type',
+      'Period start inclusive',
+      'Period end exclusive (policy fees)',
+      'Base',
+      'Rate (%)',
+      'Fee',
+      'Currency',
+      'Policy revision',
+      'Invoice',
+      'Invoice date',
+      'Due date',
+      'Status',
+      'Payment date',
+      'Payment reference',
+    ]
+    const rows = visible.map((fee) => [
+      fee.loan_application?.loan_number ?? '',
+      fee.loan_application?.borrower?.name ?? '',
+      fee.loan_application?.bank?.name_en ?? '',
+      fee.fee_type,
+      fee.period_start ?? '',
+      fee.period_end ?? '',
+      fee.base_amount,
+      fee.fee_rate == null ? '' : fee.fee_rate * 100,
+      fee.fee_amount ?? fee.amount,
+      feeCurrency(fee) ?? '',
+      fee.policy_revision ?? 'Legacy / unverified',
+      fee.invoice_number ?? '',
+      fee.invoice_date ?? '',
+      fee.due_date ?? '',
+      fee.status,
+      fee.payment_date ?? fee.paid_date ?? '',
+      fee.payment_reference ?? '',
+    ])
+    downloadCSV(
+      toCSV(headers, rows),
+      `fees-${tab}-${new Date().toISOString().slice(0, 10)}.csv`,
+    )
+  }
+  function printInvoice(fee: FeeRow) {
+    const html = renderFeeInvoice({
+      invoiceNumber: fee.invoice_number ?? 'Unissued',
+      date: fee.invoice_date ?? 'Not issued',
+      loanReference: fee.loan_application?.loan_number ?? '—',
+      bank: fee.loan_application?.bank?.name_en ?? '—',
+      borrower: fee.loan_application?.borrower?.name ?? '—',
+      description: `${fee.fee_type === 'upfront' ? 'Upfront guarantee fee' : 'Recurring guarantee fee'}${fee.period_start ? ` (${fee.period_start} to ${fee.period_end}${fee.policy_id ? ', end exclusive' : ''})` : ''} · policy ${fee.policy_revision ?? 'legacy / unverified'}`,
+      baseAmount: money(fee.base_amount, feeCurrency(fee)),
+      rate: fee.fee_rate == null ? '—' : `${fee.fee_rate * 100}%`,
+      feeAmount: money(fee.fee_amount ?? fee.amount, feeCurrency(fee)),
+    })
+    const win = window.open('', '_blank')
+    if (win) {
+      win.opener = null
+      win.document.write(html)
+      win.document.close()
+      win.print()
+    }
+  }
   return (
-    <div className="p-6 lg:p-8">
-      {successMsg && <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4" />{successMsg}</div>}
-      {errorMsg && <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"><AlertCircle className="h-4 w-4" />{errorMsg}</div>}
-
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-6 p-6 lg:p-8">
+      <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.fees.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Track guarantee fees and commission payments</p>
+          <h1 className="text-balance text-2xl font-bold">{t.fees.title}</h1>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Policy-backed guarantee fees, invoices and external payment receipts
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setReconcileOpen(true)} className="gap-2"><Calculator className="h-4 w-4" />Auto-Calculate Quarterly</Button>
-          <Button onClick={() => setNewOpen(true)} className="gap-2"><Plus className="h-4 w-4" />New Fee Record</Button>
-          <Button variant="outline" onClick={exportCSV} className="gap-2"><Download className="h-4 w-4" />Export</Button>
+          {canManage && (
+            <Button
+              onClick={() => setDialog({ action: 'create' })}
+              disabled={!!loanError}
+            >
+              <Plus data-icon="inline-start" />
+              New Fee Record
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            disabled={isLoading || isValidating || !!error || !visible.length}
+            onClick={exportCSV}
+          >
+            <Download data-icon="inline-start" />
+            Export
+          </Button>
+          <Button
+            variant="outline"
+            aria-label="Refresh fees"
+            disabled={isValidating}
+            onClick={() => void mutate()}
+          >
+            <RefreshCw data-icon="inline-start" />
+            Refresh
+          </Button>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center gap-4 pt-5">
-            <div className="rounded-full bg-emerald-500/10 p-3"><DollarSign className="h-5 w-5 text-emerald-500" /></div>
-            <div><p className="text-sm text-muted-foreground">Total Collected</p><p className="text-2xl font-bold">{formatCurrency(totalCollected)}</p></div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-4 pt-5">
-            <div className="rounded-full bg-blue-500/10 p-3"><Receipt className="h-5 w-5 text-blue-500" /></div>
-            <div><p className="text-sm text-muted-foreground">Invoiced (awaiting)</p><p className="text-2xl font-bold">{formatCurrency(totalInvoiced)}</p></div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-4 pt-5">
-            <div className="rounded-full bg-primary/10 p-3"><TrendingUp className="h-5 w-5 text-primary" /></div>
-            <div><p className="text-sm text-muted-foreground">Pending Collection</p><p className="text-2xl font-bold">{formatCurrency(totalPending)}</p></div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="all">All ({fees.length})</TabsTrigger>
-            <TabsTrigger value="upfront">Upfront ({fees.filter((f) => f.fee_type === "upfront").length})</TabsTrigger>
-            <TabsTrigger value="quarterly">Quarterly ({fees.filter((f) => f.fee_type === "quarterly").length})</TabsTrigger>
-          </TabsList>
-          <Button variant="outline" size="icon" onClick={fetchFees}><RefreshCw className="h-4 w-4" /></Button>
-        </div>
-
-        {["all", "upfront", "quarterly"].map((tab) => (
-          <TabsContent key={tab} value={tab}>
-            <Card>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold">Loan</TableHead>
-                        <TableHead className="font-semibold">Borrower</TableHead>
-                        <TableHead className="font-semibold">Type</TableHead>
-                        <TableHead className="font-semibold">Period</TableHead>
-                        <TableHead className="text-right font-semibold">Base</TableHead>
-                        <TableHead className="text-right font-semibold">Rate</TableHead>
-                        <TableHead className="text-right font-semibold">Fee Amount</TableHead>
-                        <TableHead className="font-semibold">Invoice</TableHead>
-                        <TableHead className="font-semibold">Status</TableHead>
-                        <TableHead className="text-right font-semibold">Actions</TableHead>
+      </header>
+      <Alert>
+        <AlertTitle>Saved policy governs new assessments</AlertTitle>
+        <AlertDescription>
+          No 0.5% fallback, manual amount override or cross-currency total is
+          used. Signed guarantee evidence is mandatory. Outstanding-balance
+          policy additionally needs an approved month-end report. FX conversion
+          and legacy reconciliation are not available here.
+        </AlertDescription>
+      </Alert>
+      {message && (
+        <p role="status" className="text-sm leading-relaxed">
+          {message}
+        </p>
+      )}
+      {(error || loanError) && (
+        <Alert variant="destructive">
+          <AlertTitle>Data could not load</AlertTitle>
+          <AlertDescription>
+            {error
+              ? 'The fee register is unavailable; old values are hidden.'
+              : 'Loan choices could not load. Refresh before creating a fee.'}
+          </AlertDescription>
+        </Alert>
+      )}
+      {!error && (
+        <>
+          <section
+            aria-label="Fee totals by currency"
+            className="grid gap-4 md:grid-cols-3"
+          >
+            {[
+              ['Total collected', totals(fees, (fee) => fee.status === 'paid')],
+              [
+                'Invoiced · awaiting receipt',
+                totals(
+                  fees,
+                  (fee) =>
+                    fee.status === 'invoiced' || fee.status === 'overdue',
+                ),
+              ],
+              [
+                'Pending collection',
+                totals(fees, (fee) =>
+                  ['pending', 'invoiced', 'overdue'].includes(fee.status),
+                ),
+              ],
+            ].map(([title, value]) => (
+              <Card key={title}>
+                <CardHeader>
+                  <CardTitle>{title}</CardTitle>
+                  <CardDescription>
+                    Separate totals by recorded currency
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-lg font-semibold">
+                    {isLoading ? 'Loading…' : value}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList>
+              <TabsTrigger value="all">All ({fees.length})</TabsTrigger>
+              <TabsTrigger value="upfront">Upfront</TabsTrigger>
+              <TabsTrigger value="quarterly">Recurring</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Card>
+            <CardHeader>
+              <CardTitle>Fee register</CardTitle>
+              <CardDescription>
+                Policy-backed periods include the start and exclude the end.
+                Legacy rows retain their original period convention and cannot
+                be settled without reconciliation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Loan / borrower</TableHead>
+                      <TableHead>Type / period</TableHead>
+                      <TableHead>Base / rate</TableHead>
+                      <TableHead>Fee amount</TableHead>
+                      <TableHead>Policy / invoice</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions / evidence</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7}>Loading fees…</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {loading ? (
-                        <TableRow><TableCell colSpan={10} className="py-12 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" /></TableCell></TableRow>
-                      ) : filteredFees.length === 0 ? (
-                        <TableRow><TableCell colSpan={10} className="py-12 text-center text-muted-foreground">No fee records found</TableCell></TableRow>
-                      ) : (
-                        filteredFees.map((fee) => (
-                          <TableRow key={fee.id}>
-                            <TableCell className="font-medium text-primary text-sm">{fee.loan_application?.loan_number || "—"}</TableCell>
-                            <TableCell className="text-sm">{getBorrowerName(fee)}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="capitalize">{fee.fee_type === "upfront" ? "Upfront" : "Quarterly"}</Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {fee.period_start && fee.period_end
-                                ? `${new Date(fee.period_start).toLocaleDateString()} – ${new Date(fee.period_end).toLocaleDateString()}`
-                                : "—"}
-                            </TableCell>
-                            <TableCell className="text-right text-sm">{formatCurrency(fee.base_amount)}</TableCell>
-                            <TableCell className="text-right text-sm">{(fee.fee_rate * 100).toFixed(2)}%</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(fee.fee_amount)}</TableCell>
-                            <TableCell className="text-sm">{fee.invoice_date ? new Date(fee.invoice_date).toLocaleDateString() : "—"}</TableCell>
-                            <TableCell>
-                              <Badge className={statusStyles[fee.status]} variant="secondary">
-                                {fee.status.charAt(0).toUpperCase() + fee.status.slice(1)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {fee.status === "pending" && (
-                                    <DropdownMenuItem onClick={() => { setSelectedFee(fee); setInvoiceDate(new Date().toISOString().split("T")[0]); setInvoiceOpen(true) }}>
-                                      <Receipt className="mr-2 h-4 w-4" />Generate Invoice
-                                    </DropdownMenuItem>
+                    ) : !visible.length ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-10 text-center">
+                          No fee records found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      visible.map((fee) => (
+                        <TableRow key={fee.id}>
+                          <TableCell>
+                            {fee.loan_application?.loan_number ?? '—'}
+                            <p className="text-sm text-muted-foreground">
+                              {fee.loan_application?.borrower?.name ?? '—'}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{fee.fee_type}</Badge>
+                            <p className="text-sm">
+                              {fee.period_start
+                                ? `${fee.period_start} → ${fee.period_end}`
+                                : 'One-time'}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            {money(fee.base_amount, feeCurrency(fee))}
+                            <p className="text-sm">
+                              {fee.fee_rate == null
+                                ? '—'
+                                : `${fee.fee_rate * 100}%`}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            {money(
+                              fee.fee_amount ?? fee.amount,
+                              feeCurrency(fee),
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {fee.policy_revision
+                              ? `Revision ${fee.policy_revision}`
+                              : 'Legacy / unverified'}
+                            <p className="text-sm">
+                              {fee.invoice_number ?? 'Not invoiced'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Due {fee.due_date ?? '—'}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{fee.status}</Badge>
+                            {fee.payment_reference && (
+                              <p className="text-sm">{fee.payment_reference}</p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-2">
+                              {canManage &&
+                                fee.policy_id &&
+                                fee.status === 'pending' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setDialog({ action: 'invoice', fee })
+                                    }
+                                  >
+                                    Invoice
+                                  </Button>
+                                )}
+                              {canManage &&
+                                fee.policy_id &&
+                                ['invoiced', 'overdue'].includes(
+                                  fee.status,
+                                ) && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      setDialog({ action: 'pay', fee })
+                                    }
+                                  >
+                                    Record payment
+                                  </Button>
+                                )}
+                              {fee.invoice_number && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => printInvoice(fee)}
+                                >
+                                  <Printer data-icon="inline-start" />
+                                  Print
+                                </Button>
+                              )}
+                            </div>
+                            {fee.calculation_inputs && (
+                              <details className="mt-2">
+                                <summary className="cursor-pointer text-sm">
+                                  Calculation evidence
+                                </summary>
+                                <pre className="max-w-xs overflow-auto text-sm">
+                                  {JSON.stringify(
+                                    fee.calculation_inputs,
+                                    null,
+                                    2,
                                   )}
-                                  {fee.invoice_number && (
-                                    <DropdownMenuItem onClick={() => printInvoice(fee)}>
-                                      <Printer className="mr-2 h-4 w-4" />Print Invoice
-                                    </DropdownMenuItem>
-                                  )}
-                                  {fee.status !== "paid" && (
-                                    <DropdownMenuItem onClick={() => { setSelectedFee(fee); setPayOpen(true) }}>
-                                      <CheckCircle className="mr-2 h-4 w-4 text-emerald-600" />Mark as Paid
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
-
-      {/* New Fee Dialog */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Create Fee Record</DialogTitle>
-            <DialogDescription>Manually create an upfront or quarterly fee record</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Loan Application<RequiredMark show={createReq.isRequired("loan_id")} /></Label>
-              <Select value={newLoanId} onValueChange={(v) => { setNewLoanId(v); const l = loans.find((x) => x.id === v); if (l) setNewBaseAmount(String(((l.approved_amount || 0) * (l.guarantee_coverage || 50) / 100).toFixed(0))) }}>
-                <SelectTrigger><SelectValue placeholder="Select loan" /></SelectTrigger>
-                <SelectContent>
-                  {loans.map((l) => {
-                    const b = l.borrower
-                const name = b?.name || "—"
-                return <SelectItem key={l.id} value={l.id}>{l.loan_number || l.id.slice(0, 8)} – {name}</SelectItem>
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Fee Type<RequiredMark show={createReq.isRequired("fee_type")} /></Label>
-              <Select value={newFeeType} onValueChange={(v) => setNewFeeType(v as "upfront" | "quarterly")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="upfront">Upfront Fee (one-time)</SelectItem>
-                  <SelectItem value="quarterly">Quarterly Commission</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {newFeeType === "quarterly" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Period Start<RequiredMark show={createReq.isRequired("period_start")} /></Label>
-                  <Input type="date" value={newPeriodStart} onChange={(e) => setNewPeriodStart(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Period End<RequiredMark show={createReq.isRequired("period_end")} /></Label>
-                  <Input type="date" value={newPeriodEnd} onChange={(e) => setNewPeriodEnd(e.target.value)} />
-                </div>
+                                </pre>
+                              </details>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-            )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Base Amount (Guarantee Amount)<RequiredMark show={createReq.isRequired("base_amount")} /></Label>
-                <Input type="number" value={newBaseAmount} onChange={(e) => setNewBaseAmount(e.target.value)} placeholder="Auto-filled from loan" />
-              </div>
-              <div className="space-y-2">
-                <Label>Fee Rate (%)<RequiredMark show={createReq.isRequired("fee_rate")} /></Label>
-                <Input type="number" step="0.1" value={newFeeRate} onChange={(e) => setNewFeeRate(e.target.value)} />
-              </div>
-            </div>
-            {calculatedFee > 0 && (
-              <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">
-                Calculated fee: {formatCurrency(calculatedFee)}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateFee} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Fee"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Invoice Dialog */}
-      <Dialog open={invoiceOpen} onOpenChange={setInvoiceOpen}>
-        <DialogContent>
+            </CardContent>
+          </Card>
+        </>
+      )}
+      <Dialog
+        open={dialog !== null}
+        onOpenChange={(open) => {
+          if (!open && !busy) setDialog(null)
+        }}
+      >
+        <DialogContent
+          className="max-h-[85vh] overflow-y-auto sm:max-w-xl"
+          onEscapeKeyDown={(event) => {
+            if (busy) event.preventDefault()
+          }}
+          onInteractOutside={(event) => {
+            if (busy) event.preventDefault()
+          }}
+        >
           <DialogHeader>
-            <DialogTitle>Generate Invoice</DialogTitle>
-            <DialogDescription>Issue a fee invoice for {selectedFee ? formatCurrency(selectedFee.fee_amount) : ""}</DialogDescription>
+            <DialogTitle>
+              {dialog?.action === 'create'
+                ? 'Create policy-backed fee'
+                : dialog?.action === 'invoice'
+                  ? 'Issue fee invoice'
+                  : 'Record fee payment'}
+            </DialogTitle>
+            <DialogDescription>
+              Every confirmed action is attributed to your identity and
+              committed with its audit entry.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Invoice Date<RequiredMark show={invoiceReq.isRequired("invoice_date")} /></Label>
-            <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setInvoiceOpen(false)}>Cancel</Button>
-            <Button onClick={handleGenerateInvoice} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Receipt className="mr-2 h-4 w-4" />Generate</>}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Mark Paid Dialog */}
-      <Dialog open={payOpen} onOpenChange={setPayOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mark as Paid</DialogTitle>
-            <DialogDescription>Confirm payment for {selectedFee ? formatCurrency(selectedFee.fee_amount) : ""}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Payment Date<RequiredMark show={paymentReq.isRequired("payment_date")} /></Label>
-              <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Payment Reference<RequiredMark show={paymentReq.isRequired("payment_reference")} /></Label>
-              <Input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="Bank transfer / receipt number" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayOpen(false)}>Cancel</Button>
-            <Button onClick={handleMarkPaid} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="mr-2 h-4 w-4" />Confirm Payment</>}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Auto-Calculate Dialog */}
-      <Dialog open={reconcileOpen} onOpenChange={setReconcileOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Auto-Calculate Quarterly Fees</DialogTitle>
-            <DialogDescription>Automatically generate quarterly fee records for all active loans based on the current quarter</DialogDescription>
-          </DialogHeader>
-          <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-2">
-            <p className="font-medium">This will:</p>
-            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li>Find all active / disbursed loans</li>
-              <li>Calculate 0.5% quarterly fee on guarantee amount</li>
-              <li>Create fee records for the current quarter only</li>
-              <li>Skip loans that already have a Q fee for this period</li>
-            </ul>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReconcileOpen(false)}>Cancel</Button>
-            <Button onClick={handleAutoCalculateQuarterly} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Calculator className="mr-2 h-4 w-4" />Run Auto-Calculate</>}
-            </Button>
-          </DialogFooter>
+          {dialog?.action === 'create' ? (
+            <FeeCreateForm
+              loans={loans}
+              onRecorded={recorded}
+              onBusyChange={setBusy}
+            />
+          ) : (
+            dialog && (
+              <FeeActionForm
+                key={`${dialog.fee.id}:${dialog.action}`}
+                fee={{
+                  id: dialog.fee.id,
+                  status: dialog.fee.status,
+                  currency: feeCurrency(dialog.fee) ?? '',
+                  fee_amount: dialog.fee.fee_amount,
+                  policy_revision: dialog.fee.policy_revision ?? 0,
+                }}
+                action={dialog.action}
+                onRecorded={recorded}
+                onBusyChange={setBusy}
+              />
+            )
+          )}
         </DialogContent>
       </Dialog>
     </div>

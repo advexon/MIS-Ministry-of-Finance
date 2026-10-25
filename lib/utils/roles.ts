@@ -88,8 +88,8 @@ export function isAdmin(role: Role): boolean {
 /**
  * Check if a user is a superadmin (tier 1)
  */
-export function isSuperAdmin(role: Role): boolean {
-  return role.tier === ROLE_TIERS.SUPER_ADMIN
+export function isSuperAdmin(role: Role | null | undefined): boolean {
+  return role?.is_active === true && role?.code === ROLE_CODES.SUPER_ADMIN && role.tier === ROLE_TIERS.SUPER_ADMIN
 }
 
 /**

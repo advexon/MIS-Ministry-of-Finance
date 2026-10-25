@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { usePermissions } from '@/lib/contexts/permission-context'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 import type { LoanApplication } from '@/lib/types/database'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,8 @@ async function loadSignatureState([, loanId]: [string, string]) {
 export function SignatureReviewPanel({ loan, onDone }: { loan: LoanApplication; onDone: () => void | Promise<void> }) {
   const { role } = usePermissions()
   const router = useRouter()
-  const visible = ['deputy_director', 'fkg_management', 'prsf_analyst', 'credit_risk_officer', 'compliance_officer'].includes(role?.code ?? '') && ['deputy_review', 'management_review', 'approved'].includes(loan.status)
+  const requestAuthorityReason = useAuthorityReason()
+  const visible = ['super_admin', 'deputy_director', 'fkg_management', 'prsf_analyst', 'credit_risk_officer', 'compliance_officer'].includes(role?.code ?? '') && ['deputy_review', 'management_review', 'approved'].includes(loan.status)
   const { data, error: loadError, mutate } = useSWR(visible ? ['loan-signature-state', loan.id] : null, loadSignatureState)
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
@@ -36,11 +38,12 @@ export function SignatureReviewPanel({ loan, onDone }: { loan: LoanApplication; 
     setBusy(true)
     setError(null)
     try {
+      const authorityReason = await requestAuthorityReason()
       if (confirm) {
-        const { error } = await createClient().rpc('cgf_confirm_deputy', { p_loan: loan.id, p_notes: notes })
+        const { error } = await createClient().rpc('cgf_confirm_deputy', { p_loan: loan.id, p_notes: authorityReason ?? notes })
         if (error) throw new Error(error.message)
       } else {
-        const response = await fetch(`/api/loans/${loan.id}/generate-guarantee`, { method: 'POST' })
+        const response = await fetch(`/api/loans/${loan.id}/generate-guarantee`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: authorityReason }) })
         const result = await response.json()
         if (!response.ok) throw new Error(result.error ?? 'Signature refused')
       }
@@ -52,10 +55,10 @@ export function SignatureReviewPanel({ loan, onDone }: { loan: LoanApplication; 
     finally { setBusy(false) }
   }
 
-  return <Card><CardHeader><CardTitle>Deputy review and guarantee signature</CardTitle><CardDescription>The deputy confirms the exact terms, signed committee approval and compliance note. The Director or an authorized temporary delegate then signs. These must be different people.</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+  return <Card><CardHeader><CardTitle>Deputy review and guarantee signature</CardTitle><CardDescription>The deputy confirms the exact terms, signed committee approval and compliance note. The Director or an authorized temporary delegate then signs. Normally these must be different people. A verified Super Administrator may perform both with an explicit audited authority reason.</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
     {(error || loadError) && <Alert variant="destructive"><AlertDescription>{error ?? 'Could not verify the signature state'}</AlertDescription></Alert>}
     <p className="text-sm">Deputy confirmation: {data ? data.current ? 'current and recorded' : 'required or terms changed' : 'checking'}</p>
-    {role?.code === 'deputy_director' && <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="deputy-review-notes">Review and confirmation notes</Label><Textarea id="deputy-review-notes" maxLength={10000} value={notes} onChange={(event) => setNotes(event.target.value)} /><Button className="self-start" disabled={busy || notes.trim().length < 3} onClick={() => void act(true)}>Confirm reviewed file</Button></fieldset>}
+    {['super_admin', 'deputy_director'].includes(role?.code ?? '') && <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="deputy-review-notes">Review and confirmation notes</Label><Textarea id="deputy-review-notes" maxLength={10000} value={notes} onChange={(event) => setNotes(event.target.value)} /><Button className="self-start" disabled={busy || notes.trim().length < 3} onClick={() => void act(true)}>Confirm reviewed file</Button></fieldset>}
     {data?.authorized && loan.status === 'approved' && <Button className="self-start" disabled={busy || !data.current} onClick={() => void act(false)}>Sign and issue guarantee</Button>}
   </CardContent></Card>
 }

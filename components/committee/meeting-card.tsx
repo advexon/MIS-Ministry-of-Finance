@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 import { tallyVotes } from '@/lib/workflow/fkg-scheme'
 import { memberName, type CommitteeMeeting, type CommitteeMember } from '@/components/committee/types'
 
@@ -30,6 +31,7 @@ interface Props {
 
 export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthorized, onChanged, onAction, claimContext }: Props) {
   const { toast } = useToast()
+  const requestAuthorityReason = useAuthorityReason()
   const [busy, setBusy] = useState(false)
   const [protocolOpen, setProtocolOpen] = useState(false)
   const [protocol, setProtocol] = useState({ no: '', notes: '' })
@@ -38,14 +40,16 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
   const [clarificationReason, setClarificationReason] = useState('')
   const finalized = ['closed', 'protocol_issued', 'cancelled'].includes(meeting.status ?? '')
   const signing = meeting.status === 'signing'
-  const secretary = secretaryAuthorized && meeting.secretary_id === myId
+  const secretary = myRole === 'super_admin' || (secretaryAuthorized && meeting.secretary_id === myId)
   const mySeat = meeting.seats.find((seat) => seat.member_id === myId)
-  const readOnly = !myRole || ['super_admin', 'prsf_admin', 'auditor', 'bank_admin', 'bank_officer'].includes(myRole)
+  const readOnly = !myRole || ['prsf_admin', 'auditor', 'bank_admin', 'bank_officer'].includes(myRole)
   const allSigned = meeting.seats.length > 0 && meeting.seats.every((seat) => seat.signed_at)
 
   async function act(action: string, data: Record<string, unknown> = {}) {
     setBusy(true)
     try {
+      const authorityReason = await requestAuthorityReason()
+      if (authorityReason) data = { ...data, authority_reason: authorityReason }
       if (onAction) {
         await onAction(action, data)
       } else {
@@ -63,10 +67,23 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
     }
   }
 
+  async function assumeSeat(memberId: string) {
+    setBusy(true)
+    try {
+      const reason = await requestAuthorityReason()
+      const { error } = await createClient().rpc('cgf_assume_committee_seat', { p_claim: !!claimContext, p_sitting: meeting.id, p_member: memberId, p_reason: reason })
+      if (error) throw new Error(error.message)
+      await onChanged()
+      toast({ title: 'Your individual seat was recorded', description: 'You can cast only your own vote and signature. All other required members must still vote and sign.' })
+    } catch (error) { toast({ title: 'Seat substitution refused', description: error instanceof Error ? error.message : 'Request failed', variant: 'destructive' }) }
+    finally { setBusy(false) }
+  }
+
   async function requestVerification(loanId: string) {
     setBusy(true)
     try {
-      const response = await fetch(`/api/loans/${loanId}/workflow`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: 'verification', reason: 'Committee requested verification before deciding' }) })
+      const authorityReason = await requestAuthorityReason()
+      const response = await fetch(`/api/loans/${loanId}/workflow`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: 'verification', reason: authorityReason ?? 'Committee requested verification before deciding' }) })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error ?? 'Verification request refused')
       await onChanged()
@@ -109,6 +126,7 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
             <div key={seat.id} className="flex flex-wrap items-center gap-3">
               <Checkbox id={`attendance-${seat.id}`} checked={seat.attended === true} disabled={!secretary || finalized || signing || busy} onCheckedChange={(value) => void act('attendance', { member_id: seat.member_id, attended: value === true })} />
               <Label htmlFor={`attendance-${seat.id}`}>{memberName(allMembers.find((member) => member.id === seat.member_id))}{seat.member_id === myId ? ' (you)' : ''}</Label>
+              {myRole === 'super_admin' && !mySeat && meeting.status === 'scheduled' && meeting.items.every((item) => !item.votes.length) && <Button size="sm" variant="outline" disabled={busy} onClick={() => void assumeSeat(seat.member_id)}>Take this seat as myself</Button>}
               {seat.is_chair && <Badge variant="outline">Chair</Badge>}
               {seat.signed_at && <Badge variant="secondary">Signed {new Date(seat.signed_at).toLocaleString()}</Badge>}
             </div>

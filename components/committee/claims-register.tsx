@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 
 interface ClaimOption { id: string; claim_number: string; loan_id: string; claim_amount: number; status: string }
 interface ClaimSitting {
@@ -52,6 +53,7 @@ function asMeeting(sitting: ClaimSitting): CommitteeMeeting {
 
 export function ClaimsCommitteeRegister({ members, myId, myRole, secretary }: { members: CommitteeMember[]; myId: string | null; myRole: string | null; secretary: boolean }) {
   const { toast } = useToast()
+  const requestAuthorityReason = useAuthorityReason()
   const { data, error, isLoading, mutate } = useSWR(myId ? ['claims-committee-register', myId] : null, loadClaimsRegister)
   const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -59,7 +61,8 @@ export function ClaimsCommitteeRegister({ members, myId, myRole, secretary }: { 
   const amount = Number(form.recommended_amount)
 
   async function act(action: string, sittingId: string | null, input: Record<string, unknown>) {
-    const { error } = await createClient().rpc('cgf_claim_committee_action', { p_action: action, p_sitting: sittingId, p_data: input })
+    const authorityReason = input.authority_reason ?? await requestAuthorityReason()
+    const { error } = await createClient().rpc('cgf_claim_committee_action', { p_action: action, p_sitting: sittingId, p_data: { ...input, authority_reason: authorityReason } })
     if (error) throw error
   }
 

@@ -30,6 +30,7 @@ import {
 } from '@/lib/workflow/fkg-scheme'
 import { STEP_FORMS, StepArtifactForm } from '@/components/workflow/step-forms'
 import { usePermissions } from '@/lib/contexts/permission-context'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 
 interface Props {
   loan: LoanApplication
@@ -42,6 +43,7 @@ type DialogKind = 'uko' | 'eligibility' | 'return' | null
 export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const router = useRouter()
   const { profile } = usePermissions()
+  const requestAuthorityReason = useAuthorityReason()
   const status = loan.status as LoanStatus
   const step = STEP_BY_STATUS[status]
 
@@ -80,10 +82,11 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
     setBusy(true)
     setError(null)
     try {
+      const authorityReason = await requestAuthorityReason()
       const res = await fetch(`/api/loans/${loan.id}/workflow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, payload, reason, screening }),
+        body: JSON.stringify({ to, payload, reason: authorityReason ?? reason, screening }),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -138,7 +141,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const isLegacy = status === 'under_review'
   const isStaff =
     roleCode != null &&
-    roleCode === 'prsf_analyst'
+    ['prsf_analyst', 'super_admin'].includes(roleCode)
 
   if (isLegacy) {
     return (
@@ -177,7 +180,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   }
 
   if (status === 'draft') {
-    return <Card><CardHeader><CardTitle>Bank manager review</CardTitle><CardDescription>The officer prepares the file; the bank manager checks it before submission. MIS then screens stop factors and assigns an operations analyst.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">{error && <p role="alert" className="text-sm text-destructive">{error}</p>}{['bank_admin', 'bank_officer'].includes(roleCode ?? '') ? <Button className="self-start" disabled={busy} onClick={() => void post('submitted', undefined, 'Bank reviewed and submitted the application')}>{busy ? 'Submitting…' : roleCode === 'bank_admin' ? 'Approve and submit to MIS' : 'Submit (manager approval required unless enabled by administrator)'}</Button> : <p className="text-sm text-muted-foreground">Awaiting the originating bank manager.</p>}</CardContent></Card>
+    return <Card><CardHeader><CardTitle>Bank manager review</CardTitle><CardDescription>The officer prepares the file; the bank manager checks it before submission. MIS then screens stop factors and assigns an operations analyst.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">{error && <p role="alert" className="text-sm text-destructive">{error}</p>}{['super_admin', 'bank_admin', 'bank_officer'].includes(roleCode ?? '') ? <Button className="self-start" disabled={busy} onClick={() => void post('submitted', undefined, 'Bank reviewed and submitted the application')}>{busy ? 'Submitting…' : roleCode === 'bank_admin' ? 'Approve and submit to MIS' : 'Submit (manager approval required unless enabled by administrator)'}</Button> : <p className="text-sm text-muted-foreground">Awaiting the originating bank manager.</p>}</CardContent></Card>
   }
   if (!step) {
     return loan.stop_factor_reason ? <Card><CardHeader><CardTitle>Automatic stop-factor refusal</CardTitle><CardDescription>{loan.stop_factor_reason}</CardDescription></CardHeader></Card> : null

@@ -18,6 +18,8 @@
  */
 
 import { useMemo, useState } from 'react'
+import useSWR from 'swr'
+import { loadOperationalSettings } from '@/components/admin/operational-settings-controls'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
@@ -34,6 +36,9 @@ import {
 } from '@/components/ui/dialog'
 
 import { createClient } from '@/lib/supabase/client'
+import { usePermissions } from '@/lib/contexts/permission-context'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
+import { isSuperAdmin } from '@/lib/utils/roles'
 import type { LoanApplication, LoanStatus } from '@/lib/types/database'
 import { ASSESSMENT_SLA_DAYS, requiresRiskReview } from '@/lib/workflow/fkg-scheme'
 import type { FormDef } from '@/lib/forms/field-requirements'
@@ -411,6 +416,9 @@ interface Props {
 
 export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: Props) {
   const router = useRouter()
+  const { role } = usePermissions()
+  const requestAuthorityReason = useAuthorityReason()
+  const { data: operationalSettings, error: settingsError } = useSWR(open && config.step === 5 ? 'assessment-routing-settings' : null, loadOperationalSettings)
   const supabase = useMemo(() => createClient(), [])
 
   const [values, setValues] = useState<Record<string, string | boolean>>({})
@@ -426,7 +434,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
    * before filling the form in, rather than after.
    */
   async function runSodCheck() {
-    if (checkedSod || !config.sodAgainstStep) {
+    if (isSuperAdmin(role) || checkedSod || !config.sodAgainstStep) {
       setCheckedSod(true)
       return
     }
@@ -470,6 +478,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
   }
 
   async function submit(explicitTo?: LoanStatus) {
+    if (config.step === 5 && (!operationalSettings || settingsError)) { setError('Wait for the current risk-review rules to load before submitting.'); return }
     const missing = missingRequired()
     if (missing) {
       setError(missing)
@@ -482,7 +491,8 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       const userId = auth.user?.id ?? null
 
       // 1. Write the artefact.
-      const row = config.buildRow({ loan, userId, values })
+      const authorityReason = await requestAuthorityReason()
+      const row = { ...config.buildRow({ loan, userId, values }), ...(authorityReason ? { authority_reason: authorityReason } : {}) }
       const { error: insertError } = await supabase.from(config.table).insert(row)
       if (insertError) {
         setError(`Could not save the record: ${insertError.message}`)
@@ -490,7 +500,9 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       }
 
       // 2. Transition, validated server-side.
-      const to = config.pickTransition ? config.pickTransition(values, loan) : explicitTo ?? config.transitions[0]?.to
+      const to = config.step === 5
+        ? requiresRiskReview(loan.amount_usd, str(values.risk_rating), Number(operationalSettings?.risk_review_threshold_usd ?? 10000)) ? 'risk_review' : 'kkg_scheduled'
+        : config.pickTransition ? config.pickTransition(values, loan) : explicitTo ?? config.transitions[0]?.to
       if (!to) {
         onOpenChange(false)
         setValues({})
@@ -501,7 +513,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       const res = await fetch(`/api/loans/${loan.id}/workflow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, reason: `Step ${config.step} completed` }),
+        body: JSON.stringify({ to, reason: authorityReason ?? `Step ${config.step} completed` }),
       })
       const json = await res.json()
       if (!res.ok) {

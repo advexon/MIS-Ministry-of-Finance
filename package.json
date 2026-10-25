@@ -7,8 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "verify:bank-directory": "node scripts/verify-bank-directory-ui.mjs && node scripts/verify-bank-directory.mjs",
+    "verify:role-administration": "node --experimental-strip-types --no-warnings scripts/verify-role-permission-administration.mjs",
+    "verify:admin-authority": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-admin-authority.ts",
     "verify:scheme": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-fkg-scheme.ts",
     "verify:notifications": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-internal-notifications.ts",
+    "verify:claim-payments": "node scripts/verify-claim-payment-database.mjs",
+    "verify:recovery": "node scripts/verify-recovery-execution.mjs",
+    "verify:fees": "node scripts/verify-fee-execution.mjs && node scripts/verify-fee-database.mjs",
     "verify:financial-policy": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-financial-policy.ts",
     "typecheck": "tsc --noEmit",
     "verify:security": "node --experimental-strip-types --no-warnings scripts/verify-response-security.mjs",
@@ -78,6 +84,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^22",
     "@types/react": "^19",

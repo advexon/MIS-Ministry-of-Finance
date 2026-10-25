@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, ReactNode } from 'react'
 import useSWR from 'swr'
+import { AuthorityReasonProvider } from '@/components/admin/authority-reason-provider'
+import { isSuperAdmin } from '@/lib/utils/roles'
 import { type Role, type Profile } from '@/lib/types/database'
 import type { User } from '@supabase/supabase-js'
 import {
@@ -51,6 +53,7 @@ export function PermissionProvider({ children, user, role, profile = null }: Per
   const loadPermissions = React.useCallback(async () => { await mutate() }, [mutate])
 
   const can = (resource: string, permission: Permission | Permission[]): boolean => {
+    if (profile?.is_active === false || (role?.code === 'super_admin' && profile?.bank_id)) return false
     if (Array.isArray(permission)) {
       return permission.some(p => hasPermission(role, resource, p, overrides))
     }
@@ -58,7 +61,7 @@ export function PermissionProvider({ children, user, role, profile = null }: Per
   }
 
   const getPermissions = (resource: string) =>
-    getResourcePermissions(role, resource, overrides)
+    profile?.is_active === false || (role?.code === 'super_admin' && profile?.bank_id) ? null : getResourcePermissions(role, resource, overrides)
 
   const value: PermissionContextType = {
     profile,
@@ -72,7 +75,7 @@ export function PermissionProvider({ children, user, role, profile = null }: Per
 
   return (
     <PermissionContext.Provider value={value}>
-      {children}
+      <AuthorityReasonProvider enabled={isSuperAdmin(role) && profile?.is_active !== false && !profile?.bank_id}>{children}</AuthorityReasonProvider>
     </PermissionContext.Provider>
   )
 }
@@ -136,7 +139,7 @@ export function CanAccess({
 export function AdminOnly({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
   const { role } = usePermissions()
   
-  if (!role || role.tier !== 1) {
+  if (!isSuperAdmin(role)) {
     return <>{fallback}</>
   }
 

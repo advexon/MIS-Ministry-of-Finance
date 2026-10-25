@@ -1,6 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { Textarea } from '@/components/ui/textarea'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { ROLE_PERMISSION_RESOURCES as RESOURCES, ROLE_PERMISSION_ACTIONS as PERMISSIONS, isEditableRoleGrant, type RolePermissionAction as Permission } from '@/lib/admin/role-permissions'
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
 import { useI18n } from "@/lib/i18n/context"
@@ -45,22 +48,6 @@ import {
 import type { Role } from "@/lib/types/database"
 import { getLocalizedName } from "@/lib/utils/localized-name"
 
-// Resource definitions with labels
-const RESOURCES = [
-  { key: 'users', label: 'User Management', description: 'Manage system users and their accounts' },
-  { key: 'roles', label: 'Role Management', description: 'Manage roles and permissions' },
-  { key: 'loans', label: 'Loan Applications', description: 'View and manage loan applications' },
-  { key: 'claims', label: 'Claims', description: 'View and manage guarantee claims' },
-  { key: 'fees', label: 'Fees', description: 'View and manage fees and invoices' },
-  { key: 'banks', label: 'Banks', description: 'View and manage partner banks' },
-  { key: 'reports', label: 'Reports', description: 'Access and generate reports' },
-  { key: 'audit_logs', label: 'Audit Logs', description: 'View system audit trail' },
-  { key: 'access_logs', label: 'Access Logs', description: 'View access attempt logs' },
-]
-
-const PERMISSIONS = ['view', 'create', 'update', 'delete', 'approve'] as const
-type Permission = typeof PERMISSIONS[number]
-
 interface RolePermission {
   id?: string
   role_id: string
@@ -77,6 +64,7 @@ interface RolePermission {
 interface RoleWithPermissions extends Omit<Role, "permissions"> {
   permissions?: RolePermission[]
   user_count?: number
+  permission_revision: number
 }
 
 const tierColors: Record<number, string> = {
@@ -91,8 +79,12 @@ const tierColors: Record<number, string> = {
 
 export default function RolesPage() {
   const { locale } = useI18n()
-  const { role: userRole, user, refreshPermissions } = usePermissions()
-
+  const { role: userRole, profile, refreshPermissions } = usePermissions()
+  const administrator = !!profile?.is_active && !profile.bank_id && userRole?.is_active === true && (
+    (userRole?.code === 'super_admin' && userRole.tier === 1) || (userRole?.code === 'prsf_admin' && userRole.tier === 2)
+  )
+  const saveInFlight = useRef(false)
+  const [changeReason, setChangeReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(null)
   const [editDialog, setEditDialog] = useState(false)
@@ -158,7 +150,7 @@ export default function RolesPage() {
 
   // Access check runs after all hooks so the hook order stays stable while
   // `userRole` resolves from null to a loaded role (Rules of Hooks).
-  if (!userRole || userRole.tier > 2) {
+  if (!administrator || !userRole) {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <Card className="max-w-md">
@@ -183,7 +175,7 @@ export default function RolesPage() {
     const permMap: Record<string, RolePermission> = {}
     RESOURCES.forEach((res) => {
       const existing = role.permissions?.find((p) => p.resource === res.key)
-      permMap[res.key] = existing || {
+      permMap[res.key] = existing ? { ...existing } : {
         role_id: role.id,
         resource: res.key,
         can_view: false,
@@ -193,7 +185,13 @@ export default function RolesPage() {
         can_approve: false,
       }
     })
+    for (const resource of RESOURCES) {
+      for (const action of PERMISSIONS) {
+        if (!isEditableRoleGrant(role.code, resource.key, action)) permMap[resource.key][`can_${action}`] = false
+      }
+    }
     setEditedPermissions(permMap)
+    setChangeReason('')
     setEditDialog(true)
   }
 
@@ -208,62 +206,40 @@ export default function RolesPage() {
   }
 
   const handleSavePermissions = async () => {
-    if (!selectedRole) return
+    if (!selectedRole || saveInFlight.current || changeReason.trim().length < 3) return
+    saveInFlight.current = true
     setSaving(true)
 
     try {
-      const supabase = createClient()
-
-      // Upsert each permission
-      for (const resource of RESOURCES) {
-        const perm = editedPermissions[resource.key]
-        if (!perm) continue
-
-        const { error } = await supabase
-          .from('role_permissions')
-          .upsert(
-            {
-              role_id: selectedRole.id,
-              resource: resource.key,
-              can_view: perm.can_view,
-              can_create: perm.can_create,
-              can_update: perm.can_update,
-              can_delete: perm.can_delete,
-              can_approve: perm.can_approve,
-            },
-            { onConflict: 'role_id,resource' }
-          )
-
-        if (error) throw error
-      }
-
-      // Log the permission change to audit trail.
-      // `changed_by` is the acting USER, not their role — passing userRole.id
-      // here recorded a role id and broke attribution.
-      await supabase.from('audit_trail').insert({
-        table_name: 'roles',
-        record_id: selectedRole.id,
-        action: 'UPDATE_PERMISSIONS',
-        changed_by: user?.id ?? null,
-        new_data: {
-          role_name: getLocalizedName(selectedRole, locale),
-          permissions_updated: Object.keys(editedPermissions),
-        },
+      const { data, error } = await createClient().rpc('cgf_save_role_permissions', {
+        p_role_id: selectedRole.id,
+        p_permissions: RESOURCES.map(({ key }) => {
+          const permission = editedPermissions[key]
+          return { resource: key, ...Object.fromEntries(PERMISSIONS.map((action) => [
+            `can_${action}`, isEditableRoleGrant(selectedRole.code, key, action) && permission?.[`can_${action}`] === true,
+          ])) }
+        }),
+        p_expected_revision: selectedRole.permission_revision,
+        p_reason: changeReason.trim(),
       })
-
-      showToast('Permissions updated successfully')
+      if (error) {
+        if (error.code === '40001') {
+          await fetchRoles()
+          throw new Error('Permissions changed elsewhere. Close and reopen this role to load the latest revision; your edit has not been saved.')
+        }
+        throw new Error(error.message)
+      }
+      if (data?.role_id !== selectedRole.id || data?.revision !== selectedRole.permission_revision + 1) {
+        throw new Error('Save confirmation was not received. Reload the role before retrying.')
+      }
       setEditDialog(false)
-      fetchRoles()
-      // Access is now DB-backed, so re-read the current user's own permissions
-      // in case they just changed their own role's access.
-      await refreshPermissions()
+      const refreshResults = await Promise.allSettled([fetchRoles(), refreshPermissions()])
+      const refreshFailed = refreshResults.some((result) => result.status === 'rejected')
+      showToast(refreshFailed ? 'Permissions and audit saved. Reload the page to refresh access.' : 'Permissions and audit saved together', refreshFailed ? 'error' : 'success')
     } catch (error) {
-      console.error('[v0] Failed to save role permissions:', error)
-      showToast(
-        error instanceof Error ? error.message : 'Failed to save permissions',
-        'error',
-      )
+      showToast(error instanceof Error ? error.message : 'Failed to save permissions', 'error')
     } finally {
+      saveInFlight.current = false
       setSaving(false)
     }
   }
@@ -358,9 +334,11 @@ export default function RolesPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleEditRole(role)}
-                        disabled={role.tier < (userRole?.tier || 99)}
+                        disabled={role.code === 'super_admin' || role.tier < userRole.tier || !!result?.permissionsFailed}
                         title={
-                          role.tier < (userRole?.tier || 99)
+                          role.code === 'super_admin'
+                            ? 'Super Administrator authority is inherent and cannot be revoked here'
+                            : role.tier < userRole.tier
                             ? "Cannot edit roles with higher authority"
                             : "Edit permissions"
                         }
@@ -407,7 +385,7 @@ export default function RolesPage() {
       </Card>
 
       {/* Edit Permissions Dialog */}
-      <Dialog open={editDialog} onOpenChange={setEditDialog}>
+      <Dialog open={editDialog} onOpenChange={(open) => { if (!saveInFlight.current) setEditDialog(open) }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -415,7 +393,7 @@ export default function RolesPage() {
               Edit Permissions: {getLocalizedName(selectedRole, locale)}
             </DialogTitle>
             <DialogDescription>
-              Configure which resources this role can access and what actions they can perform.
+              Configure registered resource grants. Disabled actions are protected business restrictions; grants never override database workflows, bank isolation or financial authority.
             </DialogDescription>
           </DialogHeader>
 
@@ -446,6 +424,7 @@ export default function RolesPage() {
                             className="flex items-center gap-2 cursor-pointer"
                           >
                             <Checkbox
+                              disabled={saving || !selectedRole || !isEditableRoleGrant(selectedRole.code, resource.key, permission)}
                               checked={perm?.[`can_${permission}` as keyof RolePermission] as boolean}
                               onCheckedChange={(checked) =>
                                 handlePermissionChange(resource.key, permission, checked as boolean)
@@ -462,11 +441,16 @@ export default function RolesPage() {
             </Accordion>
           </div>
 
+          <Field>
+            <FieldLabel htmlFor="permission-change-reason">Change reason</FieldLabel>
+            <Textarea id="permission-change-reason" value={changeReason} onChange={(event) => setChangeReason(event.target.value)} minLength={3} maxLength={2000} disabled={saving} aria-describedby="permission-change-help" />
+            <FieldDescription id="permission-change-help">Required. All grants and the before/after audit save together. Revision {selectedRole?.permission_revision ?? 0}; conflicting edits require reloading.</FieldDescription>
+          </Field>
           <DialogFooter className="border-t pt-4">
-            <Button variant="outline" onClick={() => setEditDialog(false)}>
+            <Button variant="outline" disabled={saving} onClick={() => setEditDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSavePermissions} disabled={saving} className="gap-2">
+            <Button onClick={handleSavePermissions} disabled={saving || changeReason.trim().length < 3} className="gap-2">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save Permissions
             </Button>

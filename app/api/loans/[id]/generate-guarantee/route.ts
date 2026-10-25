@@ -8,7 +8,10 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { data, error } = await supabase.rpc('cgf_issue_guarantee', { p_loan: id })
+  const body = await _request.json().catch(() => ({}))
+  const parsed = z.object({ reason: z.string().trim().min(3).max(2000).nullable().optional() }).strict().safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid signature authority reason' }, { status: 400 })
+  const { data, error } = await supabase.rpc('cgf_sign_guarantee', { p_loan: id, p_reason: parsed.data.reason ?? null })
   if (error) {
     const status = error.code === '42501' ? 403 : ['23514', '22023'].includes(error.code) ? 422 : 500
     return NextResponse.json({ error: status === 500 ? 'Could not sign the guarantee. No partial issuance was saved.' : error.message }, { status })

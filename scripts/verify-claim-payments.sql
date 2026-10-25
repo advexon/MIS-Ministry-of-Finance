@@ -56,7 +56,7 @@ begin
   revision:=(result->>'revision')::bigint;
   execute 'reset role';
   for role_actor in select distinct on(r.code) p.id,r.code from public.profiles p join public.roles r on r.id=p.role_id where p.is_active and r.is_active order by r.code,p.id loop
-    if role_actor.code in ('accountant','deputy_director','fkg_management') then continue;end if;
+    if role_actor.code in ('super_admin','accountant','deputy_director','fkg_management') then continue;end if;
     perform set_config('request.jwt.claim.sub',role_actor.id::text,true);
     execute 'set local role authenticated';
     begin perform public.cgf_record_claim_payment(payment,claim,250,'TJS',current_date,fixture,'Regression payment',revision);raise exception 'Unauthorized role recorded payment: %',role_actor.code;exception when insufficient_privilege then null;end;
