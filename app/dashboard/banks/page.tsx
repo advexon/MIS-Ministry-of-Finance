@@ -10,14 +10,10 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Building2, MapPin, TrendingUp, Plus, Search, ChevronRight, Eye } from 'lucide-react'
+import { Building2, MapPin, TrendingUp, Search, ChevronRight, Eye } from 'lucide-react'
 import Link from 'next/link'
-import { useToast } from '@/hooks/use-toast'
-import { useFieldRequirements } from '@/lib/hooks/use-field-requirements'
-import { RequiredMark, missingFieldsMessage } from '@/components/forms/required-mark'
+import { BankDirectoryEditor } from '@/components/admin/bank-directory-editor'
 
 interface Bank {
   id: string
@@ -47,15 +43,8 @@ function BankSkeleton() {
 export default function BanksPage() {
   const { t, locale } = useI18n()
   const supabase = createClient()
-  const { toast } = useToast()
-  const { isRequired, missingFields } = useFieldRequirements('bank')
 
   const [search, setSearch] = useState('')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
-    code: '', name_en: '', name_ru: '', name_tj: '',
-  })
 
   // Helper to get localized bank name
   const getBankName = (bank: Bank) => getLocalizedName(bank, locale)
@@ -69,32 +58,6 @@ export default function BanksPage() {
     return simple ?? []
   })
   const loading = isLoading || isValidating
-  const fetchBanks = () => mutate()
-
-  const handleCreate = async () => {
-    const missing = missingFields(form)
-    if (missing.length) {
-      toast({ title: missingFieldsMessage(missing), variant: 'destructive' })
-      return
-    }
-    setSaving(true)
-    const { error } = await supabase.from('banks').insert({
-      code: form.code,
-      name_en: form.name_en,
-      name_ru: form.name_ru || form.name_en,
-      name_tj: form.name_tj || form.name_en,
-      is_active: true
-    })
-    if (error) {
-      toast({ title: 'Failed to create bank', description: error.message, variant: 'destructive' })
-    } else {
-      toast({ title: 'Bank created successfully' })
-      setDialogOpen(false)
-      setForm({ code: '', name_en: '', name_ru: '', name_tj: '' })
-      fetchBanks()
-    }
-    setSaving(false)
-  }
 
   const filtered = banks.filter(b => {
     const name = getBankName(b)
@@ -114,43 +77,7 @@ export default function BanksPage() {
             Partner financial institutions in the PRSF programme
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" />Add Bank</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add Partner Bank</DialogTitle>
-              <DialogDescription>Enter the details of the new partner financial institution.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Bank Code<RequiredMark show={isRequired('code')} /></Label>
-                  <Input placeholder="e.g. AIB" value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value.toUpperCase() }))} maxLength={10} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Bank Name (English)<RequiredMark show={isRequired('name_en')} /></Label>
-                  <Input placeholder="Full legal name" value={form.name_en} onChange={e => setForm(p => ({ ...p, name_en: e.target.value }))} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Bank Name (Russian)<RequiredMark show={isRequired('name_ru')} /></Label>
-                  <Input placeholder="Название банка" value={form.name_ru} onChange={e => setForm(p => ({ ...p, name_ru: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Bank Name (Tajik)<RequiredMark show={isRequired('name_tj')} /></Label>
-                  <Input placeholder="Номи бонк" value={form.name_tj} onChange={e => setForm(p => ({ ...p, name_tj: e.target.value }))} />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Create Bank'}</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <BankDirectoryEditor onSaved={async () => { await mutate() }} />
       </div>
 
       {/* Stats */}

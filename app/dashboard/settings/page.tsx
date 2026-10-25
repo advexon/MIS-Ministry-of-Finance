@@ -13,7 +13,7 @@ import { OperationalSettingsControls } from '@/components/admin/operational-sett
 
 const MODULES = [
   ['Users and employee flags', 'users'], ['Roles and permissions', 'roles'],
-  ['Banks, branches and products', 'banks'], ['Borrowers', 'borrowers'],
+  ['Banks and branches', 'banks'], ['Borrowers', 'borrowers'],
   ['Loan applications', 'loans'], ['Claims', 'claims'], ['Committee sittings', 'committee'],
   ['Fees', 'fees'], ['Recoveries', 'recoveries'], ['Documents', 'documents'],
   ['Reports', 'reports'], ['Form requirements', 'form-requirements'],
