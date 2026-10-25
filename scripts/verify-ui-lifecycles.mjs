@@ -667,7 +667,7 @@ function pageFetcher(relativePath, keyName, bindings) {
 function queryFixture(data, error = null) {
   const operations = []
   const query = { then: (fulfilled, rejected) => Promise.resolve({ data, error }).then(fulfilled, rejected) }
-  for (const method of ['select', 'order', 'eq', 'in', 'limit']) {
+  for (const method of ['select', 'order', 'eq', 'in', 'limit', 'range']) {
     query[method] = (...args) => { operations.push([method, ...args]); return query }
   }
   return { client: { from: table => { operations.push(['from', table]); return query } }, operations }
@@ -725,12 +725,59 @@ function queryFixture(data, error = null) {
   for (const [coverageOverride, product, expected] of [[undefined, undefined, ''], [undefined, { guarantee_coverage: 50 }, '50'], ['', { guarantee_coverage: 50 }, ''], ['0', { guarantee_coverage: 50 }, '0']]) {
     assert.equal(sourceExpression(form, 'guaranteeCoverage', { coverageOverride, product }), expected)
   }
+  const { loadDocumentRows } = loadSource('lib/utils/document-data.ts')
   const unavailable = queryFixture(null, new Error('Live data unavailable'))
-  const fetcher = pageFetcher('app/dashboard/documents/page.tsx', 'document-preview', { supabase: unavailable.client, template: { dataSource: 'loan_applications' } })
+  const fetcher = pageFetcher('app/dashboard/documents/page.tsx', 'document-preview', { supabase: unavailable.client, template: { dataSource: 'loan_applications' }, loadDocumentRows })
   await assert.rejects(fetcher(), /Live data unavailable/)
-  const unsupported = pageFetcher('app/dashboard/documents/page.tsx', 'document-preview', { template: { dataSource: 'unsupported' } })
+  const unsupported = pageFetcher('app/dashboard/documents/page.tsx', 'document-preview', { supabase: unavailable.client, template: { dataSource: 'unsupported' }, loadDocumentRows })
   await assert.rejects(unsupported(), /not supported/)
   console.log('Form/report regressions passed: derived sole-proprietor identity, separate company identity, explicit coverage overrides and no synthetic rows on live-query failure')
+}
+
+{
+  let queryState = { data: [{ loan_number: 'VISIBLE-ROW', approved_amount: 10, currency: 'USD' }], isLoading: false, isValidating: false }
+  let hideColumns = false, search = '', exports = 0
+  const DocumentsPage = loadSource('app/dashboard/documents/page.tsx', {
+    react: { ...React, useMemo: factory => factory(), useState: initial => [
+      typeof initial === 'object' && initial?.columns && hideColumns ? { ...initial, columns: initial.columns.map(column => ({ ...column, visible: false })) }
+        : initial === '' ? search : initial,
+      () => {},
+    ] },
+    '@/lib/hooks/use-page-query': { usePageQuery: () => ({ ...queryState, mutate: async () => {} }) },
+    '@/lib/supabase/client': { createClient: () => ({}) },
+    '@/hooks/use-toast': { useToast: () => ({ toast: () => {} }) },
+    '@/lib/utils/document-engine': { ...loadSource('lib/utils/document-engine.ts'), runExport: async () => { exports++ } },
+  }).default
+  function exportButtons(node, result = []) {
+    if (!React.isValidElement(node)) return result
+    if (node.props.onClick?.name === 'handleExport') result.push(node)
+    for (const child of React.Children.toArray(node.props.children)) exportButtons(child, result)
+    return result
+  }
+  for (const state of [
+    { isLoading: true }, { isValidating: true }, { error: new Error('Unavailable') },
+  ]) {
+    queryState = { data: [{ loan_number: 'VISIBLE-ROW' }], isLoading: false, isValidating: false, ...state }
+    const buttons = exportButtons(DocumentsPage())
+    assert.equal(buttons.length, 2)
+    for (const button of buttons) {
+      assert.equal(button.props.disabled, true)
+      await button.props.onClick()
+    }
+  }
+  queryState = { data: [{ loan_number: 'VISIBLE-ROW' }], isLoading: false, isValidating: false }
+  hideColumns = true
+  assert.ok(exportButtons(DocumentsPage()).every(button => button.props.disabled))
+  hideColumns = false
+  search = 'no-match'
+  assert.ok(exportButtons(DocumentsPage()).every(button => button.props.disabled))
+  search = ''
+  const readyButtons = exportButtons(DocumentsPage())
+  assert.ok(readyButtons.every(button => !button.props.disabled))
+  assert.equal(exports, 0)
+  await readyButtons[0].props.onClick()
+  assert.equal(exports, 1)
+  console.log('Document Center controls passed: both exports block loading, refresh, failures, no columns and empty search; enabled export runs once')
 }
 
 const testTranslations = {

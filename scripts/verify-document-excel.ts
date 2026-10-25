@@ -13,9 +13,9 @@ const template: DocumentTemplate = {
   ...BUILT_IN_TEMPLATES[0], createdAt: '', updatedAt: '',
 }
 const loans = [
-  { loan_number: 'LA-001', borrower_name: 'ООО "Хилол"', approved_amount: 1234.56, disbursed_amount: 1000.25, status: 'active' },
-  { loan_number: 'LA-002', borrower_name: 'ООО "Хилол"', approved_amount: 2500.99, disbursed_amount: 2000.50, status: 'active' },
-  { loan_number: 'LA-003', borrower_name: 'Другой заёмщик', approved_amount: 0, disbursed_amount: 0, status: 'closed' },
+  { loan_number: 'LA-001', borrower_name: 'ООО "Хилол"', currency: 'TJS', approved_amount: 1234.56, disbursed_amount: 1000.25, status: 'active' },
+  { loan_number: 'LA-002', borrower_name: 'ООО "Хилол"', currency: 'TJS', approved_amount: 2500.99, disbursed_amount: 2000.50, status: 'active' },
+  { loan_number: 'LA-003', borrower_name: 'Другой заёмщик', currency: 'TJS', approved_amount: 0, disbursed_amount: 0, status: 'closed' },
 ]
 const rows = applySorting(applyFilters(loans, template.filters), template.sortRules)
 const workbook = await buildExcelWorkbook(template, rows)
@@ -33,8 +33,8 @@ assert.equal(sheet.F3.v, 1000.25)
 assert.equal(sheet.F4.v, 0)
 assert.equal(sheet.E5.v, 3735.55)
 assert.equal(sheet.F5.v, 3000.75)
-assert.equal(sheet['!autofilter']?.ref, 'A1:K4')
-assert.equal(workbook.Sheets.Data.E2.z, '#,##0.00')
+assert.equal(sheet['!autofilter']?.ref, 'A1:L4')
+assert.equal(workbook.Sheets.Data.E2.z, '#,##0.00 "TJS"')
 assert.equal(reopened.Sheets.Summary.B3.v, 3)
 
 const filtered = applySorting(applyFilters(loans, [

@@ -48,12 +48,14 @@ import {
   type SortRule,
   BUILT_IN_TEMPLATES,
   applyFilters,
-  applySorting,
+  selectDocumentRows,
+  documentTotal,
   getConditionalStyles,
   formatCellValue,
   runExport,
 } from '@/lib/utils/document-engine'
 import { cn } from '@/lib/utils'
+import { loadDocumentRows } from '@/lib/utils/document-data'
 import { useToast } from '@/hooks/use-toast'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -163,137 +165,19 @@ export default function DocumentsPage() {
   const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState('')
   const [activeConfig, setActiveConfig] = useState<'columns' | 'filters' | 'sort' | 'conditional' | 'headerfooter' | 'page'>('columns')
-  const { data: liveRows, error: queryError, isLoading, isValidating, mutate } = usePageQuery<Record<string, unknown>[]>(template.dataSource ? ['document-preview', template.dataSource] : null, async () => {
-      const dataSource = template.dataSource
-      let data: Record<string, unknown>[] = []
-
-      switch (dataSource) {
-        case 'loan_applications': {
-          const { data: loans, error } = await supabase
-            .from('loan_applications')
-            .select(`
-              *,
-              bank:banks(name_en, code),
-              borrower:borrowers(name, tin_number),
-              sector:sectors(name_en)
-            `)
-            .order('created_at', { ascending: false })
-            .limit(500)
-
-          if (error) throw error
-          data = (loans || []).map((loan) => ({
-            loan_number: loan.loan_number || `LA-${loan.id?.slice(0, 8)}`,
-            borrower_name: loan.borrower?.name || '—',
-            bank_name: loan.bank?.name_en || '—',
-            sector: loan.sector?.name_en || '—',
-            requested_amount: loan.requested_amount || 0,
-            approved_amount: loan.approved_amount || 0,
-            disbursed_amount: loan.disbursed_amount || 0,
-            outstanding_balance: loan.disbursed_amount || 0,
-            guarantee_coverage: loan.guarantee_coverage || 0,
-            interest_rate: loan.interest_rate || 0,
-            maturity_date: loan.maturity_date,
-            disbursement_date: loan.disbursement_date,
-            status: loan.status || 'unknown',
-          }))
-          break
-        }
-
-        case 'guarantee_reports': {
-          const { data: reports, error } = await supabase
-            .from('guarantee_reports')
-            .select(`
-              *,
-              bank:banks(name_en)
-            `)
-            .order('report_month', { ascending: false })
-            .limit(200)
-
-          if (error) throw error
-          data = (reports || []).map(r => ({
-            report_month: r.report_month,
-            bank_name: r.bank?.name_en || '—',
-            report_type: r.report_type || 'disbursements',
-            total_loans: r.total_loans || 0,
-            total_outstanding_principal: r.total_outstanding_principal || 0,
-            total_guarantee_amount: r.total_guarantee_amount || 0,
-            status: r.status || 'pending',
-            submission_date: r.submission_date || r.created_at,
-          }))
-          break
-        }
-
-        case 'claims': {
-          const { data: claims, error } = await supabase
-            .from('claims')
-            .select(`
-              *,
-              bank:banks(name_en),
-              loan:loan_applications!loan_application_id(loan_number)
-            `)
-            .order('created_at', { ascending: false })
-            .limit(200)
-
-          if (error) throw error
-          data = (claims || []).map(c => ({
-            claim_number: c.claim_number || `CLM-${c.id?.slice(0, 8)}`,
-            bank_name: c.bank?.name_en || '—',
-            loan_number: c.loan?.loan_number || '—',
-            claim_amount: c.claim_amount || 0,
-            approved_amount: c.approved_amount || 0,
-            paid_amount: c.paid_amount || 0,
-            claim_date: c.claim_date,
-            default_date: c.default_date,
-            status: c.status || 'pending',
-            days_delinquent: c.days_delinquent || 0,
-          }))
-          break
-        }
-
-        case 'fees': {
-          // Use guarantee_reports as the source for fee/commission data
-          const { data: reports, error } = await supabase
-            .from('guarantee_reports')
-            .select(`
-              *,
-              bank:banks(name_en)
-            `)
-            .order('report_month', { ascending: false })
-            .limit(200)
-
-          if (error) throw error
-          data = (reports || []).map(r => ({
-            bank_name: r.bank?.name_en || '—',
-            report_month: r.report_month,
-            total_guarantee_amount: r.total_guarantee_amount || 0,
-            total_outstanding_principal: r.total_outstanding_principal || 0,
-            total_loans: r.total_loans || 0,
-            status: r.status || 'pending',
-            submission_date: r.submission_date,
-          }))
-          break
-        }
-
-        default:
-          throw new Error('This data source is not supported for live reports')
-      }
-
-      return data
-  })
+  const { data: liveRows, error: queryError, isLoading, isValidating, mutate } = usePageQuery<Record<string, unknown>[]>(
+    ['document-preview', template.dataSource], () => loadDocumentRows(supabase, template.dataSource),
+  )
   const dataLoading = isLoading || isValidating
   const dataError = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to fetch data') : null
 
-  const rawRows = useMemo(() => liveRows ?? [], [liveRows])
+  const rawRows = useMemo(() => queryError ? [] : liveRows ?? [], [liveRows, queryError])
   const filteredRows = useMemo(() => applyFilters(rawRows, template.filters), [rawRows, template.filters])
-  const sortedRows = useMemo(() => applySorting(filteredRows, template.sortRules), [filteredRows, template.sortRules])
-  const previewRows = useMemo(() => {
-    if (!search) return sortedRows
-    return sortedRows.filter(r =>
-      Object.values(r).some(v => String(v).toLowerCase().includes(search.toLowerCase()))
-    )
-  }, [sortedRows, search])
+  const previewRows = useMemo(() => selectDocumentRows(rawRows, template, search), [rawRows, template, search])
 
   const visibleCols = template.columns.filter(c => c.visible)
+  const exportDisabled = exporting || dataLoading || !!dataError || !visibleCols.length || !previewRows.length
+  const missingSnapshots = template.dataSource === 'loan_applications' ? rawRows.filter(row => !row.balance_as_of).length : 0
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -313,13 +197,14 @@ export default function DocumentsPage() {
   }
 
   const handleExport = async () => {
+    if (exportDisabled) return
     setExporting(true)
     try {
-      await runExport(template, selectedFormat, rawRows)
-      toast({ title: `Exported as ${FORMAT_META[selectedFormat].label}`, description: `${previewRows.length} records exported` })
+      await runExport(template, selectedFormat, rawRows, search)
+      toast({ title: selectedFormat === 'pdf' ? 'Print dialog opened' : `Exported as ${FORMAT_META[selectedFormat].label}`,
+        description: selectedFormat === 'pdf' ? `${previewRows.length} records prepared. Choose Save as PDF in the print dialog.` : `${previewRows.length} records exported` })
     } catch (e) {
-      console.error('[v0] Export error:', e)
-      toast({ title: 'Export failed', variant: 'destructive' })
+      toast({ title: 'Export failed', description: e instanceof Error ? e.message : 'Please try again.', variant: 'destructive' })
     } finally {
       setExporting(false)
     }
@@ -398,7 +283,7 @@ export default function DocumentsPage() {
               size="sm"
               className="gap-2 text-xs"
               onClick={handleExport}
-              disabled={exporting || dataLoading || !!dataError}
+              disabled={exportDisabled}
             >
               {exporting
                 ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -417,6 +302,11 @@ export default function DocumentsPage() {
             Unable to load live data: {dataError}
           </div>
         )}
+        <p className="mb-3 text-xs text-muted-foreground" role="status">
+          {dataError ? 'Data could not be loaded. Exports are disabled until a successful refresh.' : dataLoading ? 'Loading all authorized records. Export is unavailable until loading completes.' : 'All records visible to your account are loaded. Search applies to both preview and export.'}
+          {template.dataSource === 'loan_applications' && ` Balances and delinquency use each loan’s latest approved report, not disbursed amounts. ${missingSnapshots} loan(s) have no matching approved balance snapshot; unknown values are shown as — and excluded from delinquency results.`}
+          {' Amounts retain their source currency. Unknown currencies are marked explicitly; totals never combine currencies.'}
+        </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard 
             label="Total Records" 
@@ -730,7 +620,10 @@ export default function DocumentsPage() {
                 <Separator />
                 <div className="flex flex-col gap-1.5">
                   <Label className="text-xs">Data Source</Label>
-                  <Select value={template.dataSource} onValueChange={v => patch({ dataSource: v })}>
+                  <Select value={template.dataSource} onValueChange={value => {
+                    const sourceTemplate = BUILT_IN_TEMPLATES.find(item => item.dataSource === value)
+                    if (sourceTemplate) loadTemplate(sourceTemplate)
+                  }}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="loan_applications" className="text-xs">Loan Applications</SelectItem>
@@ -760,7 +653,8 @@ export default function DocumentsPage() {
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search preview..."
+                  placeholder="Search and export..."
+                  aria-label="Search report rows"
                   className="w-32 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
                 />
               </div>
@@ -775,7 +669,7 @@ export default function DocumentsPage() {
                   )
                 })}
               </div>
-              <Button size="sm" className="gap-1.5 text-xs" onClick={handleExport} disabled={exporting}>
+              <Button size="sm" className="gap-1.5 text-xs" onClick={handleExport} disabled={exportDisabled}>
                 {exporting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                 {FORMAT_META[selectedFormat].label}
               </Button>
@@ -789,7 +683,7 @@ export default function DocumentsPage() {
               <div className="flex items-start justify-between border-b-2 border-primary/20 px-6 py-5">
                 <div>
                   <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{template.headerFooter.headerLeft}</p>
-                  <h2 className="mt-1 text-xl font-bold text-foreground">{template.headerFooter.headerCenter || template.name}</h2>
+                  {template.includeTitle && <h2 className="mt-1 text-xl font-bold text-foreground">{template.headerFooter.headerCenter || template.name}</h2>}
                   {template.includeSummary && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       {template.dataSource.replace(/_/g, ' ')} · {previewRows.length} records
@@ -798,6 +692,7 @@ export default function DocumentsPage() {
                   )}
                 </div>
                 <div className="text-right">
+                  <p className="text-xs text-muted-foreground">{template.headerFooter.headerRight}</p>
                   {template.headerFooter.showDate && (
                     <p className="text-xs text-muted-foreground">
                       {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -862,7 +757,7 @@ export default function DocumentsPage() {
                         <tr key={i} className={rowClass}>
                           {visibleCols.map(col => {
                             const raw = row[col.key]
-                            const formatted = formatCellValue(raw, col.type)
+                            const formatted = formatCellValue(raw, col.type, row.currency)
                             const isRight = col.align === 'right' || col.type === 'currency' || col.type === 'number' || col.type === 'percent'
                             const cellClass = cn(
                               'px-4 py-2.5',
@@ -887,8 +782,8 @@ export default function DocumentsPage() {
                     })}
                     {previewRows.length === 0 && (
                       <tr>
-                        <td colSpan={visibleCols.length} className="py-12 text-center text-xs text-muted-foreground">
-                          No records match the current filters
+                        <td colSpan={Math.max(1, visibleCols.length)} className="py-12 text-center text-xs text-muted-foreground">
+                          {dataLoading ? 'Loading report records…' : dataError ? 'Report data could not be loaded. Use Refresh Data to retry.' : !visibleCols.length ? 'Select at least one column to preview and export.' : 'No records match the current filters or search.'}
                         </td>
                       </tr>
                     )}
@@ -900,11 +795,11 @@ export default function DocumentsPage() {
                       <tr className="bg-primary/10 font-semibold">
                         {visibleCols.map((col, idx) => {
                           const isNumeric = col.type === 'currency' || col.type === 'number'
-                          const total = isNumeric ? previewRows.reduce((s, r) => s + (Number(r[col.key]) || 0), 0) : null
+                          const total = isNumeric ? documentTotal(previewRows, col) : null
                           return (
                             <td key={col.key} className={cn('border-t-2 border-primary/20 px-4 py-3 text-xs', col.type === 'currency' || col.type === 'number' ? 'text-right' : '')}>
                               {isNumeric && total !== null
-                                ? <span className="font-bold text-foreground">{formatCellValue(total, col.type)}</span>
+                                ? <span className="font-bold text-foreground">{total}</span>
                                 : idx === 0 ? <span className="font-bold text-foreground">TOTAL</span> : null
                               }
                             </td>
@@ -921,7 +816,7 @@ export default function DocumentsPage() {
                 <p className="text-[10px] text-muted-foreground">{template.headerFooter.footerLeft}</p>
                 <p className="text-[10px] text-muted-foreground">{template.headerFooter.footerCenter}</p>
                 {template.headerFooter.showPageNumber && (
-                  <p className="text-[10px] text-muted-foreground">Page 1 of 1</p>
+                  <p className="text-[10px] text-muted-foreground">{template.headerFooter.footerRight.replace(/\{page\}|\{total\}/g, '1')}</p>
                 )}
               </div>
             </div>
