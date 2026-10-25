@@ -29,6 +29,11 @@ import { GuaranteeLetter } from "@/components/documents/guarantee-letter"
 import { downloadPDF, printElement } from "@/lib/utils/pdf-generator"
 import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
 import { RequiredMark } from "@/components/forms/required-mark"
+import { applicationActions } from '@/lib/workflow/application-intake'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
+import { getDatabaseErrorMessage } from '@/lib/utils/db-error'
+import { ApplicationSnapshot } from '@/components/workflow/application-snapshot'
+import { ApplicationCancellation } from '@/components/workflow/application-cancellation'
 
 // ─── Workflow definition ──────────────────────────────────────────────────────
 // Mirrors the 9-step diagram exactly:
@@ -120,70 +125,18 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 // ─── Action buttons based on current status ───────────────────────────────────
-function getAvailableActions(status: string, userRole: string): string[] {
-  const isPrsf = userRole === "prsf_analyst"
-  const isBank = ["bank_admin", "bank_officer"].includes(userRole)
-
-  switch (status) {
-    // Step 1 → Step 2: bank submits
-    case "draft":
-      return isBank ? ["submit"] : []
-
-    // Step 2 → Step 3: PRSF marks received
-    case "submitted":
-      return isPrsf ? ["mark_received"] : []
-
-    // Approval is no longer a single click. Under the ФКГ scheme an application
-    // must pass УКО registration, the eligibility/ESMS/KYC gate, the assessment
-    // note, Credit Risk, ККГ with quorum, compliance and the Management decision.
-    // Those transitions are served by WorkflowPanel via the server-validated
-    // /api/loans/[id]/workflow route, so no approve/reject buttons here.
-    case "under_review":
-      return []
-
-    // Step 4B → Step 5B (implicit) → Step 6: issue guarantee or cancel
-    // Also allow bank to request an extension before guarantee issuance
-    case "approved": {
-      const prsf = isPrsf ? ["issue_guarantee", "cancel"] : []
-      const bank = isBank ? ["request_extension"] : []
-      return [...prsf, ...bank]
-    }
-
-    // Extension pending → PRSF can grant or decline (goes back to approved / cancelled)
-    case "extension_pending":
-      return isPrsf ? ["grant_extension", "decline_extension"] : []
-
-    // Step 6 → Step 7C: bank records disbursement
-    case "guarantee_issued":
-      return isBank ? ["record_disbursement"] : []
-
-    // Step 7: active/disbursed → settled | rescheduled | defaulted
-    case "disbursed":
-    case "active":
-      return isBank ? ["mark_settled", "reschedule", "mark_defaulted"] : []
-
-    // Step 7B: rescheduled → settled | defaulted
-    case "rescheduled":
-      return isBank ? ["mark_settled", "mark_defaulted"] : []
-
-    // Step 7C (defaulted) → file claim
-    case "defaulted":
-      return isBank ? ["file_claim"] : []
-
-    case "claim_pending":
-      return ["prsf_analyst", "credit_risk_officer", "compliance_officer", "fkg_management"].includes(userRole) ? ["claims_committee"] : []
-
-    default: return []
-  }
-}
+const getAvailableActions = applicationActions
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const supabase = createClient()
 
-  const { role } = usePermissions()
+  const { role, profile } = usePermissions()
   const userRole = role?.code ?? ""
+  const requestAuthorityReason = useAuthorityReason()
+  const actionInFlight = useRef(false)
+  const claimRequest = useRef<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null)
 
   // Dialog visibility
@@ -225,7 +178,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const { data: loan = null, isLoading, isValidating, mutate } = usePageQuery<LoanApplication | null>(["loan", resolvedParams.id], async () => {
+  const { data: loan = null, isLoading, error: loadError, mutate } = usePageQuery<LoanApplication | null>(["loan", resolvedParams.id], async () => {
     const { data, error } = await supabase
       .from("loan_applications")
       .select(`*, bank:banks(*), branch:bank_branches(*), borrower:borrowers(*), product:loan_products(*)`)
@@ -234,8 +187,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     if (error) throw error
     return data as LoanApplication | null
   })
-  const loading = isLoading || isValidating
-  const fetchLoan = async () => { await mutate() }
+  const loading = isLoading
+  const fetchLoan = async () => { await mutate(undefined, { revalidate: true, throwOnError: true }) }
 
   const { data: claims = [] } = usePageQuery<Claim[]>(["loan-claims", resolvedParams.id], async () => {
     const { data, error } = await supabase.from("claims").select("*").eq("loan_application_id", resolvedParams.id)
@@ -245,19 +198,24 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
   // ── Workflow transitions ───────────────────────────────────────────────────
   const transition = async (newStatus: string, extra: Record<string, unknown> = {}) => {
-    if (!loan) return
+    if (!loan || actionInFlight.current) return
+    actionInFlight.current = true
     setSaving(true)
-    const payload: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString(), ...extra }
-
-    const { error } = await supabase.from("loan_applications").update(payload).eq("id", loan.id)
-    if (error) {
-      showToast("Action failed: " + error.message, "error")
-    } else {
-      showToast("Status updated successfully")
+    try {
+      const authorityReason = await requestAuthorityReason()
+      const payload = { ...extra, status: newStatus, ...(authorityReason ? { authority_reason: authorityReason } : {}) }
+      const { data, error } = await supabase.from('loan_applications').update(payload).eq('id', loan.id).eq('status', loan.status).eq('updated_at', loan.updated_at).select('id,status').single()
+      if (error) throw error
+      if (data?.id !== loan.id || data?.status !== newStatus) throw new Error('The requested action was not confirmed. Refresh the application.')
       setDialog(null)
-      fetchLoan()
+      showToast('Loan lifecycle event saved successfully')
+      try { await fetchLoan() } catch { showToast('The event was saved, but refresh failed. Reload before another action.', 'error') }
+    } catch (error) {
+      showToast(getDatabaseErrorMessage(error) + ' Refresh before retrying if the result is uncertain.', 'error')
+    } finally {
+      actionInFlight.current = false
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   // ── Action handlers ───────────────────────────�����────────────────────────────
@@ -279,13 +237,13 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
   const handleDisbursement = () => transition("active", {
     disbursement_date: dateField,
-    disbursed_amount: parseFloat(amount) || loan?.approved_amount,
+    disbursed_amount: amount === '' ? null : Number(amount),
     maturity_date: dateField2,
   })
 
   const handleSettle = () => transition("settled", {
     settlement_date: dateField,
-    settlement_amount: parseFloat(amount) || 0,
+    settlement_amount: amount === '' ? null : Number(amount),
   })
 
   const handleReschedule = () => transition("rescheduled", {
@@ -295,33 +253,22 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
   })
 
   const handleFileClaim = async () => {
-    if (!loan) return
-    // claims.bank_id is NOT NULL; report a missing bank instead of sending null.
-    const claimBankId = loan.bank_id
-    if (!claimBankId) {
-      showToast("This loan has no partner bank assigned, so a claim cannot be filed.", "error")
-      return
-    }
+    if (!loan || actionInFlight.current) return
+    const principal = Number(claimPrincipal), interest = claimInterest === '' ? 0 : Number(claimInterest)
+    if (!claimPrincipal || !Number.isFinite(principal) || principal <= 0 || !Number.isFinite(interest) || interest < 0 || !dateField) { showToast('Enter a positive principal, nonnegative interest and claim date.', 'error'); return }
+    actionInFlight.current = true
     setSaving(true)
-    const total = (parseFloat(claimPrincipal) || 0) + (parseFloat(claimInterest) || 0)
-    // claim_number is generated by the trg_set_claim_number BEFORE INSERT trigger.
-    const { error } = await supabase.from("claims").insert({
-      loan_application_id: loan.id,
-      loan_id: loan.id,
-      bank_id: claimBankId,
-      claim_date: dateField,
-      claim_amount: total,
-      principal_claimed: parseFloat(claimPrincipal) || 0,
-      interest_claimed: parseFloat(claimInterest) || 0,
-      status: "pending",
-    })
-    if (error) { showToast("Failed to file claim: " + error.message, "error") }
-    else {
-      await transition("claim_pending", {})
-      showToast("Claim filed successfully")
+    try {
+      const authorityReason = await requestAuthorityReason()
+      claimRequest.current ??= crypto.randomUUID()
+      const { data, error } = await supabase.from('claims').insert({ id: claimRequest.current, loan_application_id: loan.id, loan_id: loan.id, bank_id: loan.bank_id, claim_date: dateField, claim_amount: principal + interest, principal_claimed: principal, interest_claimed: interest, reason: authorityReason ?? 'Guarantee claim following recorded default', status: 'pending' }).select('id,loan_id,status').single()
+      if (error) throw error
+      if (data?.id !== claimRequest.current || data?.loan_id !== loan.id || data?.status !== 'pending') throw new Error('Claim submission was not confirmed')
       setDialog(null)
-    }
-    setSaving(false)
+      showToast('Claim and parent application submitted atomically')
+      try { await fetchLoan() } catch { showToast('Claim saved, but refresh failed. Reload the application.', 'error') }
+    } catch (error) { showToast(getDatabaseErrorMessage(error) + ' Reload the application to check for an existing claim before retrying.', 'error') }
+    finally { actionInFlight.current = false; setSaving(false) }
   }
 
   // Step 7C (new): bank marks loan as defaulted before filing claim
@@ -415,6 +362,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     </div>
   )
 
+  if (loadError) return <div className="flex flex-col items-start gap-4 p-6"><p role="alert">Application details could not be loaded. This is not a confirmed missing application.</p><Button variant="outline" onClick={() => void fetchLoan().catch(() => showToast('Reload failed. Please retry.', 'error'))}>Retry loading application</Button></div>
+
   if (!loan) return (
     <div className="flex h-64 flex-col items-center justify-center gap-3">
       <p className="text-muted-foreground">Loan application not found.</p>
@@ -422,8 +371,9 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     </div>
   )
 
-  const actions = getAvailableActions(loan.status, userRole)
-  const borrowerName = loan.borrower?.name ?? "—"
+  const actions = ['bank_admin', 'bank_officer'].includes(userRole) && profile?.bank_id !== loan.bank_id ? [] : getAvailableActions(loan.status, userRole)
+  const borrowerName = loan.intake_data?.clientName ?? loan.borrower?.name ?? "—"
+  const canCorrect = ['draft', 'docs_incomplete'].includes(loan.status) && (userRole === 'super_admin' || (['bank_admin', 'bank_officer'].includes(userRole) && profile?.bank_id === loan.bank_id))
 
   return (
     <div className="p-4 lg:p-6">
@@ -456,6 +406,8 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               <FileCheck className="h-3.5 w-3.5" />Letter of Guarantee
             </Button>
           )}
+          <ApplicationCancellation loan={loan} onDone={fetchLoan} />
+          {canCorrect && <Button asChild variant="outline"><Link href={`/dashboard/loans/${loan.id}/edit`}>Edit application terms</Link></Button>}
           {/* Primary action buttons */}
           {actions.includes("submit")             && <Button size="sm" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("submit") }}>Submit to PRSF</Button>}
           {actions.includes("mark_received")     && <Button size="sm" className="gap-1.5" onClick={() => setDialog("mark_received")}>Mark as Received</Button>}
@@ -477,6 +429,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ── ФКГ scheme: current step and its actions (steps 1-4 wired) ── */}
       <div className="mb-6">
+        <ApplicationSnapshot loan={loan} />
         <LoanPackage loan={loan} onChanged={fetchLoan} />
         <WorkflowPanel loan={loan} roleCode={userRole} onDone={fetchLoan} />
       <SignatureReviewPanel loan={loan} onDone={fetchLoan} />
@@ -1073,13 +1026,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 <AlertTriangle className="h-4 w-4" />
                 <span>This guarantee has not been issued yet. This is a preview only.</span>
               </div>
-              <Button 
-                size="sm" 
-                className="gap-2 bg-teal-600 hover:bg-teal-700 text-white"
-                onClick={() => { setShowGuaranteePreview(false); setDialog('issue_guarantee') }}
-              >
-                <Shield className="h-4 w-4" />Issue Now
-              </Button>
+              <p className="text-sm text-muted-foreground">Use the authorized signature panel on the application detail page.</p>
             </div>
           )}
           

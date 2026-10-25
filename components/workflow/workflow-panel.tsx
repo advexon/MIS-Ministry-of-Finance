@@ -8,7 +8,7 @@
  * security boundary — hiding a button never grants or denies a permission.
  */
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, ArrowRight, Loader2, RotateCcw } from 'lucide-react'
 
@@ -35,7 +35,7 @@ import { useAuthorityReason } from '@/components/admin/authority-reason-provider
 interface Props {
   loan: LoanApplication
   roleCode: string | null
-  onDone?: () => void
+  onDone?: () => void | Promise<void>
 }
 
 type DialogKind = 'uko' | 'eligibility' | 'return' | null
@@ -49,6 +49,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
 
   const [dialog, setDialog] = useState<DialogKind>(null)
   const [busy, setBusy] = useState(false)
+  const inFlight = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   // Steps 5, 6, 9, 11, 12, 13 and 15 each record an artefact before moving on.
@@ -79,6 +80,8 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   const nextStatuses = getNextStatuses(status).filter((s) => s !== 'cancelled')
 
   async function post(to: LoanStatus, payload?: Record<string, unknown>, reason?: string, screening?: typeof elig) {
+    if (inFlight.current) return
+    inFlight.current = true
     setBusy(true)
     setError(null)
     try {
@@ -86,19 +89,20 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       const res = await fetch(`/api/loans/${loan.id}/workflow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, payload, reason: authorityReason ?? reason, screening }),
+        body: JSON.stringify({ from: status, to, payload, reason: authorityReason && reason ? `${authorityReason}\n${reason}` : authorityReason ?? reason, screening }),
       })
       const json = await res.json()
       if (!res.ok) {
         setError(json.error ?? 'The transition was refused.')
         return
       }
+      if (json?.ok !== true || json?.from !== status || ![to, 'rejected'].includes(json?.to)) throw new Error('Unconfirmed workflow receipt')
       setDialog(null)
-      onDone?.()
-      router.refresh()
+      try { await onDone?.(); router.refresh() } catch { setError('The workflow action was saved, but refresh failed. Reload before continuing.') }
     } catch {
-      setError('Network error — the transition was not applied.')
+      setError('The workflow result could not be confirmed. Refresh to check the saved state before retrying.')
     } finally {
+      inFlight.current = false
       setBusy(false)
     }
   }

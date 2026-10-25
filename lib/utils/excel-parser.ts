@@ -204,7 +204,7 @@ export async function parseExcelFile(file: File): Promise<{
 
     return { loans, payments, errors }
   } catch (error) {
-    console.error('[v0] Error parsing Excel file:', error)
+    console.error('[Spreadsheet import] Error parsing Excel file:', error)
     errors.push(`File parsing error: ${error}`)
     return { loans: [], payments: [], errors }
   }

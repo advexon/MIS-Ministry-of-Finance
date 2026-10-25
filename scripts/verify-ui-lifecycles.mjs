@@ -717,7 +717,7 @@ function queryFixture(data, error = null) {
 }
 
 {
-  const form = 'app/dashboard/loans/new/page.tsx'
+  const form = 'components/workflow/application-form.tsx'
   const identity = { isIndividualEntrepreneur: true, legalRepSurname: '  Family ', legalRepName: ' Given ', legalRepPatronymic: ' ', companyName: 'Company', clientTin: '123456789', representativeTin: '987654321' }
   assert.equal(sourceExpression(form, 'clientName', identity), 'Family Given')
   assert.equal(sourceExpression(form, 'legalRepTin', identity), '123456789')
@@ -727,6 +727,37 @@ function queryFixture(data, error = null) {
   for (const [coverageOverride, product, expected] of [[undefined, undefined, ''], [undefined, { guarantee_coverage: 50 }, '50'], ['', { guarantee_coverage: 50 }, ''], ['0', { guarantee_coverage: 50 }, '0']]) {
     assert.equal(sourceExpression(form, 'guaranteeCoverage', { coverageOverride, product }), expected)
   }
+  const source = sourceTree(form)
+  const restoreCall = findNode(source, node => ts.isVariableDeclaration(node) && node.name.getText(source) === 'restoreDraft').initializer
+  const compiledRestore = ts.transpileModule(`const restore = ${restoreCall.arguments[0].getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  const formDeclaration = findNode(source, node => ts.isVariableDeclaration(node) && node.name.getText(source) === 'formData')
+  const fields = formDeclaration.initializer.arguments[0].body.expression.properties.map(property => property.name.text)
+  const restored = {}
+  const bindings = { setActiveTab: value => { restored.step = value }, setDraftMessage: () => {} }
+  function bindState(node) {
+    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name) && node.initializer && ts.isCallExpression(node.initializer) && node.initializer.expression.getText(source) === 'useState') {
+      const [state, setter] = node.name.elements
+      if (state?.name && setter?.name) bindings[setter.name.text] = value => { restored[state.name.text] = value }
+    }
+    ts.forEachChild(node, bindState)
+  }
+  bindState(source)
+  const restore = runInNewContext(`${compiledRestore}\nrestore`, bindings)
+  const aliases = { clientName: 'companyName', legalRepTin: 'representativeTin', guaranteeCoverage: 'coverageOverride' }
+  const saved = Object.fromEntries(fields.map(field => [field, field === 'isBlacklisted' ? true : field === 'guarantors' ? [{ name: 'Guarantor', id_number: 'QA', relationship: 'Owner' }] : `saved-${field}`]))
+  restore({ form_data: saved, current_step: 'collateral', draft_name: 'Regression' })
+  for (const field of fields) assert.deepEqual(restored[aliases[field] ?? field], saved[field], `Draft must restore ${field}`)
+  assert.equal(restored.activeTab, 'collateral')
+  const cleared = { ...saved, isBlacklisted: false, gracePeriod: '0', guaranteeCoverage: '', bankCustomerCode: '', establishmentYear: '', guarantors: [] }
+  restore({ form_data: cleared, current_step: 'borrower', draft_name: 'Regression' })
+  for (const field of fields) assert.deepEqual(restored[aliases[field] ?? field], cleared[field], `Draft must preserve cleared/zero ${field}`)
+  restore({ form_data: {}, current_step: 'borrower', draft_name: 'Legacy' })
+  assert.equal(restored.currency, 'TJS')
+  assert.equal(restored.isBlacklisted, false)
+  assert.equal(restored.legalRepCountry, 'Tajikistan')
+  assert.equal(restored.frequency, 'monthly')
+  assert.equal(restored.coverageOverride, undefined)
+  console.log(`Draft restoration checks passed: all ${fields.length} saved fields, cleared values, false, zero, step and legacy defaults`)
   const { loadDocumentRows } = loadSource('lib/utils/document-data.ts')
   const unavailable = queryFixture(null, new Error('Live data unavailable'))
   const fetcher = pageFetcher('app/dashboard/documents/page.tsx', 'document-preview', { supabase: unavailable.client, template: { dataSource: 'loan_applications' }, loadDocumentRows })

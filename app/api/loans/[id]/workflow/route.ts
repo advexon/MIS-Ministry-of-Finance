@@ -13,9 +13,11 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const parsed = await request.json().then((body: unknown) => workflowRequestSchema.safeParse(body), () => null)
   if (!parsed?.success) return NextResponse.json({ error: 'Invalid workflow request', code: 'INVALID_REQUEST' }, { status: 400 })
-  const { to, payload, screening, reason } = parsed.data
+  const { from, to, payload, screening, reason } = parsed.data
   const { data: loan, error: loadError } = await supabase.from('loan_applications').select('status').eq('id', id).maybeSingle()
-  if (loadError || !loan) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+  if (loadError) return NextResponse.json({ error: 'Application could not be loaded. Retry before taking action.' }, { status: 500 })
+  if (!loan) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+  if (from && from !== loan.status) return NextResponse.json({ error: 'The application changed. Refresh before continuing.', code: 'TRANSITION_CONFLICT' }, { status: 409 })
   if (!canTransition(loan.status as LoanStatus, to as LoanStatus)) return NextResponse.json({ error: 'This transition is not permitted.', code: 'ILLEGAL_TRANSITION' }, { status: 422 })
 
   // The RPC locks the application and commits screening, transition, audit and

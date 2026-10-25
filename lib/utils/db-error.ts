@@ -79,7 +79,9 @@ export function getDatabaseErrorMessage(err: unknown): string {
     }
     // CHECK constraint violation — value outside the allowed set.
     case "23514":
-      return "One of the selected values is not allowed. Please review the highlighted fields and try again."
+      return message && !message.includes('violates check constraint') ? message : "One of the selected values is not allowed. Please review the highlighted fields and try again."
+    case "40001":
+      return "This application changed. Reload it before saving again."
     // Value too long for the column.
     case "22001":
       return "One of the values entered is too long. Please shorten it and try again."

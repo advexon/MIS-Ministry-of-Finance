@@ -59,7 +59,7 @@ async function logAccess(
       metadata: { path: req.nextUrl.pathname, ...(metadata ?? {}) },
     })
   } catch (error) {
-    console.error('[v0] Failed to write access log:', error)
+    console.error('[API authorization] Failed to write access log:', error)
   }
 }
 
@@ -192,7 +192,7 @@ export function withPermission(
         supabase, req, user?.id, options.resource, false, `Error: ${errorMessage}`
       )
 
-      console.error('[v0] API error in protected route:', error)
+      console.error('[API authorization] Error in protected route:', error)
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }

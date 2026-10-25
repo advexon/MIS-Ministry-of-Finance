@@ -18,6 +18,8 @@ import Link from "next/link"
 import type { LoanApplication, Bank } from "@/lib/types/database"
 import { useColumnConfig } from "@/lib/contexts/column-config-context"
 import { usePermissions } from "@/lib/contexts/permission-context"
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { APPLICATION_STATUS_LABELS, ACTIVE_APPLICATION_STATUSES, PENDING_APPLICATION_STATUSES } from '@/lib/workflow/application-status'
 
 const statusStyles: Record<string, string> = {
   draft:              "bg-gray-100 text-gray-800",
@@ -40,6 +42,7 @@ const statusStyles: Record<string, string> = {
 }
 
 const statusLabels: Record<string, string> = {
+  ...APPLICATION_STATUS_LABELS,
   draft:              "Draft",
   submitted:          "Submitted",
   under_review:       "Under Review",
@@ -83,52 +86,20 @@ function LoansContent() {
     return item.name_en
   }
 
-  const { data: result, isLoading, isValidating, mutate } = usePageQuery<{ loans: LoanApplication[]; total: number }>(["loans", page, statusFilter, bankFilter, searchTerm], async () => {
-    let query = supabase
-      .from("loan_applications")
-      .select(
-        `*, bank:banks(id,name_en,name_ru,name_tj), borrower:borrowers(id,name,tin_number), branch:bank_branches(id,name_en)`,
-        { count: "exact" }
-      )
-      .order("created_at", { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-
-    if (statusFilter !== "all") query = query.eq("status", statusFilter)
-    if (bankFilter !== "all") query = query.eq("bank_id", bankFilter)
-    if (searchTerm.trim()) {
-      // PostgREST has no sub-SELECT support: the previous
-      // `borrower_id.in.(select id from borrowers ...)` was sent verbatim and
-      // rejected with `invalid input syntax for type uuid`, so EVERY search
-      // failed and the table came back empty. Resolve matching borrowers first,
-      // then filter by their ids.
-      //
-      // Commas and parentheses are stripped because PostgREST uses them as
-      // syntax separators inside .or(), and `%`/`_` are escaped so they are
-      // treated as literal characters rather than ILIKE wildcards.
-      const term = searchTerm.trim()
-      const safe = term.replace(/[(),]/g, '').replace(/[%_\\]/g, (ch) => `\\${ch}`)
-
-      // Dropping the separators can leave nothing to match on; searching for the
-      // empty string would return the whole table, so bail out instead.
-      if (!safe) {
-        return { loans: [], total: 0 }
-      }
-
-      const { data: matches } = await supabase
-        .from('borrowers')
-        .select('id')
-        .or(`tin_number.ilike.%${safe}%,name.ilike.%${safe}%`)
-        .limit(200)
-
-      const borrowerIds = (matches ?? []).map((b) => b.id)
-      query = borrowerIds.length
-        ? query.or(`loan_number.ilike.%${safe}%,borrower_id.in.(${borrowerIds.join(',')})`)
-        : query.ilike('loan_number', `%${safe}%`)
+  const { data: result, isLoading, isValidating, error: loadError, mutate } = usePageQuery<{ loans: LoanApplication[]; total: number; active: number; pending: number }>(["loans", page, statusFilter, bankFilter, searchTerm], async () => {
+    const filtered = (columns: string, head = false) => {
+      let query = supabase.rpc('cgf_search_applications', { p_search: searchTerm.trim() }, { count: 'exact', head }).select(columns)
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter)
+      if (bankFilter !== 'all') query = query.eq('bank_id', bankFilter)
+      return query
     }
-
-    const { data, count, error } = await query
-    if (error) throw error
-    return { loans: data ?? [], total: count ?? 0 }
+    const [rows, active, pending] = await Promise.all([
+      filtered('*,bank:banks(id,name_en,name_ru,name_tj),borrower:borrowers(id,name,tin_number),branch:bank_branches(id,name_en)').order('created_at', { ascending: false }).order('id').range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1),
+      filtered('id', true).in('status', ACTIVE_APPLICATION_STATUSES),
+      filtered('id', true).in('status', PENDING_APPLICATION_STATUSES),
+    ])
+    if (rows.error || active.error || pending.error) throw rows.error ?? active.error ?? pending.error
+    return { loans: (rows.data ?? []) as unknown as LoanApplication[], total: rows.count ?? 0, active: active.count ?? 0, pending: pending.count ?? 0 }
   })
   const loans = result?.loans ?? []
   const total = result?.total ?? 0
@@ -147,8 +118,7 @@ function LoansContent() {
   }
 
   const getBorrowerName = (loan: LoanApplication) => {
-    if (!loan.borrower) return "—"
-    return loan.borrower.name || "—"
+    return loan.intake_data?.clientName || loan.borrower?.name || "—"
   }
 
   // Single-loan export for the row action menu. Amounts stay unformatted so the
@@ -173,8 +143,8 @@ function LoansContent() {
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   // Summary stats
-  const activeLoans = loans.filter((l) => ["active", "disbursed", "rescheduled", "defaulted"].includes(l.status)).length
-  const pendingLoans = loans.filter((l) => l.status === "submitted" || l.status === "under_review").length
+  const activeLoans = result?.active ?? 0
+  const pendingLoans = result?.pending ?? 0
 
   return (
     <div className="p-6 lg:p-8">
@@ -190,9 +160,10 @@ function LoansContent() {
         )}
       </div>
 
+      {loadError && <Alert variant="destructive" className="mb-4"><AlertDescription>Applications could not be loaded. This is not an empty register. Use Refresh applications to retry.</AlertDescription></Alert>}
       {/* Stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Total (this page)</p><p className="text-2xl font-bold">{total}</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Matching applications</p><p className="text-2xl font-bold">{total}</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Active / Disbursed</p><p className="text-2xl font-bold text-emerald-600">{activeLoans}</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Pending Review</p><p className="text-2xl font-bold text-amber-600">{pendingLoans}</p></CardContent></Card>
       </div>
@@ -203,7 +174,7 @@ function LoansContent() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search by application number..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0) }} className="pl-9" />
+              <Input aria-label="Search applications by number, borrower or TIN" maxLength={200} placeholder="Search application, borrower or TIN…" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0) }} className="pl-9" />
             </div>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0) }}>
               <SelectTrigger className="w-full sm:w-44">
@@ -212,23 +183,7 @@ function LoansContent() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="under_review">Under Review</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="extension_pending">Extension Pending</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="guarantee_issued">Guarantee Issued</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="disbursed">Disbursed</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="defaulted">Defaulted</SelectItem>
-                <SelectItem value="settled">Settled</SelectItem>
-                <SelectItem value="rescheduled">Rescheduled</SelectItem>
-                <SelectItem value="claim_pending">Claim Pending</SelectItem>
-                <SelectItem value="claim_rejected">Claim Rejected</SelectItem>
-                <SelectItem value="claim_paid">Claim Paid</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
+                {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={bankFilter} onValueChange={(v) => { setBankFilter(v); setPage(0) }}>
@@ -240,7 +195,7 @@ function LoansContent() {
                 {banks.map((b) => <SelectItem key={b.id} value={b.id}>{getName(b)}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={fetchLoans}><RefreshCw className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" aria-label="Refresh applications" disabled={loading} onClick={() => void fetchLoans().catch(() => {})}><RefreshCw className="h-4 w-4" /></Button>
           </div>
         </CardContent>
       </Card>
@@ -281,7 +236,7 @@ function LoansContent() {
                       <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                     </TableCell>
                   </TableRow>
-                ) : loans.length === 0 ? (
+                ) : loadError ? <TableRow><TableCell colSpan={99} className="py-12 text-center">The register is temporarily unavailable. Refresh to retry.</TableCell></TableRow> : loans.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={99} className="py-12 text-center">
                       <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
@@ -337,7 +292,7 @@ function LoansContent() {
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" aria-label={`Actions for ${loan.loan_number || loan.id}`}><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>

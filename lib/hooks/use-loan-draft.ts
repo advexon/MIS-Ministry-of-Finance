@@ -43,12 +43,11 @@ export interface UseLoanDraftOptions {
 }
 
 export function useLoanDraft(options: UseLoanDraftOptions = {}) {
-  const {
-    autoSaveInterval = 30000, // 30 seconds
-    autoSaveEnabled = true,
-    onAutoSave,
-    onError,
-  } = options
+  const { autoSaveInterval = 30000, autoSaveEnabled = true } = options
+  const optionsRef = useRef(options)
+  useEffect(() => { optionsRef.current = options }, [options])
+  const currentIdRef = useRef<string | null>(null)
+  const saveInFlight = useRef<Promise<{ success: boolean; draftId?: string; error?: string }> | null>(null)
 
   const supabase = createClient()
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null)
@@ -81,6 +80,8 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
     draftName?: string,
     isAutoSave = false
   ): Promise<{ success: boolean; draftId?: string; error?: string }> => {
+    if (saveInFlight.current) return saveInFlight.current
+    const run = async () => {
     setIsSaving(true)
     
     try {
@@ -105,12 +106,12 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
       }
 
       let result
-      if (currentDraftId) {
+      if (currentIdRef.current) {
         // Update existing draft
         const { data, error } = await supabase
           .from("loan_drafts")
           .update(draftData)
-          .eq("id", currentDraftId)
+          .eq("id", currentIdRef.current)
           .select()
           .single()
         
@@ -143,13 +144,12 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
           throw error
         }
         result = data
+        currentIdRef.current = result.id
         setCurrentDraftId(result.id)
       }
 
       setLastSaved(new Date())
-      if (isAutoSave && onAutoSave) {
-        onAutoSave()
-      }
+      if (isAutoSave) optionsRef.current.onAutoSave?.()
 
       return { success: true, draftId: result.id }
     } catch (error: unknown) {
@@ -159,12 +159,16 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         return { success: false, error: "Draft feature requires database migration" }
       }
       const errorMsg = error instanceof Error ? error.message : "Failed to save draft"
-      if (onError && !isAutoSave) onError(errorMsg)
+      if (optionsRef.current.onError && !isAutoSave) optionsRef.current.onError(errorMsg)
       return { success: false, error: errorMsg }
     } finally {
       setIsSaving(false)
     }
-  }, [supabase, currentDraftId, calculateCompletion, onAutoSave, onError])
+    }
+    const request = run().finally(() => { saveInFlight.current = null })
+    saveInFlight.current = request
+    return request
+  }, [supabase, calculateCompletion])
 
   // Load all drafts for current user
   const loadDrafts = useCallback(async () => {
@@ -196,11 +200,11 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         return
       }
       const errorMsg = error instanceof Error ? error.message : "Failed to load drafts"
-      if (onError) onError(errorMsg)
+      if (optionsRef.current.onError) optionsRef.current.onError(errorMsg)
     } finally {
       setIsLoading(false)
     }
-  }, [supabase, onError])
+  }, [supabase])
 
   // Load a specific draft
   const loadDraft = useCallback(async (draftId: string): Promise<LoanDraft | null> => {
@@ -218,6 +222,7 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         }
         throw error
       }
+      currentIdRef.current = data.id
       setCurrentDraftId(data.id)
       return data
     } catch (error: unknown) {
@@ -225,18 +230,21 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         return null
       }
       const errorMsg = error instanceof Error ? error.message : "Failed to load draft"
-      if (onError) onError(errorMsg)
+      if (optionsRef.current.onError) optionsRef.current.onError(errorMsg)
       return null
     }
-  }, [supabase, onError])
+  }, [supabase])
 
   // Delete a draft
   const deleteDraft = useCallback(async (draftId: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("loan_drafts")
         .delete()
         .eq("id", draftId)
+        .select('id')
+        .single()
+      if (!error && data?.id !== draftId) throw new Error('Draft deletion could not be confirmed')
 
       if (error) {
         if (error.code === "42P01") {
@@ -245,7 +253,8 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         throw error
       }
       
-      if (currentDraftId === draftId) {
+      if (currentIdRef.current === draftId) {
+        currentIdRef.current = null
         setCurrentDraftId(null)
       }
       
@@ -256,15 +265,13 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
         return false
       }
       const errorMsg = error instanceof Error ? error.message : "Failed to delete draft"
-      if (onError) onError(errorMsg)
+      if (optionsRef.current.onError) optionsRef.current.onError(errorMsg)
       return false
     }
-  }, [supabase, currentDraftId, onError])
+  }, [supabase])
 
   // Start auto-save timer
-  const startAutoSave = useCallback((formData: LoanDraftFormData, currentStep: string) => {
-    formDataRef.current = formData
-    currentStepRef.current = currentStep
+  const startAutoSave = useCallback(() => {
 
     if (autoSaveTimer.current) {
       clearInterval(autoSaveTimer.current)
@@ -293,6 +300,7 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
 
   // Clear current draft (start fresh)
   const clearCurrentDraft = useCallback(() => {
+    currentIdRef.current = null
     setCurrentDraftId(null)
     setLastSaved(null)
     stopAutoSave()
@@ -307,6 +315,8 @@ export function useLoanDraft(options: UseLoanDraftOptions = {}) {
 
   return {
     currentDraftId,
+    getCurrentDraftId: () => currentIdRef.current,
+    waitForSave: async () => { await saveInFlight.current },
     isSaving,
     lastSaved,
     drafts,
