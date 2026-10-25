@@ -16,6 +16,24 @@ const helper=readFileSync('lib/workflow/application-intake.ts','utf8')
 const js=ts.transpileModule(helper,{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText
 const exports={};runInNewContext(js,{exports})
 const {applicationActions,applicationToForm}=exports
+const requirementsSource = readFileSync('lib/forms/field-requirements.ts', 'utf8')
+const requirementsJs = ts.transpileModule(requirementsSource, {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText
+const requirementsExports = {}
+runInNewContext(requirementsJs, {exports:requirementsExports})
+const {FORM_DEFS, resolveRequired} = requirementsExports
+const loanFields = FORM_DEFS.find(form => form.id === 'loan_application').fields
+const branchField = loanFields.find(field => field.key === 'branchId')
+const bankField = loanFields.find(field => field.key === 'bankId')
+assert.ok(branchField)
+assert.equal(resolveRequired(branchField, {}), false)
+assert.equal(resolveRequired(branchField, {branchId:false}), false)
+assert.equal(resolveRequired(branchField, {branchId:true}), true)
+assert.equal(resolveRequired(bankField, {bankId:false}), true)
+const optionalBranchMigration = readFileSync('scripts/065_cgf_optional_application_branch.sql', 'utf8')
+assert.match(optionalBranchMigration, /'form:loan_application',\s*'branchId',\s*'Branch',\s*false/)
+assert.match(optionalBranchMigration, /on conflict\s*\(entity_type,\s*column_key\)\s*do update\s*set is_required = false/i)
+assert.equal(applicationToForm({branch_id:null}).branchId, '')
+assert.equal(applicationToForm({branch_id:'selected-branch'}).branchId, 'selected-branch')
 for(const role of ['prsf_analyst','prsf_admin','auditor','legal_officer','compliance_officer'])for(const status of ['draft','submitted','approved','guarantee_issued','active','defaulted'])assert.equal(applicationActions(status,role).length,0)
 assert.deepEqual(Array.from(applicationActions('guarantee_issued','super_admin')),['record_disbursement'])
 assert.deepEqual(Array.from(applicationActions('approved','bank_officer')),[])
