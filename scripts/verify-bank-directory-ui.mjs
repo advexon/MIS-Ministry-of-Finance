@@ -78,4 +78,11 @@ const allowed=exports.canAdministerBankDirectory
 const profile={is_active:true,bank_id:null},role={code:'super_admin',tier:1,is_active:true}
 assert.equal(allowed(profile,role),true);assert.equal(allowed(profile,{...role,code:'prsf_admin',tier:2}),true)
 for(const [p,r] of [[null,role],[profile,null],[{...profile,is_active:false},role],[{...profile,bank_id:'bank'},role],[profile,{...role,is_active:false}],[profile,{...role,tier:2}],[profile,{...role,code:'prsf_analyst'}]])assert.equal(allowed(p,r),false)
+const directoryPage=readFileSync('app/dashboard/banks/page.tsx','utf8')
+const detailPage=readFileSync('app/dashboard/banks/[id]/page.tsx','utf8')
+assert.ok(directoryPage.includes('aria-label={`${t.common.search}: ${t.nav.banks}`}'))
+assert.ok(directoryPage.includes('aria-label={`${t.common.view}: ${getBankName(bank)}`}'))
+assert.ok(directoryPage.includes('<span className="sr-only">{t.common.actions}</span>'))
+assert.ok(!directoryPage.includes('opacity-0'))
+assert.ok(detailPage.includes('aria-label={`${t.common.back}: ${t.nav.banks}`}'))
 console.log('Directory UI handlers passed: exact receipts, branch scope, create/edit/delete, required confirmation/reason, stale and lost responses, stable retry identity, pending/double-submit guards, refresh-after-save distinction and canonical administrator controls. This is not signed-in browser acceptance.')

@@ -124,7 +124,7 @@ export default function BanksPage() {
       <div className="mb-4 flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search banks..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9" aria-label={`${t.common.search}: ${t.nav.banks}`} placeholder="Search banks..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -138,7 +138,7 @@ export default function BanksPage() {
                   <TableHead className="font-semibold">{t.banks.bankCode}</TableHead>
                   <TableHead className="font-semibold">{t.banks.bankName}</TableHead>
                   <TableHead className="text-center font-semibold">{t.common.status}</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-10"><span className="sr-only">{t.common.actions}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -168,9 +168,9 @@ export default function BanksPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100" asChild>
-                          <Link href={`/dashboard/banks/${bank.id}`}>
-                            <ChevronRight className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                          <Link href={`/dashboard/banks/${bank.id}`} aria-label={`${t.common.view}: ${getBankName(bank)}`}>
+                            <ChevronRight className="h-4 w-4" aria-hidden="true" />
                           </Link>
                         </Button>
                       </TableCell>

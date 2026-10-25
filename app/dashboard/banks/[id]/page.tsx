@@ -45,7 +45,7 @@ const bankTextFields = [
 
 export default function BankDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const supabase = createClient()
   const router = useRouter()
   const copy = BANK_DIRECTORY_COPY[locale]
@@ -90,7 +90,7 @@ export default function BankDetailPage() {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-          <Link href="/dashboard/banks"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link href="/dashboard/banks" aria-label={`${t.common.back}: ${t.nav.banks}`}><ArrowLeft className="h-4 w-4" aria-hidden="true" /></Link>
         </Button>
         <div className="flex flex-1 items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-lg font-bold text-primary">
