@@ -5,7 +5,8 @@ import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({
-  subsets: ['latin', 'cyrillic'],
+  // Tajik-specific letters require extended Cyrillic in addition to Russian.
+  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
   variable: '--font-inter',
   // Only load the weights actually used in the design — avoids fetching all variants
   weight: ['400', '500', '600', '700'],
@@ -17,7 +18,8 @@ const inter = Inter({
 
 // Institutional serif used for display headings only — pairs with Inter for UI/data
 const sourceSerif = Source_Serif_4({
-  subsets: ['latin', 'cyrillic'],
+  // Tajik-specific letters require extended Cyrillic in addition to Russian.
+  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
   variable: '--font-source-serif',
   weight: ['400', '600', '700'],
   display: 'swap',
