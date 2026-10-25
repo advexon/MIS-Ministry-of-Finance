@@ -53,7 +53,7 @@ export const FORM_DEFS: FormDef[] = [
       f('legalRepTin', 'Legal rep TIN', true),
       f('passportNumber', 'Passport number'),
       f('bankId', 'Partner bank', true, true),
-      f('branchId', 'Branch', true),
+      f('branchId', 'Branch'),
       f('requestedAmount', 'Loan amount', true, true),
       f('currency', 'Loan currency', true),
       f('loanTerm', 'Loan term (months)', true),
