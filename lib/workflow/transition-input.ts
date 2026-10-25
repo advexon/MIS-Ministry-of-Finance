@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const workflowRequestSchema = z.object({
   to: z.string().min(1).max(64),
+  from: z.string().min(1).max(64).optional(),
   reason: z.string().trim().max(4000).optional(),
   payload: z.object({
     uko_reference_no: z.string().trim().max(255).nullable().optional(),

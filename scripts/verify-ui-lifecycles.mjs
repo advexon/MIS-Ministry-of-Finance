@@ -717,7 +717,7 @@ function queryFixture(data, error = null) {
 }
 
 {
-  const form = 'app/dashboard/loans/new/page.tsx'
+  const form = 'components/workflow/application-form.tsx'
   const identity = { isIndividualEntrepreneur: true, legalRepSurname: '  Family ', legalRepName: ' Given ', legalRepPatronymic: ' ', companyName: 'Company', clientTin: '123456789', representativeTin: '987654321' }
   assert.equal(sourceExpression(form, 'clientName', identity), 'Family Given')
   assert.equal(sourceExpression(form, 'legalRepTin', identity), '123456789')
@@ -728,7 +728,7 @@ function queryFixture(data, error = null) {
     assert.equal(sourceExpression(form, 'guaranteeCoverage', { coverageOverride, product }), expected)
   }
   const source = sourceTree(form)
-  const restoreCall = findNode(source, node => ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'then' && node.expression.expression.getText(source) === 'loadDraft(draftId)')
+  const restoreCall = findNode(source, node => ts.isVariableDeclaration(node) && node.name.getText(source) === 'restoreDraft').initializer
   const compiledRestore = ts.transpileModule(`const restore = ${restoreCall.arguments[0].getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
   const formDeclaration = findNode(source, node => ts.isVariableDeclaration(node) && node.name.getText(source) === 'formData')
   const fields = formDeclaration.initializer.arguments[0].body.expression.properties.map(property => property.name.text)

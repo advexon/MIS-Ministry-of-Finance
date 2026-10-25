@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "verify:committee": "node scripts/verify-committee-ui.mjs",
+    "verify:loan-application": "node scripts/verify-loan-application.mjs",
     "verify:bank-directory": "node scripts/verify-bank-directory-ui.mjs && node scripts/verify-bank-directory.mjs",
     "verify:role-administration": "node --experimental-strip-types --no-warnings scripts/verify-role-permission-administration.mjs",
     "verify:admin-authority": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-admin-authority.ts",

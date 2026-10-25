@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
 export function LoanPackage({ loan, onChanged }: { loan: LoanApplication; onChanged: () => void }) {
-  const { user, role } = usePermissions()
+  const { user, role, profile } = usePermissions()
   const [response, setResponse] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,7 +26,7 @@ export function LoanPackage({ loan, onChanged }: { loan: LoanApplication; onChan
     if (files.error || history.error || assignee.error) throw new Error('Could not load application evidence')
     return { files: files.data ?? [], history: history.data ?? [], assignee: assignee.data }
   })
-  const canRespond = ['bank_admin', 'bank_officer'].includes(role?.code ?? '') && ['draft', 'docs_incomplete'].includes(loan.status)
+  const canRespond = ['draft', 'docs_incomplete'].includes(loan.status) && (role?.code === 'super_admin' || (['bank_admin', 'bank_officer'].includes(role?.code ?? '') && profile?.bank_id === loan.bank_id))
 
   async function upload(file: File, input: HTMLInputElement) {
     if (!user?.id || !canRespond) return

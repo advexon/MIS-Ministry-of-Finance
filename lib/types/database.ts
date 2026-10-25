@@ -222,6 +222,8 @@ export interface Borrower {
 
 export interface LoanApplication {
   id: string
+  intake_data?: import('@/lib/hooks/use-loan-draft').LoanDraftFormData
+  intake_revision?: number
   /** Internal tracking reference (loan_request_id in DB) */
   loan_request_id: string | null
   /** The canonical loan number displayed throughout the UI */

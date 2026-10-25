@@ -2,9 +2,23 @@
 
 Generated reference map of the application. ~32,500 lines across app/, components/, lib/, scripts/.
 
-## Loan application functional audit — 25 October 2026
+## Loan application implementation follow-up — 25 October 2026
 
-**Verdict: not fully functional end to end.** This audit inspected the active intake, saved drafts, list/detail, package, workflow route and signature route against live Supabase columns, restrictive/permissive policies, constraints and trigger/function definitions. Earlier passing scheme/committee checks do not establish completion of the whole application module.
+Applied `061`–`064` through Supabase MCP. These changes supersede the corresponding source defects in the historical audit below; they do not certify the entire multi-role loan-to-signature journey.
+
+- `components/workflow/application-form.tsx` is shared by `/loans/new` and the new `/loans/[id]/edit` route. All 50 fields initialize and restore, survive an application-specific `intake_data` snapshot, and appear in the detail snapshot viewer. Existing shared borrower-directory entries are linked by TIN, not silently overwritten. Configured products are selectable; coverage is explicit (no client 50% fallback), and the current TJS-only workflow is stated honestly. Optional officer assignment stores an active bank-officer UUID, not a free-text name.
+- `cgf_save_application` locks stable application/TIN identities, resolves active bank authority, validates fields/references/required-field settings, calculates guarantee amount, and commits borrower/application/audit/draft retirement together. Corrections require exact revision and status; attributed audit evidence confirms exact correction retries. The client waits for any draft save, prevents duplicate clicks, preserves unconfirmed payloads and checks the exact receipt before navigating. No service-role runtime bypass is used.
+- `cgf_application_boundary` freezes reviewed terms and identity, checks bank/branch linkage and package prerequisites, and enforces originating-bank disbursement/reschedule/default/settlement transitions and financial evidence. Existing dedicated signature, committee and claims/payment guards remain authoritative. Lifecycle audits are atomic. Legacy receipt/approval/signature/extension shortcuts are no longer offered by detail action availability; claim submission no longer attempts a second parent transition. Cancellation uses the canonical workflow endpoint with a reason and confirmation.
+- Package storage/attachment policies now include verified Super Administrator authority only in draft/returned states, retaining originating-bank scope, path checks and immutable evidence. Actual binary upload/download acceptance is still separate.
+- Register search now uses the literal, SECURITY INVOKER/RLS-preserving `cgf_search_applications`, without the 200-borrower cap. It filters every current status and calculates active/pending counts across all matching rows. Query failures no longer masquerade as empty/not-found, and mutations distinguish saved actions from failed refreshes.
+- Passed: `verify:loan-application` (actual submit-handler success/failure/receipt/permission/in-flight/correction cases and 50 initialized fields), `verify:ui-lifecycles` (50-field restore), 198 scheme assertions, committee/admin-authority checks, non-incremental TypeScript, full zero-warning ESLint and production build. Live rollback-only `verify-loan-application.sql` passed intake/replay/correction/stale/audit-failure/search, existing-role denial and issued-loan disbursement/reschedule/settlement assertions. Only synthetic issued-fixture staging skipped issuance guards; guards were restored before assertions. Follow-up confirmed zero fixture loans/borrowers/branches/drafts/triggers and all three guards enabled. The retained fixture now additionally labels the failed borrower distinctly for an even stronger orphan assertion; that final assertion refinement has not been rerun live.
+- Signed-in browser at 1488×692 light verified the real seven-row register, 7/2/3 filtered totals, all intermediate status options, unmatched-search empty state and shared intake rendering. No real application, borrower, role or financial record was changed. A full successful bank -> analyst/risk -> committee -> compliance/Director -> signature browser journey, binary transfers and simultaneous database connections remain unverified.
+- **Configuration blocker:** live metadata shows zero active bank branches, while Branch is required by current field rules. Intake now explains this and links to Banks; an administrator must add/activate real branch data (or explicitly change the field requirement). Tests used a synthetic branch inside their rollback transaction; no real branches were invented.
+- Security advisors still warn about intentional checked SECURITY DEFINER endpoints and existing Auth settings; review [Supabase function-execution guidance](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable). This is not a claim that all project advisories are resolved.
+
+## Historical loan application functional audit — 25 October 2026
+
+**Verdict at audit time: not fully functional end to end.** This audit inspected the active intake, saved drafts, list/detail, package, workflow route and signature route against live Supabase columns, restrictive/permissive policies, constraints and trigger/function definitions. Earlier passing scheme/committee checks do not establish completion of the whole application module.
 
 ### Fixed and verified
 - `app/dashboard/loans/new/page.tsx`: draft restoration now restores all 50 saved form fields, including customer code, establishment year, representative TIN/country, product, frequency/method, dates, financial inputs, covenants and guarantors. Explicit empty values, false, zero strings and missing legacy defaults are preserved. Previously only 28 fields were restored.
@@ -49,7 +63,7 @@ Route lists below are the navigation index; use `app/**/page.tsx` and `app/**/ro
 | Route | Purpose |
 |---|---|
 | `/` | Main dashboard + stats widgets |
-| `loans` · `loans/[id]` · `loans/new` · `loans/drafts` | Loan applications (core module) |
+| `loans` · `loans/[id]` · `loans/[id]/edit` · `loans/new` · `loans/drafts` | Loan applications, draft/returned-file corrections and saved drafts |
 | `borrowers` | Borrower registry |
 | `claims` | Claim submission/processing |
 | `fees` | Fees & commissions |
