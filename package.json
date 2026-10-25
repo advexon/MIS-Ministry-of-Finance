@@ -11,6 +11,7 @@
     "verify:admin-authority": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-admin-authority.ts",
     "verify:scheme": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-fkg-scheme.ts",
     "verify:notifications": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-internal-notifications.ts",
+    "verify:claim-payments": "node scripts/verify-claim-payment-database.mjs",
     "verify:recovery": "node scripts/verify-recovery-execution.mjs",
     "verify:fees": "node scripts/verify-fee-execution.mjs && node scripts/verify-fee-database.mjs",
     "verify:financial-policy": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-financial-policy.ts",
