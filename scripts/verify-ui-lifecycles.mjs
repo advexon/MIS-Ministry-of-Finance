@@ -339,6 +339,57 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
 }
 
 {
+  const { buildGuaranteeReportRows: build } = loadSource('lib/utils/guarantee-report-input.ts')
+  const emptyLoan = { _key: 'row-1', loan_request_number: '', customer_name: '', customer_code: '', tin_number: '', sector: '', currency: 'TJS', approved_amount: '', disbursed_amount: '', outstanding_principal: '', interest_rate: '', loan_term_months: '', disbursement_date: '', maturity_date: '', guarantee_coverage: '50', guarantee_amount: '', loan_status: 'active', days_overdue: '0' }
+  const loan = { ...emptyLoan, loan_request_number: 'R-1', customer_name: 'Test', approved_amount: '0', disbursed_amount: '0', guarantee_coverage: '0' }
+  assert.equal(build([emptyLoan], []).loans.length, 0)
+  const normalized = build([loan], []).loans[0]
+  assert.equal(normalized.disbursed_amount, 0)
+  assert.equal(normalized.guarantee_coverage, 0)
+  assert.equal(normalized.interest_rate, null)
+  assert.equal(normalized._key, undefined)
+  for (const patch of [{ approved_amount: '-1' }, { approved_amount: '10suffix' }, { approved_amount: 'Infinity' }, { guarantee_coverage: '101' }, { loan_term_months: '1.5' }, { disbursement_date: '2026-02-30' }, { currency: '' }, { customer_name: '' }]) assert.throws(() => build([{ ...loan, ...patch }], []))
+  assert.throws(() => build([{ ...emptyLoan, guarantee_coverage: '0' }], []), 'A partial row must not be silently dropped')
+  assert.throws(() => build([], [{ loan_number: 'R-1', payment_date: '', installment_number: '', principal_amount: '', interest_amount: '', total_amount: '', remaining_balance: '' }]))
+  assert.throws(() => build(Array(1001).fill(loan), []))
+
+  const filename = 'app/dashboard/guarantee-reports/new/page.tsx'
+  const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let handler
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === 'handleSave') handler = node
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(handler)
+  const compiled = ts.transpileModule(`const ${handler.getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+  for (const submitNow of [false, true]) for (const scenario of ['success', 'missing', 'invalid', 'returned-error', 'network', 'wrong-id', 'pending']) {
+    const events = [], notices = []
+    const lock = { current: scenario === 'pending' }
+    const identity = { current: null }
+    const save = runInNewContext(`${compiled}\nhandleSave`, {
+      reportReq: { missingFields: () => scenario === 'missing' ? ['Bank'] : [] }, missingFieldsMessage: () => 'Missing fields',
+      bankId: 'bank-1', reportMonth: '2026-10', reportType: 'monthly', loans: [loan], payments: [],
+      buildGuaranteeReportRows: (...args) => { if (scenario === 'invalid') throw new Error('Invalid'); return build(...args) },
+      saveInFlight: lock, reportId: identity, crypto: { randomUUID: () => 'report-1' },
+      setSaving: value => events.push(['saving', value]), toast: value => notices.push(value),
+      router: { push: value => events.push(['navigate', value]) },
+      supabase: { rpc: async (name, args) => {
+        events.push('rpc'); assert.equal(name, 'cgf_create_guarantee_report'); assert.equal(args.p_id, 'report-1'); assert.equal(args.p_submit, submitNow); assert.equal(args.p_month, '2026-10-01'); assert.equal(args.p_loans[0].guarantee_coverage, 0)
+        if (scenario === 'network') throw new Error('Network')
+        return { data: scenario === 'wrong-id' ? 'other' : 'report-1', error: scenario === 'returned-error' ? { code: '42501' } : null }
+      } },
+    })
+    await save(submitNow)
+    if (scenario === 'missing' || scenario === 'pending') { assert.equal(events.length, 0); continue }
+    assert.equal(lock.current, false)
+    assert.deepEqual(events, [['saving', true], ...(scenario === 'invalid' ? [] : ['rpc']), ...(scenario === 'success' ? [['navigate', '/dashboard/guarantee-reports/report-1']] : []), ['saving', false]])
+    assert.equal(notices[0].variant, scenario === 'success' ? undefined : 'destructive')
+  }
+  console.log('Atomic report client checks passed: one RPC, exact confirmation, draft/submit, zero/null values, partial/invalid row rejection, request failure and in-flight guard')
+}
+
+{
   const filename = 'app/dashboard/guarantee-reports/actions.ts'
   const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
   const handler = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'deleteGuaranteeReport')

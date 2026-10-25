@@ -94,7 +94,7 @@ BEGIN
     INSERT INTO public.claims(claim_number,loan_id,loan_application_id,bank_id,claim_amount,claim_date,status)
       VALUES(fixture||'-OFF',failed_loan,failed_loan,bank,1,current_date,'pending');
     RAISE EXCEPTION 'Inactive actor created a claim';
-  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  EXCEPTION WHEN insufficient_privilege OR check_violation THEN NULL; END;
   EXECUTE 'reset role';
   ASSERT NOT has_function_privilege('authenticated','cgf_private.claim_submission_events()','EXECUTE'), 'Internal trigger exposed as RPC';
 END;

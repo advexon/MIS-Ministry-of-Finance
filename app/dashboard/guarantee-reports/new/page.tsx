@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
+import { usePageQuery } from '@/lib/hooks/use-page-query'
+import { buildGuaranteeReportRows } from '@/lib/utils/guarantee-report-input'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -89,20 +91,21 @@ export default function NewGuaranteeReportPage() {
   const supabase = createClient()
   const { toast } = useToast()
 
-  const [banks, setBanks] = useState<Bank[]>([])
   const [bankId, setBankId] = useState('')
   const [reportMonth, setReportMonth] = useState('')
-  const [reportType, setReportType] = useState<'blank_guarantee' | 'disbursements'>('disbursements')
+  const [reportType, setReportType] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
+  const reportId = useRef<string | null>(null)
+  const saveInFlight = useRef(false)
   const [loans, setLoans] = useState<LoanRow[]>([emptyLoan()])
   const [payments, setPayments] = useState<PaymentRow[]>([emptyPayment()])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
-  useEffect(() => {
-    supabase.from('banks').select('id, name_en').order('name_en').then(({ data }) => {
-      if (data) setBanks(data)
-    })
-  }, [supabase])
+  const { data: banks = [] } = usePageQuery<Bank[]>(['report-bank-options'], async () => {
+    const { data, error } = await supabase.from('banks').select('id, name_en').order('name_en')
+    if (error) throw error
+    return data ?? []
+  })
 
   const setLoanField = (key: string, field: keyof LoanRow, value: string) => {
     setLoans(prev => prev.map(l => {
@@ -145,23 +148,23 @@ export default function NewGuaranteeReportPage() {
         setLoans(loansData.slice(1).map(row => ({
           ...emptyLoan(),
           _key: crypto.randomUUID(),
-          loan_request_number: String(row[0] || ''),
-          customer_name: String(row[1] || ''),
-          customer_code: String(row[2] || ''),
-          tin_number: String(row[3] || ''),
-          sector: String(row[4] || ''),
-          currency: String(row[5] || 'TJS'),
-          approved_amount: String(row[6] || ''),
-          disbursed_amount: String(row[7] || ''),
-          outstanding_principal: String(row[8] || ''),
-          interest_rate: String(row[9] || ''),
-          loan_term_months: String(row[10] || ''),
-          disbursement_date: String(row[11] || ''),
-          maturity_date: String(row[12] || ''),
-          guarantee_coverage: String(row[13] || '50'),
-          guarantee_amount: String(row[14] || ''),
-          loan_status: String(row[15] || 'active'),
-          days_overdue: String(row[16] || '0'),
+          loan_request_number: String(row[0] ?? ''),
+          customer_name: String(row[1] ?? ''),
+          customer_code: String(row[2] ?? ''),
+          tin_number: String(row[3] ?? ''),
+          sector: String(row[4] ?? ''),
+          currency: String(row[5] ?? 'TJS'),
+          approved_amount: String(row[6] ?? ''),
+          disbursed_amount: String(row[7] ?? ''),
+          outstanding_principal: String(row[8] ?? ''),
+          interest_rate: String(row[9] ?? ''),
+          loan_term_months: String(row[10] ?? ''),
+          disbursement_date: String(row[11] ?? ''),
+          maturity_date: String(row[12] ?? ''),
+          guarantee_coverage: String(row[13] ?? '50'),
+          guarantee_amount: String(row[14] ?? ''),
+          loan_status: String(row[15] ?? 'active'),
+          days_overdue: String(row[16] ?? '0'),
         })))
       }
       if (wb.SheetNames.length > 1) {
@@ -170,13 +173,13 @@ export default function NewGuaranteeReportPage() {
           setPayments(paymentsData.slice(1).map(row => ({
             ...emptyPayment(),
             _key: crypto.randomUUID(),
-            loan_number: String(row[0] || ''),
-            installment_number: String(row[1] || ''),
-            payment_date: String(row[2] || ''),
-            principal_amount: String(row[3] || ''),
-            interest_amount: String(row[4] || ''),
-            total_amount: String(row[5] || ''),
-            remaining_balance: String(row[6] || ''),
+            loan_number: String(row[0] ?? ''),
+            installment_number: String(row[1] ?? ''),
+            payment_date: String(row[2] ?? ''),
+            principal_amount: String(row[3] ?? ''),
+            interest_amount: String(row[4] ?? ''),
+            total_amount: String(row[5] ?? ''),
+            remaining_balance: String(row[6] ?? ''),
           })))
         }
       }
@@ -211,74 +214,29 @@ export default function NewGuaranteeReportPage() {
       toast({ title: 'Missing fields', description: missingFieldsMessage(missing), variant: 'destructive' })
       return
     }
+    if (saveInFlight.current) return
+    saveInFlight.current = true
     setSaving(true)
     try {
-      const { data: report, error } = await supabase
-        .from('guarantee_reports')
-        .insert({
-          bank_id: bankId,
-          report_month: reportMonth + '-01',
-          report_type: reportType,
-          status: submitNow ? 'submitted' : 'draft',
-          submission_date: submitNow ? new Date().toISOString() : null,
-        })
-        .select()
-        .single()
-      if (error || !report) throw error
-
-      const validLoans = loans.filter(l => l.loan_request_number && l.customer_name)
-      if (validLoans.length > 0) {
-        await supabase.from('guarantee_report_loans').insert(validLoans.map((l, idx) => ({
-          report_id: report.id,
-          row_number: idx + 1,
-          loan_request_number: l.loan_request_number,
-          customer_name: l.customer_name,
-          customer_code: l.customer_code || null,
-          tin_number: l.tin_number || null,
-          sector: l.sector || null,
-          currency: l.currency,
-          approved_amount: parseFloat(l.approved_amount) || 0,
-          disbursed_amount: parseFloat(l.disbursed_amount) || null,
-          outstanding_principal: parseFloat(l.outstanding_principal) || 0,
-          interest_rate: parseFloat(l.interest_rate) || null,
-          loan_term_months: parseInt(l.loan_term_months) || null,
-          disbursement_date: l.disbursement_date || null,
-          maturity_date: l.maturity_date || null,
-          guarantee_coverage: parseFloat(l.guarantee_coverage) || 50,
-          guarantee_amount: parseFloat(l.guarantee_amount) || 0,
-          loan_status: l.loan_status,
-          days_overdue: parseInt(l.days_overdue) || 0,
-        })))
-      }
-
-      const validPayments = payments.filter(p => p.loan_number && p.payment_date)
-      if (validPayments.length > 0) {
-        await supabase.from('guarantee_report_payments').insert(validPayments.map(p => ({
-          report_id: report.id,
-          loan_number: p.loan_number,
-          installment_number: parseInt(p.installment_number) || 1,
-          payment_date: p.payment_date,
-          principal_amount: parseFloat(p.principal_amount) || 0,
-          interest_amount: parseFloat(p.interest_amount) || 0,
-          total_amount: parseFloat(p.total_amount) || 0,
-          remaining_balance: parseFloat(p.remaining_balance) || 0,
-        })))
-      }
-
-      const totalOutstanding = validLoans.reduce((s, l) => s + (parseFloat(l.outstanding_principal) || 0), 0)
-      const totalGuarantee = validLoans.reduce((s, l) => s + (parseFloat(l.guarantee_amount) || 0), 0)
-      await supabase.from('guarantee_reports').update({
-        total_loans: validLoans.length,
-        total_outstanding_principal: totalOutstanding,
-        total_guarantee_amount: totalGuarantee,
-      }).eq('id', report.id)
-
+      if (!bankId || !/^\d{4}-\d{2}$/.test(reportMonth)) throw new Error('A bank and valid report month are required')
+      const rows = buildGuaranteeReportRows(loans, payments)
+      reportId.current ??= crypto.randomUUID()
+      const { data, error } = await supabase.rpc('cgf_create_guarantee_report', {
+        p_id: reportId.current,
+        p_bank: bankId,
+        p_month: `${reportMonth}-01`,
+        p_type: reportType,
+        p_loans: rows.loans,
+        p_payments: rows.payments,
+        p_submit: submitNow,
+      })
+      if (error || data !== reportId.current) throw new Error('Report save was not confirmed')
       toast({ title: submitNow ? 'Report submitted' : 'Draft saved' })
-      router.push(`/dashboard/guarantee-reports/${report.id}`)
-    } catch (err) {
-      console.error('[v0] Save error:', err)
-      toast({ title: 'Save failed', variant: 'destructive' })
+      router.push(`/dashboard/guarantee-reports/${data}`)
+    } catch {
+      toast({ title: 'Save failed', description: 'No save was confirmed. Check the report list before retrying if the connection was interrupted.', variant: 'destructive' })
     } finally {
+      saveInFlight.current = false
       setSaving(false)
     }
   }
@@ -344,8 +302,9 @@ export default function NewGuaranteeReportPage() {
               <Select value={reportType} onValueChange={v => setReportType(v as typeof reportType)}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="disbursements">{t.guaranteeReports.disbursementsReport}</SelectItem>
-                  <SelectItem value="blank_guarantee">{t.guaranteeReports.blankGuaranteeReport}</SelectItem>
+                  <SelectItem value="monthly">{t.guaranteeReports.monthly}</SelectItem>
+                  <SelectItem value="quarterly">{t.guaranteeReports.quarterly}</SelectItem>
+                  <SelectItem value="annual">{t.guaranteeReports.annual}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
