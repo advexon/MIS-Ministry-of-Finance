@@ -130,7 +130,7 @@ export async function POST(request: Request) {
     if (profileError) {
       // The auth user exists but is unusable without a profile. Remove it so
       // the admin can retry cleanly instead of leaving an orphaned account.
-      console.error('[v0] Profile update failed for new user:', profileError)
+      console.error('[Account creation] Profile update failed:', profileError)
       await adminClient.auth.admin.deleteUser(newUser.user.id)
       return NextResponse.json(
         { error: `Could not save the user profile: ${profileError.message}` },
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
     // A failed audit write must not hide a successful creation, but it should
     // be visible rather than silently swallowed.
     if (auditError) {
-      console.error('[v0] Audit write failed for created user:', auditError.message)
+      console.error('[Account creation] Audit write failed:', auditError.message)
     }
   }
 

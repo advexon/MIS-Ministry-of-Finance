@@ -14,7 +14,9 @@
  * These are TEST credentials for a non-production database. Do not run this
  * against production, and do not commit real passwords.
  *
- *   node scripts/provision-qa-accounts.mjs
+ *   node scripts/provision-qa-accounts.mjs --confirm-test-project
+ *
+ * Requires QA_PASSWORD in the environment; passwords are never printed.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -27,8 +29,16 @@ if (!URL || !SERVICE_KEY) {
   process.exit(1)
 }
 
-// Overridable so a real password never has to live in the repo.
-const PASSWORD = process.env.QA_PASSWORD ?? 'QaScheme!2026'
+if (!process.argv.includes('--confirm-test-project')) {
+  console.error('Provisioning refused. Verify the target is a test project and pass --confirm-test-project.')
+  process.exit(1)
+}
+
+const PASSWORD = process.env.QA_PASSWORD
+if (!PASSWORD || PASSWORD.length < 12) {
+  console.error('Provisioning requires QA_PASSWORD with at least 12 characters. Passwords are never logged.')
+  process.exit(1)
+}
 
 /** One account per unstaffed lane, plus three seats so quorum is reachable. */
 const ACCOUNTS = [
@@ -114,5 +124,5 @@ for (const acct of ACCOUNTS) {
 }
 
 console.log(`\ncreated ${created}, reconciled ${reconciled}, failed ${failed}`)
-console.log(`password for all QA accounts: ${PASSWORD}`)
+console.log('QA credentials were supplied through the environment and were not logged.')
 process.exit(failed > 0 ? 1 : 0)

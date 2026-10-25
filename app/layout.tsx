@@ -25,6 +25,8 @@ const sourceSerif = Source_Serif_4({
 })
 
 export const metadata: Metadata = {
+  authors: [{ name: 'Siyovush Mirzoev' }],
+  creator: 'Siyovush Mirzoev',
   title: {
     default: 'Credit Guarantee Fund MIS',
     template: '%s | CGF MIS',

@@ -1,6 +1,8 @@
 # Codebase Index — Credit Guarantee Fund MIS
 
-Generated reference map of the application. ~32,500 lines across app/, components/, lib/, scripts/.
+Reference map of the application. See the root README for repository organization and verification commands. Package versions are authoritative in `package.json` and `pnpm-lock.yaml`.
+
+Developed by Siyovush Mirzoev.
 
 ## Loan application implementation follow-up — 25 October 2026
 
@@ -44,7 +46,7 @@ Applied `061`–`064` through Supabase MCP. These changes supersede the correspo
 
 | Item | Value |
 |---|---|
-| Framework | Next.js 16.1.6 (App Router) |
+| Framework | Next.js 16.4.3 (App Router) |
 | React | 19 |
 | Styling | Tailwind CSS 3.4.17 (`tailwind.config.ts`) |
 | UI | shadcn/ui — 50 files in `components/ui/` |

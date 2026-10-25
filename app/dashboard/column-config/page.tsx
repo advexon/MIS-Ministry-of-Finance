@@ -171,7 +171,7 @@ export default function ColumnConfigPage() {
         )
 
       if (error) {
-        console.log("[v0] Save error (table may not exist):", error.message)
+        console.error("[Column configuration] Database save failed:", error.message)
         // For now, just update local state as success
         setOriginalColumns([...columns])
         setSuccessMessage("Configuration saved locally. Database table needs to be created for persistence.")
@@ -181,7 +181,7 @@ export default function ColumnConfigPage() {
       }
     } catch (err) {
       setErrorMessage("Failed to save configurations")
-      console.error("[v0] Save error:", err)
+      console.error("[Column configuration] Save error:", err)
     } finally {
       setSaving(false)
       setTimeout(() => {

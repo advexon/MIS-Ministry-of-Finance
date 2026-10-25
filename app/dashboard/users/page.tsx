@@ -244,7 +244,7 @@ function UserManagement() {
       setEditDialogOpen(false)
       await fetchData()
     } catch (err) {
-      console.error("[v0] Error saving user:", err)
+      console.error("[User administration] Error saving user:", err)
       showMessage("error", err instanceof Error ? err.message : "Failed to update user")
     } finally {
       setSaving(false)

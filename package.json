@@ -1,8 +1,14 @@
 {
-  "name": "my-project",
+  "name": "ministry-of-finance-mis",
   "version": "0.1.0",
   "private": true,
+  "description": "Credit Guarantee Fund management information system for the Ministry of Finance of Tajikistan",
+  "author": "Siyovush Mirzoev",
   "scripts": {
+    "verify": "pnpm typecheck && pnpm lint --max-warnings=0 && pnpm verify:local",
+    "verify:local": "pnpm verify:committee && pnpm verify:loan-application && pnpm verify:bank-directory && pnpm verify:role-administration && pnpm verify:admin-authority && pnpm verify:scheme && pnpm verify:notifications && pnpm verify:claim-payments && pnpm verify:recovery && pnpm verify:fees && pnpm verify:financial-policy && pnpm verify:security && pnpm verify:excel && pnpm verify:documents && pnpm verify:pdf && pnpm verify:ui-lifecycles && pnpm verify:portfolio-report && pnpm verify:employee-flags && pnpm verify:role-prohibitions",
+    "verify:employee-flags": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-employee-flags.ts",
+    "verify:role-prohibitions": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-role-prohibitions.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
