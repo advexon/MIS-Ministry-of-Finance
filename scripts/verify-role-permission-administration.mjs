@@ -11,6 +11,10 @@ for (const { key } of ROLE_PERMISSION_RESOURCES) {
     assert.equal(isEditableRoleGrant('prsf_admin',key,action),!['loans','claims'].includes(key) || ['view','update'].includes(action))
   }
 }
+const acceptance = readFileSync('scripts/verify-role-permission-administration.sql','utf8')
+assert.match(acceptance,/set_config\('request\.jwt\.claim\.role','authenticated',true\);\s*set local role authenticated;/)
+assert.match(acceptance,/set_config\('request\.jwt\.claim\.sub',member\.id::text,true\);\s*set local role authenticated;/)
+assert.match(acceptance,/rollback;\s*$/)
 const editor = readFileSync('app/dashboard/roles/page.tsx','utf8')
 assert.match(editor,/rpc\('cgf_save_role_permissions'/)
 assert.doesNotMatch(editor,/\.upsert\(|\.from\('audit_trail'\)/)
