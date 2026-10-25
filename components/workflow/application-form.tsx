@@ -1022,7 +1022,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             </div>
           </TabsContent>
 
-          {/* ── LEGAL REP TAB ���─ */}
+          {/* ── LEGAL REP TAB ── */}
           <TabsContent value="legal_rep" className="space-y-6">
             <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="legal_rep" />
             <Card>

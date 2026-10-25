@@ -218,7 +218,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     }
   }
 
-  // ── Action handlers ───────────────────────────�����────────────────────────────
+  // ── Action handlers ──────────────────────────────────────────────────────────
   const handleSubmit = () => transition("submitted")
 
   const handleMarkReceived = () => transition("under_review")

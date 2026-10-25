@@ -653,7 +653,7 @@ export const translations = {
     // Loan Applications
     loans: {
       title: 'Заявки на кредит',
-      newApplication: 'Н��вая заявка на кредит',
+      newApplication: 'Новая заявка на кредит',
       applicationNumber: 'Номер заявки',
       loanNumber: 'Номер кредита',
       applicationDate: 'Дата заявки',
@@ -843,9 +843,9 @@ export const translations = {
     users: {
       title: 'Управление пользователями',
       newUser: 'Новый пользователь',
-      role: '��оль',
+      role: 'Роль',
       isActive: 'Активен',
-      lastLogin: 'По��ледний ��ход',
+      lastLogin: 'Последний вход',
       preferredLanguage: 'Предпочитаемый язык',
     },
     
@@ -1041,7 +1041,7 @@ export const translations = {
       exportReport: 'Содироти ҳисобот',
       rowNumber: '№',
       branchCode: 'Коди филиал',
-      branchName: '��оми филиал',
+      branchName: 'Номи филиал',
       serviceCenterName: 'Маркази хизматрасонӣ',
       serviceCenterCode: 'Коди марказ',
       productCode: 'Коди маҳсулот',
@@ -1218,7 +1218,7 @@ export const translations = {
       claimAmount: 'Маблағи даъво',
       principalClaimed: 'Қарзи асосӣ',
       interestClaimed: 'Фоиз',
-      approvedAmount: 'Маблағи ��асдиқшуда',
+      approvedAmount: 'Маблағи тасдиқшуда',
       paymentDate: 'Санаи пардохт',
       paymentReference: 'Рақами пардохт',
       reviewNotes: 'Қайдҳои баррасӣ',
