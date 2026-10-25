@@ -48,16 +48,25 @@ if (process.argv.includes('--live')) {
     assert.equal(invalidRecovery.error?.code, '23514', 'Administrator recovery must validate amounts through the public RPC')
     const recoveryColumns = await client.from('recoveries').select('id,policy_revision,currency,documented_costs,execution_request').limit(0)
     assert.equal(recoveryColumns.error, null, 'Authenticated recovery snapshots must be readable through scoped RLS')
+    const feeColumns = await client.from('fees').select('id,policy_revision,currency,calculation_inputs,execution_request').limit(0)
+    assert.equal(feeColumns.error, null, 'Policy-backed fee evidence must be readable through scoped RLS')
+    const invalidFee = await client.rpc('cgf_create_fee', { p_fee_id: missing, p_loan_id: missing, p_type: 'upfront', p_date: new Date().toISOString().slice(0, 10), p_start: null, p_end: null, p_balance_row_id: null, p_notes: '', p_expected_revision: 1 })
+    assert.equal(invalidFee.error?.code, '23514', 'Administrator fee creation must require a reason')
+    const missingFee = await client.rpc('cgf_create_fee', { p_fee_id: missing, p_loan_id: missing, p_type: 'upfront', p_date: new Date().toISOString().slice(0, 10), p_start: null, p_end: null, p_balance_row_id: null, p_notes: 'Read-only missing-record acceptance probe', p_expected_revision: 1 })
+    assert.ok(['23514', '40001'].includes(missingFee.error?.code ?? ''), 'Administrator must reach policy or missing-loan validation')
+    const missingInvoice = await client.rpc('cgf_fee_action', { p_fee_id: missing, p_action: 'invoice', p_date: new Date().toISOString().slice(0, 10), p_reference: null, p_reason: 'Read-only missing-invoice acceptance probe' })
+    assert.equal(missingInvoice.error?.code, '23514', 'Missing fees cannot be invoiced')
     if (process.argv.includes('--http')) {
       const headers = { Cookie: [...sessionCookies].map(([name, value]) => `${name}=${value}`).join('; ') }
-      for (const route of ['/dashboard/settings', '/dashboard/committee', '/dashboard/claims', '/dashboard/recoveries', '/dashboard/loans/new']) {
+      for (const route of ['/dashboard/settings', '/dashboard/committee', '/dashboard/claims', '/dashboard/recoveries', '/dashboard/fees', '/dashboard/loans/new']) {
         const response = await fetch(`http://localhost:3000${route}`, { headers })
         assert.equal(new URL(response.url).pathname, route, `${route} must not redirect the verified administrator`)
         assert.equal(response.status, 200)
         const html = await response.text()
         if (route === '/dashboard/settings') assert.ok(html.includes('Full audited authority') && html.includes('Operational rules'), 'Administrator settings must serve the new authority surface')
+        if (route === '/dashboard/fees') assert.ok(html.includes('Saved policy governs new assessments') && !html.includes('Auto-Calculate Quarterly'), 'Fee register must serve policy-backed actions, not the legacy bulk calculation')
       }
-      console.log('Authenticated HTTP checks passed for settings, committee, claims, recoveries and application creation; browser interaction is a separate check')
+      console.log('Authenticated HTTP checks passed for settings, committee, claims, recoveries, fees and application creation; browser interaction is a separate check')
     }
     console.log('Authenticated live administrator RPC boundary checks passed; no business records were changed')
   } finally { await client.auth.signOut({ scope: 'local' }) }
