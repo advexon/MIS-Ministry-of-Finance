@@ -19,7 +19,9 @@ export interface CommitteeMember extends EmployeeFlags {
   first_name: string | null
   last_name: string | null
   email: string | null
-  role: { code?: string; name_en?: string } | null
+  is_active?: boolean
+  bank_id?: string | null
+  role: { code?: string; name_en?: string; is_active?: boolean } | null
 }
 
 export interface Seat {
