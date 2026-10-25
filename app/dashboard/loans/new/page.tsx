@@ -25,6 +25,7 @@ import { RequiredMark } from "@/components/forms/required-mark"
 import { StepValidationPanel } from "@/components/forms/step-validation-panel"
 import { useLoanDraft } from "@/lib/hooks/use-loan-draft"
 import { usePermissions } from "@/lib/contexts/permission-context"
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 import { getDatabaseErrorMessage } from "@/lib/utils/db-error"
 
 interface Guarantor {
@@ -38,6 +39,7 @@ export default function NewLoanPage() {
   const router = useRouter()
   const supabase = createClient()
   const { can } = usePermissions()
+  const requestAuthorityReason = useAuthorityReason()
   const canCreateLoan = can("loans", "create")
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -532,6 +534,8 @@ export default function NewLoanPage() {
         return
       }
 
+      const authorityReason = await requestAuthorityReason()
+
       // 1. Upsert borrower by TIN
       // Map the form's legal entity types to the values allowed by the
       // borrowers_legal_type_check constraint: individual, sole_proprietor, llc, jsc, cooperative, other
@@ -693,6 +697,7 @@ export default function NewLoanPage() {
         guarantee_amount: guaranteeAmount,
         status: "draft" as const,
         notes: notes || null,
+        ...(authorityReason ? { authority_reason: authorityReason } : {}),
         created_by: user?.id || null,
         sector_id: sectorId || null,
         loan_request_id: loanRequestId,

@@ -273,8 +273,8 @@ export function requiresAssessment(amountUsd: number | null): boolean {
   return true
 }
 
-export function requiresRiskReview(amountUsd: number | null, riskRating: string | null): boolean {
-  return amountUsd == null || amountUsd >= ASSESSMENT_THRESHOLD_USD ||
+export function requiresRiskReview(amountUsd: number | null, riskRating: string | null, thresholdUsd = ASSESSMENT_THRESHOLD_USD): boolean {
+  return amountUsd == null || amountUsd >= thresholdUsd ||
     !riskRating || riskRating === 'elevated' || riskRating === 'high'
 }
 
@@ -292,7 +292,7 @@ export function tallyVotes(votes: { vote: 'for' | 'against' | 'abstain' }[]): Vo
 }
 
 export function isWorkflowReadOnlyRole(roleCode: string | null | undefined): boolean {
-  return !roleCode || ['super_admin', 'prsf_admin', 'auditor'].includes(roleCode)
+  return !roleCode || ['prsf_admin', 'auditor'].includes(roleCode)
 }
 
 export function canActOnStep(
@@ -301,6 +301,7 @@ export function canActOnStep(
   flags: EmployeeFlags = {},
 ): boolean {
   if (isWorkflowReadOnlyRole(roleCode)) return false
+  if (roleCode === ROLE_CODES.SUPER_ADMIN) return true
   if (step.step === 7 || step.step === 10) return canServeAsSecretary(roleCode, flags)
   if (step.step === 8) {
     return roleCode === ROLE_CODES.FKG_MANAGEMENT || canServeAsSecretary(roleCode, flags) || canServeOnLoanCommittee(roleCode, flags)

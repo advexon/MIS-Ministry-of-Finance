@@ -105,7 +105,7 @@ export function withPermission(
 
       // A disabled account retains a valid session cookie until it expires,
       // so it has to be rejected on every request.
-      if (profile?.is_active === false) {
+      if (profile?.is_active !== true || (profile?.role?.code === 'super_admin' && profile.bank_id)) {
         await logAccess(
           supabase, req, user?.id, options.resource, false, 'Account disabled'
         )

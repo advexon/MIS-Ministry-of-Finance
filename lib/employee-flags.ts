@@ -15,11 +15,11 @@ export function isOperationalEmployee(roleCode: string | null | undefined): bool
 }
 
 export function canServeAsSecretary(roleCode: string | null | undefined, flags: EmployeeFlags): boolean {
-  return isOperationalEmployee(roleCode) && flags.is_committee_secretary === true
+  return roleCode === 'super_admin' || (isOperationalEmployee(roleCode) && flags.is_committee_secretary === true)
 }
 
 export function canServeOnLoanCommittee(roleCode: string | null | undefined, flags: EmployeeFlags): boolean {
-  return isOperationalEmployee(roleCode) && flags.department === "operations" && flags.is_loan_committee_member === true
+  return roleCode === 'super_admin' || (isOperationalEmployee(roleCode) && flags.department === "operations" && flags.is_loan_committee_member === true)
 }
 
 export const employeeFlagKeys = [

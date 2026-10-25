@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   // Verify caller has admin role
   const { data: profile } = await supabase
     .from('profiles')
-    .select('is_active, role:roles(code, tier, is_active)')
+    .select('is_active, bank_id, role:roles(code, tier, is_active)')
     .eq('id', user.id)
     .single()
   const callerRole = one<{ code?: string; tier?: number; is_active?: boolean }>(profile?.role)
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Forbidden: Account is disabled' }, { status: 403 })
   }
 
-  const isAdmin = roleCode === 'prsf_admin' || roleCode === 'super_admin'
+  const isAdmin = roleCode === 'prsf_admin' || (roleCode === 'super_admin' && callerTier === 1 && !profile?.bank_id)
   if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden: admin role required' }, { status: 403 })
   }

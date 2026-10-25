@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "verify:admin-authority": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-admin-authority.ts",
     "verify:scheme": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-fkg-scheme.ts",
     "verify:notifications": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-internal-notifications.ts",
     "verify:financial-policy": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-financial-policy.ts",

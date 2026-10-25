@@ -1,5 +1,6 @@
-import { type Role, ROLE_TIERS, ROLE_CODES } from '@/lib/types/database'
+import { type Role, ROLE_CODES } from '@/lib/types/database'
 import { createClient } from '@/lib/supabase/client'
+import { isSuperAdmin } from '@/lib/utils/roles'
 
 export type Permission = 'view' | 'create' | 'update' | 'delete' | 'approve'
 
@@ -96,15 +97,16 @@ export function hasPermission(
   // No role = no access
   if (!role || role.is_active === false) return false
 
-  // Regulatory prohibitions take precedence over editable grants and tier bypasses.
+  if (isSuperAdmin(role)) return true
+  if (role.code === ROLE_CODES.SUPER_ADMIN) return false
+
+  // Non-administrator prohibitions cannot be overridden by editable grants.
   if (role.code === ROLE_CODES.LEGAL_OFFICER && (permission !== 'view' || !['loans', 'claims'].includes(resource))) return false
   if (role.code === ROLE_CODES.AUDITOR && permission !== 'view') return false
   if (
-    (role.code === ROLE_CODES.SUPER_ADMIN || role.code === ROLE_CODES.PRSF_ADMIN) &&
+    role.code === ROLE_CODES.PRSF_ADMIN &&
     ['loans', 'claims'].includes(resource) && ['approve', 'create', 'delete'].includes(permission)
   ) return false
-
-  if (role.code === ROLE_CODES.SUPER_ADMIN && role.tier === ROLE_TIERS.SUPER_ADMIN) return true
 
   // Prefer the database-backed permissions when they have been loaded, so
   // edits made on the Role Management page take real effect.
@@ -291,7 +293,7 @@ export function canManageRole(userRole: Role | null, targetRoleId: string, allRo
   if (!userRole) return false
 
   // Superadmin can manage all roles
-  if (userRole.tier === ROLE_TIERS.SUPER_ADMIN) return true
+  if (isSuperAdmin(userRole)) return true
 
   // Find target role
   const targetRole = allRoles.find(r => r.id === targetRoleId)
@@ -308,7 +310,7 @@ export function getAccessibleResources(role: Role | null): string[] {
   if (!role) return []
 
   // Superadmin has access to all
-  if (role.tier === ROLE_TIERS.SUPER_ADMIN) {
+  if (isSuperAdmin(role)) {
     return Object.keys(PERMISSION_MATRIX[ROLE_CODES.SUPER_ADMIN] || {})
   }
 
@@ -326,8 +328,7 @@ export function getResourcePermissions(
 ): ResourcePermission | null {
   if (!role) return null
 
-  const isSuperAdmin = role.code === ROLE_CODES.SUPER_ADMIN && role.tier === ROLE_TIERS.SUPER_ADMIN
-  if (!isSuperAdmin && !(overrides ? overrides[resource] : PERMISSION_MATRIX[role.code]?.[resource])) return null
+  if (!isSuperAdmin(role) && !(overrides ? overrides[resource] : PERMISSION_MATRIX[role.code]?.[resource])) return null
 
   return {
     resource,

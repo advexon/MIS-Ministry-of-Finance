@@ -26,6 +26,8 @@ import { one } from "@/lib/utils/supabase-relation"
 import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
 import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 import { getDatabaseErrorMessage } from "@/lib/utils/db-error"
+import { ClaimPaymentForm } from '@/components/admin/claim-payment-form'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -38,6 +40,7 @@ const statusStyles: Record<string, string> = {
 export default function ClaimsPage() {
   const { t } = useI18n()
   const { role } = usePermissions()
+  const requestAuthorityReason = useAuthorityReason()
   const fundStaff = !!role && !["bank_admin", "bank_officer"].includes(role.code)
   const supabase = createClient()
 
@@ -57,6 +60,7 @@ export default function ClaimsPage() {
 
   // Dialogs
   const [viewOpen, setViewOpen] = useState(false)
+  const [paymentOpen, setPaymentOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
   const [recoveryOpen, setRecoveryOpen] = useState(false)
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null)
@@ -160,6 +164,7 @@ export default function ClaimsPage() {
 
     setSaving(true)
     try {
+      const authorityReason = await requestAuthorityReason()
       // The database commits the claim, loan status, history and audit together.
       const { data, error } = await supabase.from("claims").insert({
         loan_application_id: newLoanId,
@@ -171,6 +176,7 @@ export default function ClaimsPage() {
         interest_claimed: interest,
         penalties_claimed: penalties,
         status: "pending",
+        ...(authorityReason ? { reason: authorityReason } : {}),
       }).select("id").single()
       if (error) throw error
       if (!data?.id) throw new Error("The claim submission could not be confirmed.")
@@ -336,7 +342,8 @@ export default function ClaimsPage() {
                             {fundStaff && ["pending", "submitted", "under_review", "rejected"].includes(claim.status) && (
                               <DropdownMenuItem asChild><Link href="/dashboard/committee#claims-committee">Review in claims committee</Link></DropdownMenuItem>
                             )}
-                            {claim.status === "paid" && (
+                            {claim.status === 'approved' && ['super_admin', 'accountant', 'deputy_director', 'fkg_management'].includes(role?.code ?? '') && <DropdownMenuItem onSelect={() => { setSelectedClaim(claim); setPaymentOpen(true) }}>Authorize / record payment</DropdownMenuItem>}
+                        {claim.status === "paid" && (
                               <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setRecoveryOpen(true) }}>
                                 <DollarSign className="mr-2 h-4 w-4" />Record Recovery
                               </DropdownMenuItem>
@@ -440,6 +447,8 @@ export default function ClaimsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}><DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>Authorize claim payment · {selectedClaim?.claim_number}</DialogTitle><DialogDescription>Payment, policy snapshot, claim totals and audit record commit atomically. Evidence and financial limits are enforced by the database.</DialogDescription></DialogHeader>{selectedClaim && <ClaimPaymentForm key={selectedClaim.id} claim={selectedClaim} onRecorded={async () => { setPaymentOpen(false); showMessage('success', 'Payment recorded with an immutable policy snapshot and audit receipt.'); try { await fetchClaims() } catch { showMessage('error', 'Payment recorded, but the list could not refresh. Refresh the page; do not submit another payment.') } }} />}</DialogContent></Dialog>
 
       {/* Recovery Dialog */}
       <Dialog open={recoveryOpen} onOpenChange={setRecoveryOpen}>

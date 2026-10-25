@@ -19,6 +19,7 @@ import { ClaimsCommitteeRegister } from '@/components/committee/claims-register'
 import type { CommitteeMeeting, CommitteeMember, TabledLoan } from '@/components/committee/types'
 import { canServeAsSecretary } from '@/lib/employee-flags'
 import { usePermissions } from '@/lib/contexts/permission-context'
+import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 import { one } from '@/lib/utils/supabase-relation'
 
 async function loadCommitteeRegister() {
@@ -44,6 +45,7 @@ async function loadCommitteeRegister() {
 
 export default function CommitteePage() {
   const { profile, role, user } = usePermissions()
+  const requestAuthorityReason = useAuthorityReason()
   const { toast } = useToast()
   const { data, error, isLoading, mutate } = useSWR(user?.id ? ['committee-register', user.id] : null, loadCommitteeRegister)
   const [creating, setCreating] = useState(false)
@@ -54,7 +56,8 @@ export default function CommitteePage() {
   async function createMeeting() {
     setBusy(true)
     try {
-      const { error } = await createClient().rpc('cgf_committee_action', { p_action: 'create', p_data: form })
+      const authorityReason = await requestAuthorityReason()
+      const { error } = await createClient().rpc('cgf_committee_action', { p_action: 'create', p_data: { ...form, authority_reason: authorityReason } })
       if (error) throw error
       setCreating(false)
       setForm({ meeting_no: '', loan_id: '' })

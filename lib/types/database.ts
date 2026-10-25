@@ -647,6 +647,7 @@ export interface Claim {
   review_date: string | null
   review_notes: string | null
   approved_amount: number | null
+  paid_amount: number | null
   payment_date: string | null
   payment_reference: string | null
   created_at: string

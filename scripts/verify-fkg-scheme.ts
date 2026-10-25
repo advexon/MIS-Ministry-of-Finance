@@ -110,7 +110,8 @@ check('УКО officer may not act on step 6', !canActOnStep(ROLE_CODES.UKO_OFFIC
 check('management may issue the ПВГ', canActOnStep(ROLE_CODES.FKG_MANAGEMENT, step16))
 check('compliance officer may not issue the ПВГ', !canActOnStep(ROLE_CODES.COMPLIANCE_OFFICER, step16))
 check('an unknown role may act nowhere', !canActOnStep(null, step2))
-for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR]) {
+check('Super Administrator may act at every workflow step', SCHEME_STEPS.every((step) => canActOnStep(ROLE_CODES.SUPER_ADMIN, step)))
+for (const code of [ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR]) {
   check(`${code} cannot complete any workflow step`, SCHEME_STEPS.every((step) => !canActOnStep(code, step)))
 }
 const committeeStep = getStepByNumber(8)!
@@ -121,7 +122,7 @@ check('unflagged analyst cannot convene', !canActOnStep(ROLE_CODES.PRSF_ANALYST,
 check('flagged operations analyst may participate', canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep, committeeFlags))
 check('unflagged analyst cannot participate', !canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep))
 check('product tags never restrict membership', canActOnStep(ROLE_CODES.PRSF_ANALYST, committeeStep, { ...committeeFlags, product_tags: ['green'] }))
-for (const code of [ROLE_CODES.SUPER_ADMIN, ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR, ROLE_CODES.BANK_ADMIN, ROLE_CODES.BANK_OFFICER]) {
+for (const code of [ROLE_CODES.PRSF_ADMIN, ROLE_CODES.AUDITOR, ROLE_CODES.BANK_ADMIN, ROLE_CODES.BANK_OFFICER]) {
   check(`${code} cannot gain committee rights through flags`, !canActOnStep(code, secretaryStep, committeeFlags) && !canActOnStep(code, committeeStep, committeeFlags))
 }
 for (const code of [ROLE_CODES.KKG_MEMBER, ROLE_CODES.KKG_SECRETARY, ROLE_CODES.UKO_OFFICER]) {

@@ -288,7 +288,7 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   visit(source)
   assert.ok(handler)
   const compiled = ts.transpileModule(`const ${handler.getText(source)}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
-  for (const scenario of ['success', 'missing', 'negative', 'nan', 'zero', 'no-bank', 'returned-error', 'network', 'no-confirmation', 'refresh']) {
+  for (const scenario of ['success', 'authority', 'cancelled', 'missing', 'negative', 'nan', 'zero', 'no-bank', 'returned-error', 'network', 'no-confirmation', 'refresh']) {
     const events = []
     const messages = []
     const query = {
@@ -302,6 +302,7 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
         assert.equal(payload.interest_claimed, 25)
         assert.equal(payload.penalties_claimed, 0)
         assert.equal(payload.submitted_by, undefined)
+        assert.equal(payload.reason, scenario === 'authority' ? 'Approved administrator authority' : undefined)
         return query
       },
       select: columns => { assert.equal(columns, 'id'); return query },
@@ -313,6 +314,7 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     const submit = runInNewContext(`${compiled}\nhandleSubmitNewClaim`, {
       Number, Math, Date, Error,
       createReq: { missingFields: () => scenario === 'missing' ? ['Loan'] : [] },
+      requestAuthorityReason: async () => { if (scenario === 'cancelled') throw new Error('Action cancelled'); return scenario === 'authority' ? 'Approved administrator authority' : null },
       newClaimValues: {}, newLoanId: 'loan-1', newClaimDate: '2026-10-25',
       newPrincipal: scenario === 'negative' ? '-100' : scenario === 'nan' ? '100suffix' : scenario === 'zero' ? '0' : '100',
       newInterest: scenario === 'zero' ? '0' : '25', newPenalties: '0',
@@ -328,9 +330,9 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     })
     await submit()
     const validationFailed = ['missing', 'negative', 'nan', 'zero', 'no-bank'].includes(scenario)
-    const confirmed = ['success', 'refresh'].includes(scenario)
+    const confirmed = ['success', 'authority', 'refresh'].includes(scenario)
     assert.deepEqual(events, validationFailed ? [] : [
-      ['saving', true], 'insert', ...(confirmed ? [['dialog', false], 'refresh'] : []), ['saving', false],
+      ['saving', true], ...(scenario === 'cancelled' ? [] : ['insert']), ...(confirmed ? [['dialog', false], 'refresh'] : []), ['saving', false],
     ], scenario)
     assert.equal(messages[0][0], confirmed ? 'success' : 'error', scenario)
     if (scenario === 'refresh') assert.match(messages[1][1], /do not resubmit/)
