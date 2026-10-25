@@ -44,16 +44,20 @@ if (process.argv.includes('--live')) {
     assert.equal(invalidSettings.error?.code, '23514', 'Unsupported settings cannot be saved')
     const invalidPayment = await client.rpc('cgf_record_claim_payment', { p_payment_id: missing, p_claim_id: missing, p_amount: -1, p_currency: 'TJS', p_payment_date: new Date().toISOString().slice(0, 10), p_reference: 'READ-ONLY-ACCEPTANCE', p_notes: 'Invalid-input boundary probe', p_expected_revision: 1 })
     assert.equal(invalidPayment.error?.code, '23514', 'Administrator must reach amount validation, never bypass it')
+    const invalidRecovery = await client.rpc('cgf_record_recovery', { p_recovery_id: missing, p_claim_id: missing, p_gross: -1, p_costs: 0, p_currency: 'TJS', p_date: new Date().toISOString().slice(0, 10), p_reference: 'READ-ONLY-ACCEPTANCE', p_cost_evidence: null, p_notes: 'Invalid-input recovery boundary probe', p_expected_revision: 1, p_method: 'cash' })
+    assert.equal(invalidRecovery.error?.code, '23514', 'Administrator recovery must validate amounts through the public RPC')
+    const recoveryColumns = await client.from('recoveries').select('id,policy_revision,currency,documented_costs,execution_request').limit(0)
+    assert.equal(recoveryColumns.error, null, 'Authenticated recovery snapshots must be readable through scoped RLS')
     if (process.argv.includes('--http')) {
       const headers = { Cookie: [...sessionCookies].map(([name, value]) => `${name}=${value}`).join('; ') }
-      for (const route of ['/dashboard/settings', '/dashboard/committee', '/dashboard/claims', '/dashboard/loans/new']) {
+      for (const route of ['/dashboard/settings', '/dashboard/committee', '/dashboard/claims', '/dashboard/recoveries', '/dashboard/loans/new']) {
         const response = await fetch(`http://localhost:3000${route}`, { headers })
         assert.equal(new URL(response.url).pathname, route, `${route} must not redirect the verified administrator`)
         assert.equal(response.status, 200)
         const html = await response.text()
         if (route === '/dashboard/settings') assert.ok(html.includes('Full audited authority') && html.includes('Operational rules'), 'Administrator settings must serve the new authority surface')
       }
-      console.log('Authenticated HTTP checks passed for settings, committee, claims and application creation; browser interaction is a separate check')
+      console.log('Authenticated HTTP checks passed for settings, committee, claims, recoveries and application creation; browser interaction is a separate check')
     }
     console.log('Authenticated live administrator RPC boundary checks passed; no business records were changed')
   } finally { await client.auth.signOut({ scope: 'local' }) }

@@ -61,7 +61,7 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
       if (!data || typeof data.id !== 'string' || !Number.isSafeInteger(data.revision) || data.revision <= (baseline?.revision ?? 0) || JSON.stringify(financialPolicySchema.parse(data.policy)) !== JSON.stringify(parsed.data)) throw new Error('Policy save was not confirmed. Reload before retrying.')
       const saved: FinancialPolicyVersion = { id: data.id, revision: data.revision, policy: financialPolicySchema.parse(data.policy), reason: data.reason, created_at: data.created_at }
       setBaseline(saved); setDraft(saved.policy); setReason(''); setConfirmed(false)
-      setMessage(`Policy revision ${saved.revision} saved and audited. Claim payments use this revision; recovery and fee execution integration remains pending.`)
+      setMessage(`Policy revision ${saved.revision} saved and audited. New claim payments and recoveries use this revision; fee execution integration remains pending.`)
       try { await refresh() } catch { setMessage(`Policy revision ${saved.revision} saved and audited; revision history could not refresh.`) }
     } catch (error) { setError(error instanceof Error ? error.message : 'Save not confirmed; reload before retrying.') }
     finally { setBusy(false) }
@@ -75,7 +75,7 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
   }
 
   return <section aria-label="Financial policy controls" className="flex flex-col gap-6">
-    <Alert><AlertTitle>Administrator-owned policy · claim payments connected</AlertTitle><AlertDescription>Claim-payment authorization enforces the saved policy and snapshots its revision, terms and evidence. Super Administrator has inherent payment authority but cannot exceed the approved outstanding amount or bypass evidence and currency checks. Recovery allocation and fee execution are not yet connected; those settings remain configuration-only. Saving never recalculates historical transactions.</AlertDescription></Alert>
+    <Alert><AlertTitle>Administrator-owned policy · claim payments and recoveries connected</AlertTitle><AlertDescription>Claim-payment authorization and recovery allocation enforce the saved policy and snapshot its revision, terms and evidence. Super Administrator has inherent payment authority but cannot bypass evidence, currency checks or financial caps. Recovery Fund shares are capped at the unrecovered paid amount; documented costs are deducted only when permitted. Fee execution is not yet connected; fee settings remain configuration-only. Saving never recalculates historical transactions.</AlertDescription></Alert>
     {!baseline && <Alert><AlertTitle>No financial policy has been saved</AlertTitle><AlertDescription>The form is an unsaved draft. No legacy 50% recovery share or 0.5% fee rate is assumed to be approved. An empty payment authority list authorizes no ordinary payment role; verified Super Administrator authority remains inherent.</AlertDescription></Alert>}
     {message && <p role="status" className="text-sm leading-relaxed">{message}</p>}
     {(error || issues.length > 0) && <Alert variant="destructive"><AlertTitle>Policy not saved</AlertTitle><AlertDescription>{error}{issues.length > 0 && <ul className="list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</AlertDescription></Alert>}

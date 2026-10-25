@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -27,6 +26,7 @@ import { useFieldRequirements } from "@/lib/hooks/use-field-requirements"
 import { RequiredMark, missingFieldsMessage } from "@/components/forms/required-mark"
 import { getDatabaseErrorMessage } from "@/lib/utils/db-error"
 import { ClaimPaymentForm } from '@/components/admin/claim-payment-form'
+import { RecoveryForm } from '@/components/admin/recovery-form'
 import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
 
 const statusStyles: Record<string, string> = {
@@ -72,12 +72,6 @@ export default function ClaimsPage() {
   const [newPrincipal, setNewPrincipal] = useState("")
   const [newInterest, setNewInterest] = useState("")
   const [newPenalties, setNewPenalties] = useState("0")
-
-  // Recovery form
-  const [recoveryDate, setRecoveryDate] = useState(new Date().toISOString().split("T")[0])
-  const [recoveryTotal, setRecoveryTotal] = useState("")
-  const [recoveryPrsfShare, setRecoveryPrsfShare] = useState("")
-  const [recoveryNotes, setRecoveryNotes] = useState("")
 
   const showMessage = (type: "success" | "error", msg: string) => {
     if (type === "success") { setSuccessMsg(msg); setErrorMsg(null) }
@@ -127,7 +121,6 @@ export default function ClaimsPage() {
   const totalApproved = claims.filter((c) => c.approved_amount).reduce((s, c) => s + (c.approved_amount || 0), 0)
 
   const createReq = useFieldRequirements("claim_create")
-  const recoveryReq = useFieldRequirements("claim_recovery")
 
   const newClaimValues = {
     loan_id: newLoanId,
@@ -136,13 +129,6 @@ export default function ClaimsPage() {
     interest_claimed: newInterest,
     penalties_claimed: newPenalties,
   }
-  const recoveryValues = {
-    recovery_date: recoveryDate,
-    total_recovered: recoveryTotal,
-    prsf_share: recoveryPrsfShare,
-    notes: recoveryNotes,
-  }
-  const recoveryMissing = recoveryReq.missingFields(recoveryValues)
 
   const handleSubmitNewClaim = async () => {
     const missing = createReq.missingFields(newClaimValues)
@@ -195,39 +181,6 @@ export default function ClaimsPage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleRecovery = async () => {
-    if (!selectedClaim) return
-    if (recoveryMissing.length) { showMessage("error", missingFieldsMessage(recoveryMissing)); return }
-    setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const total = parseFloat(recoveryTotal) || 0
-    const prsfShare = parseFloat(recoveryPrsfShare) || total * (selectedClaim.approved_amount || 0) / (selectedClaim.claim_amount || 1)
-    // recoveries.loan_id and recoveries.recovery_amount are both NOT NULL.
-    // Sending only loan_application_id/total_recovered made every insert fail.
-    const recoveryLoanId = selectedClaim.loan_id || selectedClaim.loan_application_id
-    if (!recoveryLoanId) {
-      showMessage("error", "This claim has no linked loan, so a recovery cannot be recorded.")
-      setSaving(false); return
-    }
-    const { error } = await supabase.from("recoveries").insert({
-      claim_id: selectedClaim.id,
-      loan_id: recoveryLoanId,
-      loan_application_id: selectedClaim.loan_application_id,
-      recovery_date: recoveryDate,
-      recovery_amount: total,
-      total_recovered: total,
-      prsf_share: prsfShare,
-      bank_share: total - prsfShare,
-      notes: recoveryNotes,
-      reported_by: user?.id,
-      recorded_by: user?.id,
-    })
-    if (error) { showMessage("error", error.message); setSaving(false); return }
-    showMessage("success", "Recovery recorded successfully")
-    setRecoveryOpen(false)
-    setSaving(false)
   }
 
   return (
@@ -343,7 +296,7 @@ export default function ClaimsPage() {
                               <DropdownMenuItem asChild><Link href="/dashboard/committee#claims-committee">Review in claims committee</Link></DropdownMenuItem>
                             )}
                             {claim.status === 'approved' && ['super_admin', 'accountant', 'deputy_director', 'fkg_management'].includes(role?.code ?? '') && <DropdownMenuItem onSelect={() => { setSelectedClaim(claim); setPaymentOpen(true) }}>Authorize / record payment</DropdownMenuItem>}
-                        {claim.status === "paid" && (
+                        {claim.status === 'paid' && ['super_admin', 'prsf_admin', 'accountant'].includes(role?.code ?? '') && (
                               <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setRecoveryOpen(true) }}>
                                 <DollarSign className="mr-2 h-4 w-4" />Record Recovery
                               </DropdownMenuItem>
@@ -450,39 +403,14 @@ export default function ClaimsPage() {
 
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}><DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>Authorize claim payment · {selectedClaim?.claim_number}</DialogTitle><DialogDescription>Payment, policy snapshot, claim totals and audit record commit atomically. Evidence and financial limits are enforced by the database.</DialogDescription></DialogHeader>{selectedClaim && <ClaimPaymentForm key={selectedClaim.id} claim={selectedClaim} onRecorded={async () => { setPaymentOpen(false); showMessage('success', 'Payment recorded with an immutable policy snapshot and audit receipt.'); try { await fetchClaims() } catch { showMessage('error', 'Payment recorded, but the list could not refresh. Refresh the page; do not submit another payment.') } }} />}</DialogContent></Dialog>
 
-      {/* Recovery Dialog */}
       <Dialog open={recoveryOpen} onOpenChange={setRecoveryOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Recovery</DialogTitle>
-            <DialogDescription>Post-claim repayment recovered from borrower</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Recovery Date<RequiredMark show={recoveryReq.isRequired("recovery_date")} /></Label>
-              <Input type="date" value={recoveryDate} onChange={(e) => setRecoveryDate(e.target.value)} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Total Recovered<RequiredMark show={recoveryReq.isRequired("total_recovered")} /></Label>
-                <Input type="number" value={recoveryTotal} onChange={(e) => setRecoveryTotal(e.target.value)} placeholder="0" />
-              </div>
-              <div className="space-y-2">
-                <Label>PRSF Share<RequiredMark show={recoveryReq.isRequired("prsf_share")} /></Label>
-                <Input type="number" value={recoveryPrsfShare} onChange={(e) => setRecoveryPrsfShare(e.target.value)} placeholder="Auto-calculated" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Notes<RequiredMark show={recoveryReq.isRequired("notes")} /></Label>
-              <Textarea value={recoveryNotes} onChange={(e) => setRecoveryNotes(e.target.value)} rows={2} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRecoveryOpen(false)}>Cancel</Button>
-            <Button onClick={handleRecovery} disabled={saving || recoveryMissing.length > 0}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Record Recovery"}
-            </Button>
-          </DialogFooter>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader><DialogTitle>Record recovery · {selectedClaim?.claim_number}</DialogTitle><DialogDescription>Database-calculated allocation with an immutable policy and evidence snapshot.</DialogDescription></DialogHeader>
+          {selectedClaim && <RecoveryForm key={selectedClaim.id} claim={selectedClaim} onRecorded={async (receipt) => {
+            setRecoveryOpen(false)
+            showMessage('success', `Recovery recorded · Fund ${receipt.prsf_share} ${receipt.currency}, bank ${receipt.bank_share} ${receipt.currency}, costs ${receipt.documented_costs} ${receipt.currency} · policy ${receipt.policy_revision}.`)
+            try { await fetchClaims() } catch { showMessage('error', 'Recovery recorded, but the list could not refresh. Refresh the page; do not submit another recovery.') }
+          }} />}
         </DialogContent>
       </Dialog>
     </div>
