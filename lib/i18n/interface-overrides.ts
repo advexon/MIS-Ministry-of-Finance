@@ -1,4 +1,6 @@
 export const interfaceOverrides: Record<string, readonly [string, string]> = {
+  Unissued: ['Не выставлен', 'Пешниҳод нашудааст'],
+  'Not issued': ['Не выставлен', 'Пешниҳод нашудааст'],
   'Fee Invoice': ['Счёт на оплату комиссии', 'Ҳисобномаи пардохти ҳаққи хизмат'],
   'CREDIT GUARANTEE FUND - GUARANTEE FEE INVOICE': ['ФОНД КРЕДИТНЫХ ГАРАНТИЙ — СЧЁТ НА ГАРАНТИЙНУЮ КОМИССИЮ', 'ФОНДИ КАФОЛАТИ ҚАРЗӢ — ҲИСОБНОМАИ ҲАҚҚИ КАФОЛАТ'],
   'Credit Guarantee Fund – Ministry of Finance': ['Фонд кредитных гарантий — Министерство финансов', 'Фонди кафолати қарзӣ — Вазорати молия'],

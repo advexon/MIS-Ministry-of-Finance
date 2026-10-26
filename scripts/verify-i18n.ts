@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { translations } from '@/lib/i18n/translations'
+import { interfaceCatalog, translateInterface } from '@/lib/i18n/interface-text'
+import { renderFeeInvoice } from '@/lib/utils/fee-invoice'
+import ts from 'typescript'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
 const replacement = /\uFFFD/u
@@ -52,6 +55,37 @@ assert.equal(translations.ru.loans.newApplication, 'Новая заявка на
 assert.equal(translations.ru.users.role, 'Роль')
 assert.equal(translations.ru.users.lastLogin, 'Последний вход')
 assert.equal(translations.tj.claims.approvedAmount, 'Маблағи тасдиқшуда')
+
+for (const [source, entries] of Object.entries(interfaceCatalog)) {
+  assert.equal(entries.length, 2, `${source}: Russian and Tajik translations required`)
+  const placeholders = (source.match(/\{\d+\}/g) ?? []).sort()
+  for (const [index, text] of entries.entries()) {
+    assert.ok(text.trim(), `${source}: empty locale ${index}`)
+    validateText(Buffer.from(text), source)
+    assert.deepEqual((text.match(/\{\d+\}/g) ?? []).sort(), placeholders, `${source}: interpolation mismatch`)
+  }
+}
+for (const path of paths.filter(path => /^(app|components)\/.*\.tsx$/.test(path))) {
+  const source = ts.createSourceFile(path, readFileSync(new URL(path, root), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'uiText' && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) {
+      const key = node.arguments[0].text.replace(/\s+/g, ' ').trim()
+      assert.ok(interfaceCatalog[key], `${path}: missing translation for ${key}`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+}
+for (const locale of ['en', 'ru', 'tj'] as const) {
+  assert.equal(translateInterface(locale, 'Borrower ACME-123'), 'Borrower ACME-123')
+  assert.equal(translateInterface(locale, 123), 123)
+  assert.ok(translateInterface(locale, ' Fees & Commissions ').startsWith(' '))
+  const invoice = renderFeeInvoice({ invoiceNumber: '<script>', date: '2026-10-26', loanReference: 'LOAN-123', bank: 'Bank', borrower: 'Borrower', description: 'Fee', baseAmount: '100', rate: '1%', feeAmount: '1' }, locale)
+  assert.ok(invoice.includes(`lang="${locale === 'tj' ? 'tg' : locale}"`))
+  assert.ok(invoice.includes('&lt;script&gt;'))
+  assert.ok(invoice.includes(translateInterface(locale, 'Total Due')))
+}
+assert.equal(translateInterface('ru', 'Page {0} of {1}', 2, 5).includes('2'), true)
 
 const layout = readFileSync(new URL('app/layout.tsx', root), 'utf8')
 const subsets = [...layout.matchAll(/subsets:\s*\[([^\]]+)\]/g)]

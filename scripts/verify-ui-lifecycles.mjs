@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 import * as React from 'react'
@@ -25,9 +25,12 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   }).outputText
   const localRequire = specifier => {
     if (Object.hasOwn(overrides, specifier)) return overrides[specifier]
-    if (specifier.startsWith('@/')) {
+    if (specifier.startsWith('.') && specifier.endsWith('.json')) {
+      return JSON.parse(readFileSync(resolve(dirname(filename), specifier), 'utf8'))
+    }
+    if (specifier.startsWith('@/') || specifier.startsWith('.')) {
       for (const extension of ['.ts', '.tsx']) {
-        const path = specifier.slice(2) + extension
+        const path = specifier.startsWith('@/') ? specifier.slice(2) + extension : resolve(dirname(filename), specifier + extension)
         try {
           readFileSync(resolve(root, path))
         } catch (error) {
@@ -45,6 +48,7 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     module: loadedModule,
     require: localRequire,
     window: overrides.window,
+    document: overrides.document ?? { documentElement: { lang: 'en' } },
     localStorage: overrides.localStorage,
     Date: overrides.Date ?? Date,
     console,
@@ -73,7 +77,7 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   let queryState = { isLoading: false, isValidating: false, data: { total: 21, items: [{ id: 'loan-1', loan_request_id: 'HISTORY-ONLY', approved_amount: 0, currency: 'TJS', created_at: null }] } }
   const wrapper = ({ children }) => React.createElement('div', null, children)
   const { CreditHistoryDialog } = loadSource('components/borrowers/credit-history-dialog.tsx', {
-    react: { ...React, useState: () => [page, value => { nextPage = value }] },
+    react: { ...React, useCallback: callback => callback, useState: () => [page, value => { nextPage = value }] },
     'next/link': { default: ({ children, href }) => React.createElement('a', { href }, children), __esModule: true },
     '@/lib/contexts/permission-context': { usePermissions: () => identity },
     '@/lib/i18n/context': { useI18n: () => ({ t: translations.en, locale: 'en' }) },
@@ -772,7 +776,7 @@ function queryFixture(data, error = null) {
   let hideColumns = false, search = '', exports = 0
   let interfaceLocale = 'en', downloadLocale = null, exportedLocale, exportedTemplate
   const DocumentsPage = loadSource('app/dashboard/documents/page.tsx', {
-    react: { ...React, useMemo: factory => factory(), useState: initial => [
+    react: { ...React, useCallback: callback => callback, useMemo: factory => factory(), useState: initial => [
       typeof initial === 'object' && initial?.columns && hideColumns ? { ...initial, columns: initial.columns.map(column => ({ ...column, visible: false })) }
         : initial === '' ? search : initial === null ? downloadLocale : initial,
       value => { if (initial === null) downloadLocale = value },
@@ -850,7 +854,7 @@ function LanguageProbe() {
 assert.equal(renderToStaticMarkup(React.createElement(serverI18n.I18nProvider, null, React.createElement(LanguageProbe))), '<span>en:English</span>')
 
 function localeHarness(saved, { storageFails = false, loadFails = false } = {}) {
-  let effect
+  const effects = []
   let state
   const updates = []
   const writes = []
@@ -878,11 +882,11 @@ function localeHarness(saved, { storageFails = false, loadFails = false } = {}) 
       },
       useRef: current => ({ current }),
       useCallback: callback => callback,
-      useEffect(callback) { effect = callback },
+      useEffect(callback) { effects.push(callback) },
     },
   })
   const provider = i18n.I18nProvider({ children: null })
-  return { restore: () => effect(), setLocale: provider.props.value.setLocale, updates, writes, get state() { return state } }
+  return { restore: () => { const cleanups = effects.map(effect => effect()); return () => { for (const cleanup of cleanups) if (typeof cleanup === 'function') cleanup() } }, setLocale: provider.props.value.setLocale, updates, writes, get state() { return state } }
 }
 async function settleLocales() {
   for (let turn = 0; turn < 12; turn++) await Promise.resolve()
@@ -1143,14 +1147,18 @@ assert.equal(skeleton(), skeleton())
 assert.match(skeleton(), /--skeleton-width:70%/)
 assert.match(skeleton(), /data-sidebar="menu-skeleton-icon"/)
 
-const { ReportChartCard } = loadSource('components/dashboard/report-chart-card.tsx')
+const { ReportChartCard } = loadSource('components/dashboard/report-chart-card.tsx', {
+    '@/lib/i18n/context': { useI18n: () => ({ locale: 'en' }) },
+  })
 const card = props => renderToStaticMarkup(React.createElement(ReportChartCard, {
   title: 'Portfolio by Bank', ...props,
 }, React.createElement('span', null, 'Chart content')))
 assert.match(card({ onExport() {} }), /aria-label="Export Portfolio by Bank"/)
 assert.match(card({}), /Chart content/)
 assert.doesNotMatch(card({}), /<button/)
-const { StepValidationPanel } = loadSource('components/forms/step-validation-panel.tsx')
+const { StepValidationPanel } = loadSource('components/forms/step-validation-panel.tsx', {
+  '@/lib/i18n/context': { useI18n: () => ({ locale: 'en' }) },
+})
 const validationError = { field: 'clientName', label: 'Borrower Name', error: 'Borrower name is required' }
 const borrowerStatus = {
   step: 'borrower', label: 'Borrower', isComplete: false, isValid: false,
