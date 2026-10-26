@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { usePermissions } from '@/lib/contexts/permission-context'
 import { createClient } from '@/lib/supabase/client'
-import { EMPTY_POLICY_DRAFT, PAYMENT_ROLES, POLICY_CURRENCIES, financialPolicySchema, type FinancialPolicy, type FinancialPolicyVersion } from '@/lib/admin/financial-policy'
+import { EMPTY_POLICY_DRAFT, PAYMENT_ROLES, POLICY_CURRENCIES, financialPolicySchema, formatFinancialPolicyIssue, type FinancialPolicyIssue, type FinancialPolicy, type FinancialPolicyVersion } from '@/lib/admin/financial-policy'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,8 +42,8 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [issues, setIssues] = useState<string[]>([])
+  const [message, setMessage] = useState<string | { key: string; revision: number } | null>(null)
+  const [issues, setIssues] = useState<FinancialPolicyIssue[]>([])
   const latest = history[0] ?? null
   const stale = (latest?.revision ?? 0) > (baseline?.revision ?? 0)
   const claims = draft.claims
@@ -57,7 +57,7 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
     setError(null); setMessage(null)
     const parsed = financialPolicySchema.safeParse(draft)
     if (!parsed.success) {
-      setIssues(parsed.error.issues.map((issue) => `${issue.path.join(' → ')}: ${issue.message}`))
+      setIssues(parsed.error.issues)
       return
     }
     setIssues([])
@@ -69,8 +69,8 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
       if (!data || typeof data.id !== 'string' || !Number.isSafeInteger(data.revision) || data.revision <= (baseline?.revision ?? 0) || JSON.stringify(financialPolicySchema.parse(data.policy)) !== JSON.stringify(parsed.data)) throw new Error('Policy save was not confirmed. Reload before retrying.')
       const saved: FinancialPolicyVersion = { id: data.id, revision: data.revision, policy: financialPolicySchema.parse(data.policy), reason: data.reason, created_at: data.created_at }
       setBaseline(saved); setDraft(saved.policy); setReason(''); setConfirmed(false)
-      setMessage(`Policy revision ${saved.revision} saved and audited. New claim payments, recoveries and fee assessments use this revision; historical records are unchanged.`)
-      try { await refresh() } catch { setMessage(`Policy revision ${saved.revision} saved and audited; revision history could not refresh.`) }
+      setMessage({ key: 'Policy revision {0} saved and audited. New claim payments, recoveries and fee assessments use this revision; historical records are unchanged.', revision: saved.revision })
+      try { await refresh() } catch { setMessage({ key: 'Policy revision {0} saved and audited; revision history could not refresh.', revision: saved.revision }) }
     } catch (error) { setError(error instanceof Error ? error.message : 'Save not confirmed; reload before retrying.') }
     finally { setBusy(false) }
   }
@@ -85,8 +85,8 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
   return <section aria-label={uiText("Financial policy controls")} className="flex flex-col gap-6">
     <Alert><AlertTitle>{uiText("Administrator-owned policy · financial execution connected")}</AlertTitle><AlertDescription>{uiText("Claim payments, recovery allocation and fee assessments enforce saved policy and retain its revision, terms and evidence. Super Administrator has inherent payment authority but cannot bypass evidence, currency checks or financial caps. New fees use signed guarantee amounts or approved month-end principal evidence, configured rates, proration and rounding. Invoices use the fee’s saved due-day rule. FX conversion and legacy reconciliation remain unavailable. Saving never recalculates historical transactions.")}</AlertDescription></Alert>
     {!baseline && <Alert><AlertTitle>{uiText("No financial policy has been saved")}</AlertTitle><AlertDescription>{uiText("The form is an unsaved draft. No legacy 50% recovery share or 0.5% fee rate is assumed to be approved. An empty payment authority list authorizes no ordinary payment role; verified Super Administrator authority remains inherent.")}</AlertDescription></Alert>}
-    {message && <p role="status" className="text-sm leading-relaxed">{uiText(message)}</p>}
-    {(error || issues.length > 0) && <Alert variant="destructive"><AlertTitle>{uiText("Policy not saved")}</AlertTitle><AlertDescription>{uiText(error)}{issues.length > 0 && <ul className="list-disc pl-5">{issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</AlertDescription></Alert>}
+    {message && <p role="status" className="text-sm leading-relaxed">{typeof message === 'string' ? uiText(message) : uiText(message.key, message.revision)}</p>}
+    {(error || issues.length > 0) && <Alert variant="destructive"><AlertTitle>{uiText("Policy not saved")}</AlertTitle><AlertDescription>{uiText(error)}{issues.length > 0 && <ul className="list-disc pl-5">{issues.map((issue, index) => <li key={`${issue.path.join('.')}-${index}`}>{formatFinancialPolicyIssue(issue, uiText)}</li>)}</ul>}</AlertDescription></Alert>}
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{baseline ? uiText("Editing saved revision {0}", baseline.revision) : uiText("Editing an unsaved draft")}{!admin && uiText("· read only")}</p><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => void reload()}>{uiText("Refresh history")}</Button>{admin && <Button type="button" variant="outline" disabled={busy} onClick={() => { setBaseline(latest); setDraft(latest?.policy ?? EMPTY_POLICY_DRAFT); setReason(''); setConfirmed(false); setIssues([]); setError(null); setMessage('Latest policy loaded; unsaved edits discarded.') }}>{uiText("Discard draft and load latest")}</Button>}</div></div>
     {stale && <Alert><AlertTitle>{uiText("A newer saved revision is available")}</AlertTitle><AlertDescription>{uiText("Your unsaved edits have not been overwritten. Load the latest policy before saving.")}</AlertDescription></Alert>}
     <fieldset disabled={!admin || busy} className="flex min-w-0 flex-col gap-6">

@@ -6,6 +6,8 @@ import { interfaceCatalog, translateInterface } from '@/lib/i18n/interface-text'
 import { renderFeeInvoice } from '@/lib/utils/fee-invoice'
 import { SCHEME_STEPS, getNextStatuses, statusLabel } from '@/lib/workflow/fkg-scheme'
 import ts from 'typescript'
+import { FINANCIAL_POLICY_FIELD_LABELS } from '@/lib/admin/financial-policy'
+import { OPERATIONAL_SETTINGS } from '@/lib/admin/operational-settings'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
 const replacement = /\uFFFD/u
@@ -72,9 +74,27 @@ for (const step of SCHEME_STEPS) {
   }
   assert.equal(translateInterface('ru', step.titleEn), step.titleRu, `Workflow step ${step.step}: preserve approved Russian title`)
 }
+for (const key of [...Object.values(FINANCIAL_POLICY_FIELD_LABELS), ...OPERATIONAL_SETTINGS.flatMap(setting => [setting.label, setting.unit, setting.description])]) {
+  assert.ok(interfaceCatalog[key], `Administration configuration: missing translation for ${key}`)
+}
 for (const path of paths.filter(path => /^(app|components)\/.*\.tsx$/.test(path))) {
   const source = ts.createSourceFile(path, readFileSync(new URL(path, root), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   function visit(node: ts.Node) {
+    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && ['PolicySelect', 'PolicyNumber'].includes(node.tagName.getText(source))) {
+      for (const attribute of node.attributes.properties) {
+        if (!ts.isJsxAttribute(attribute) || !attribute.initializer) continue
+        if (attribute.name.getText(source) === 'label' && ts.isStringLiteral(attribute.initializer)) {
+          assert.ok(interfaceCatalog[attribute.initializer.text], `${path}: missing financial field translation for ${attribute.initializer.text}`)
+        }
+        if (attribute.name.getText(source) === 'options' && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression && ts.isArrayLiteralExpression(attribute.initializer.expression)) {
+          for (const option of attribute.initializer.expression.elements) {
+            if (ts.isArrayLiteralExpression(option) && option.elements[1] && ts.isStringLiteral(option.elements[1])) {
+              assert.ok(interfaceCatalog[option.elements[1].text], `${path}: missing financial option translation for ${option.elements[1].text}`)
+            }
+          }
+        }
+      }
+    }
     if (ts.isJsxAttribute(node) && ['placeholder', 'aria-label', 'title'].includes(node.name.getText(source)) && node.initializer && ts.isStringLiteral(node.initializer)) {
       assert.ok(!/[A-Za-z]{3}/.test(node.initializer.text), `${path}: translate ${node.name.getText(source)}=${node.initializer.text}`)
     }
