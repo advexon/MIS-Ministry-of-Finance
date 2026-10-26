@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { usePermissions } from '@/lib/contexts/permission-context'
@@ -59,17 +61,21 @@ interface FeeRow extends Omit<Fee, 'status'> {
 function feeCurrency(fee: FeeRow) {
   return fee.currency ?? fee.loan_application?.currency ?? null
 }
+export default function FeesPage() {
+  const uiText = useUiTranslation()
+  const { t, locale } = useI18n()
+
 function money(amount: number | null | undefined, currency: string | null) {
   return amount == null
     ? '—'
     : currency
-      ? `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(amount)} ${currency}`
-      : `${amount} · currency unavailable`
+      ? `${new Intl.NumberFormat(locale === 'tj' ? 'tg-TJ' : locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(amount)} ${currency}`
+      : `${amount} · ${uiText('currency unavailable')}`
 }
 function totals(fees: FeeRow[], predicate: (fee: FeeRow) => boolean) {
   const grouped = new Map<string, number>()
   for (const fee of fees.filter(predicate)) {
-    const currency = feeCurrency(fee) ?? 'Unknown'
+    const currency = feeCurrency(fee) ?? uiText('Unknown')
     grouped.set(
       currency,
       (grouped.get(currency) ?? 0) + Number(fee.fee_amount ?? fee.amount ?? 0),
@@ -78,12 +84,10 @@ function totals(fees: FeeRow[], predicate: (fee: FeeRow) => boolean) {
   return (
     [...grouped]
       .map(([currency, amount]) => money(amount, currency))
-      .join(' · ') || 'No records'
+      .join(' · ') || uiText('No records')
   )
 }
 
-export default function FeesPage() {
-  const { t } = useI18n()
   const supabase = createClient()
   const { role, profile } = usePermissions()
   const canManage =
@@ -148,13 +152,13 @@ export default function FeesPage() {
   async function recorded(receipt: FeeReceipt) {
     setDialog(null)
     setMessage(
-      `Fee ${receipt.id}: ${receipt.status} confirmed and audited · ${money(receipt.fee_amount, receipt.currency)} · policy revision ${receipt.policy_revision}.`,
+      uiText('Fee {0}: {1} confirmed and audited · {2} · policy revision {3}.', receipt.id, uiText(receipt.status), money(receipt.fee_amount, receipt.currency), receipt.policy_revision),
     )
     try {
       await mutate(undefined, { throwOnError: true })
     } catch {
       setMessage(
-        `Fee ${receipt.id} was confirmed and audited, but the register could not refresh. Refresh the list; do not repeat the financial action.`,
+        uiText('Fee {0} was confirmed and audited, but the register could not refresh. Refresh the list; do not repeat the financial action.', receipt.id),
       )
     }
   }
@@ -182,7 +186,7 @@ export default function FeesPage() {
       fee.loan_application?.loan_number ?? '',
       fee.loan_application?.borrower?.name ?? '',
       fee.loan_application?.bank?.name_en ?? '',
-      fee.fee_type,
+      uiText(fee.fee_type),
       fee.period_start ?? '',
       fee.period_end ?? '',
       fee.base_amount,
@@ -193,27 +197,27 @@ export default function FeesPage() {
       fee.invoice_number ?? '',
       fee.invoice_date ?? '',
       fee.due_date ?? '',
-      fee.status,
+      uiText(fee.status),
       fee.payment_date ?? fee.paid_date ?? '',
       fee.payment_reference ?? '',
     ])
     downloadCSV(
-      toCSV(headers, rows),
+      toCSV(headers.map(header => uiText(header)), rows),
       `fees-${tab}-${new Date().toISOString().slice(0, 10)}.csv`,
     )
   }
   function printInvoice(fee: FeeRow) {
     const html = renderFeeInvoice({
-      invoiceNumber: fee.invoice_number ?? 'Unissued',
-      date: fee.invoice_date ?? 'Not issued',
+      invoiceNumber: fee.invoice_number ?? uiText('Unissued'),
+      date: fee.invoice_date ?? uiText('Not issued'),
       loanReference: fee.loan_application?.loan_number ?? '—',
       bank: fee.loan_application?.bank?.name_en ?? '—',
       borrower: fee.loan_application?.borrower?.name ?? '—',
-      description: `${fee.fee_type === 'upfront' ? 'Upfront guarantee fee' : 'Recurring guarantee fee'}${fee.period_start ? ` (${fee.period_start} to ${fee.period_end}${fee.policy_id ? ', end exclusive' : ''})` : ''} · policy ${fee.policy_revision ?? 'legacy / unverified'}`,
+      description: `${uiText(fee.fee_type === 'upfront' ? 'Upfront guarantee fee' : 'Recurring guarantee fee')}${fee.period_start ? ` (${fee.period_start} ${uiText('to')} ${fee.period_end}${fee.policy_id ? uiText(', end exclusive') : ''})` : ''} · ${uiText('Policy')} ${fee.policy_revision ?? uiText('Legacy / unverified')}`,
       baseAmount: money(fee.base_amount, feeCurrency(fee)),
       rate: fee.fee_rate == null ? '—' : `${fee.fee_rate * 100}%`,
       feeAmount: money(fee.fee_amount ?? fee.amount, feeCurrency(fee)),
-    })
+    }, locale)
     const win = window.open('', '_blank')
     if (win) {
       win.opener = null
@@ -226,10 +230,8 @@ export default function FeesPage() {
     <div className="flex flex-col gap-6 p-6 lg:p-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-balance text-2xl font-bold">{t.fees.title}</h1>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Policy-backed guarantee fees, invoices and external payment receipts
-          </p>
+          <h1 className="text-balance text-2xl font-bold">{uiText(t.fees.title)}</h1>
+          <p className="text-sm leading-relaxed text-muted-foreground">{uiText("Policy-backed guarantee fees, invoices and external payment receipts")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canManage && (
@@ -237,57 +239,46 @@ export default function FeesPage() {
               onClick={() => setDialog({ action: 'create' })}
               disabled={!!loanError}
             >
-              <Plus data-icon="inline-start" />
-              New Fee Record
-            </Button>
+              <Plus data-icon="inline-start" />{uiText("New Fee Record")}</Button>
           )}
           <Button
             variant="outline"
             disabled={isLoading || isValidating || !!error || !visible.length}
             onClick={exportCSV}
           >
-            <Download data-icon="inline-start" />
-            Export
-          </Button>
+            <Download data-icon="inline-start" />{uiText("Export")}</Button>
           <Button
             variant="outline"
-            aria-label="Refresh fees"
+            aria-label={uiText("Refresh fees")}
             disabled={isValidating}
             onClick={() => void mutate()}
           >
-            <RefreshCw data-icon="inline-start" />
-            Refresh
-          </Button>
+            <RefreshCw data-icon="inline-start" />{uiText("Refresh")}</Button>
         </div>
       </header>
       <Alert>
-        <AlertTitle>Saved policy governs new assessments</AlertTitle>
-        <AlertDescription>
-          No 0.5% fallback, manual amount override or cross-currency total is
-          used. Signed guarantee evidence is mandatory. Outstanding-balance
-          policy additionally needs an approved month-end report. FX conversion
-          and legacy reconciliation are not available here.
-        </AlertDescription>
+        <AlertTitle>{uiText("Saved policy governs new assessments")}</AlertTitle>
+        <AlertDescription>{uiText("No 0.5% fallback, manual amount override or cross-currency total is used. Signed guarantee evidence is mandatory. Outstanding-balance policy additionally needs an approved month-end report. FX conversion and legacy reconciliation are not available here.")}</AlertDescription>
       </Alert>
       {message && (
         <p role="status" className="text-sm leading-relaxed">
-          {message}
+          {uiText(message)}
         </p>
       )}
       {(error || loanError) && (
         <Alert variant="destructive">
-          <AlertTitle>Data could not load</AlertTitle>
+          <AlertTitle>{uiText("Data could not load")}</AlertTitle>
           <AlertDescription>
             {error
-              ? 'The fee register is unavailable; old values are hidden.'
-              : 'Loan choices could not load. Refresh before creating a fee.'}
+              ? uiText("The fee register is unavailable; old values are hidden.")
+              : uiText("Loan choices could not load. Refresh before creating a fee.")}
           </AlertDescription>
         </Alert>
       )}
       {!error && (
         <>
           <section
-            aria-label="Fee totals by currency"
+            aria-label={uiText("Fee totals by currency")}
             className="grid gap-4 md:grid-cols-3"
           >
             {[
@@ -309,14 +300,12 @@ export default function FeesPage() {
             ].map(([title, value]) => (
               <Card key={title}>
                 <CardHeader>
-                  <CardTitle>{title}</CardTitle>
-                  <CardDescription>
-                    Separate totals by recorded currency
-                  </CardDescription>
+                  <CardTitle>{uiText(title)}</CardTitle>
+                  <CardDescription>{uiText("Separate totals by recorded currency")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-lg font-semibold">
-                    {isLoading ? 'Loading…' : value}
+                    {isLoading ? uiText("Loading…") : value}
                   </p>
                 </CardContent>
               </Card>
@@ -324,44 +313,38 @@ export default function FeesPage() {
           </section>
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
-              <TabsTrigger value="all">All ({fees.length})</TabsTrigger>
-              <TabsTrigger value="upfront">Upfront</TabsTrigger>
-              <TabsTrigger value="quarterly">Recurring</TabsTrigger>
+              <TabsTrigger value="all">{uiText("All (")}{fees.length})</TabsTrigger>
+              <TabsTrigger value="upfront">{uiText("Upfront")}</TabsTrigger>
+              <TabsTrigger value="quarterly">{uiText("Recurring")}</TabsTrigger>
             </TabsList>
           </Tabs>
           <Card>
             <CardHeader>
-              <CardTitle>Fee register</CardTitle>
-              <CardDescription>
-                Policy-backed periods include the start and exclude the end.
-                Legacy rows retain their original period convention and cannot
-                be settled without reconciliation.
-              </CardDescription>
+              <CardTitle>{uiText("Fee register")}</CardTitle>
+              <CardDescription>{uiText("Policy-backed periods include the start and exclude the end. Legacy rows retain their original period convention and cannot be settled without reconciliation.")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Loan / borrower</TableHead>
-                      <TableHead>Type / period</TableHead>
-                      <TableHead>Base / rate</TableHead>
-                      <TableHead>Fee amount</TableHead>
-                      <TableHead>Policy / invoice</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions / evidence</TableHead>
+                      <TableHead>{uiText("Loan / borrower")}</TableHead>
+                      <TableHead>{uiText("Type / period")}</TableHead>
+                      <TableHead>{uiText("Base / rate")}</TableHead>
+                      <TableHead>{uiText("Fee amount")}</TableHead>
+                      <TableHead>{uiText("Policy / invoice")}</TableHead>
+                      <TableHead>{uiText("Status")}</TableHead>
+                      <TableHead>{uiText("Actions / evidence")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={7}>Loading fees…</TableCell>
+                        <TableCell colSpan={7}>{uiText("Loading fees…")}</TableCell>
                       </TableRow>
                     ) : !visible.length ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="py-10 text-center">
-                          No fee records found
-                        </TableCell>
+                        <TableCell colSpan={7} className="py-10 text-center">{uiText("No fee records found")}</TableCell>
                       </TableRow>
                     ) : (
                       visible.map((fee) => (
@@ -373,11 +356,11 @@ export default function FeesPage() {
                             </p>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{fee.fee_type}</Badge>
+                            <Badge variant="outline">{uiText(fee.fee_type)}</Badge>
                             <p className="text-sm">
                               {fee.period_start
                                 ? `${fee.period_start} → ${fee.period_end}`
-                                : 'One-time'}
+                                : uiText("One-time")}
                             </p>
                           </TableCell>
                           <TableCell>
@@ -396,17 +379,16 @@ export default function FeesPage() {
                           </TableCell>
                           <TableCell>
                             {fee.policy_revision
-                              ? `Revision ${fee.policy_revision}`
-                              : 'Legacy / unverified'}
+                              ? uiText("Revision {0}", fee.policy_revision)
+                              : uiText("Legacy / unverified")}
                             <p className="text-sm">
-                              {fee.invoice_number ?? 'Not invoiced'}
+                              {fee.invoice_number ?? uiText("Not invoiced")}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                              Due {fee.due_date ?? '—'}
+                            <p className="text-sm text-muted-foreground">{uiText("Due ")}{fee.due_date ?? '—'}
                             </p>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">{fee.status}</Badge>
+                            <Badge variant="secondary">{uiText(fee.status)}</Badge>
                             {fee.payment_reference && (
                               <p className="text-sm">{fee.payment_reference}</p>
                             )}
@@ -422,9 +404,7 @@ export default function FeesPage() {
                                     onClick={() =>
                                       setDialog({ action: 'invoice', fee })
                                     }
-                                  >
-                                    Invoice
-                                  </Button>
+                                  >{uiText("Invoice")}</Button>
                                 )}
                               {canManage &&
                                 fee.policy_id &&
@@ -436,9 +416,7 @@ export default function FeesPage() {
                                     onClick={() =>
                                       setDialog({ action: 'pay', fee })
                                     }
-                                  >
-                                    Record payment
-                                  </Button>
+                                  >{uiText("Record payment")}</Button>
                                 )}
                               {fee.invoice_number && (
                                 <Button
@@ -446,16 +424,12 @@ export default function FeesPage() {
                                   variant="outline"
                                   onClick={() => printInvoice(fee)}
                                 >
-                                  <Printer data-icon="inline-start" />
-                                  Print
-                                </Button>
+                                  <Printer data-icon="inline-start" />{uiText("Print")}</Button>
                               )}
                             </div>
                             {fee.calculation_inputs && (
                               <details className="mt-2">
-                                <summary className="cursor-pointer text-sm">
-                                  Calculation evidence
-                                </summary>
+                                <summary className="cursor-pointer text-sm">{uiText("Calculation evidence")}</summary>
                                 <pre className="max-w-xs overflow-auto text-sm">
                                   {JSON.stringify(
                                     fee.calculation_inputs,
@@ -494,15 +468,12 @@ export default function FeesPage() {
           <DialogHeader>
             <DialogTitle>
               {dialog?.action === 'create'
-                ? 'Create policy-backed fee'
+                ? uiText("Create policy-backed fee")
                 : dialog?.action === 'invoice'
-                  ? 'Issue fee invoice'
-                  : 'Record fee payment'}
+                  ? uiText("Issue fee invoice")
+                  : uiText("Record fee payment")}
             </DialogTitle>
-            <DialogDescription>
-              Every confirmed action is attributed to your identity and
-              committed with its audit entry.
-            </DialogDescription>
+            <DialogDescription>{uiText("Every confirmed action is attributed to your identity and committed with its audit entry.")}</DialogDescription>
           </DialogHeader>
           {dialog?.action === 'create' ? (
             <FeeCreateForm

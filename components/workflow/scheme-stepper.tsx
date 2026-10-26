@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 /**
  * Progress across the ФКГ issuance scheme, driven entirely by
  * lib/workflow/fkg-scheme so the diagram and the engine cannot disagree.
@@ -31,6 +33,8 @@ const REWORK_STATUSES: LoanStatus[] = ['docs_incomplete']
 const FAILED_STATUSES: LoanStatus[] = ['ineligible', 'rejected', 'cancelled']
 
 export function SchemeStepper({ status }: { status: LoanStatus }) {
+  const uiText = useUiTranslation()
+
   const isRework = REWORK_STATUSES.includes(status)
   const isFailed = FAILED_STATUSES.includes(status)
 
@@ -63,12 +67,12 @@ export function SchemeStepper({ status }: { status: LoanStatus }) {
           {isRework ? <RotateCcw className="h-4 w-4 shrink-0" /> : <X className="h-4 w-4 shrink-0" />}
           <span className="font-medium">
             {status === 'docs_incomplete'
-              ? 'Step 3 — package returned to the bank for completion'
+              ? uiText("Step 3 — package returned to the bank for completion")
               : status === 'ineligible'
-                ? 'Failed the eligibility / ESMS / KYC gate'
+                ? uiText("Failed the eligibility / ESMS / KYC gate")
                 : status === 'rejected'
-                  ? 'Application rejected'
-                  : 'Application cancelled'}
+                  ? uiText("Application rejected")
+                  : uiText("Application cancelled")}
           </span>
         </div>
       )}
@@ -118,7 +122,7 @@ export function SchemeStepper({ status }: { status: LoanStatus }) {
                         {s.titleEn.length > 34 ? `${s.titleEn.slice(0, 32)}…` : s.titleEn}
                       </span>
                       {s.slaDays != null && (
-                        <span className="text-[8px] text-muted-foreground">SLA {s.slaDays}d</span>
+                        <span className="text-[8px] text-muted-foreground">{uiText("SLA")} {s.slaDays}d</span>
                       )}
                     </div>
                   )

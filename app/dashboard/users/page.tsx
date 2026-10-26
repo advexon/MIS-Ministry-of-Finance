@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
@@ -81,6 +83,8 @@ const roleColors: Record<string, string> = {
 }
 
 export default function UsersPage() {
+  const uiText = useUiTranslation()
+
   const permissions = usePermissions()
 
   // Permission check: only admin can access users page
@@ -91,10 +95,8 @@ export default function UsersPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-3 text-center">
               <Lock className="h-12 w-12 text-destructive" />
-              <h3 className="font-semibold text-destructive">Access Denied</h3>
-              <p className="text-sm text-muted-foreground">
-                You don&apos;t have permission to access the users management page.
-              </p>
+              <h3 className="font-semibold text-destructive">{uiText("Access Denied")}</h3>
+              <p className="text-sm text-muted-foreground">{uiText("You don't have permission to access the users management page.")}</p>
             </div>
           </CardContent>
         </Card>
@@ -106,6 +108,8 @@ export default function UsersPage() {
 }
 
 function UserManagement() {
+  const uiText = useUiTranslation()
+
   const { t, locale } = useI18n()
   const permissions = usePermissions()
   const [searchQuery, setSearchQuery] = useState("")
@@ -353,16 +357,12 @@ function UserManagement() {
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.users.title}</h1>
-          <p className="mt-1 text-muted-foreground">
-            Manage system users, assign roles and bank affiliations
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">{uiText(t.users.title)}</h1>
+          <p className="mt-1 text-muted-foreground">{uiText("Manage system users, assign roles and bank affiliations")}</p>
         </div>
         {['super_admin', 'prsf_admin'].includes(permissions.role?.code ?? '') && (
           <Button onClick={() => setCreateDialogOpen(true)} className="gap-2 shrink-0">
-            <Plus className="h-4 w-4" />
-            Create User
-          </Button>
+            <Plus className="h-4 w-4" />{uiText("Create User")}</Button>
         )}
       </div>
 
@@ -388,7 +388,7 @@ function UserManagement() {
               <Users className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Users</p>
+              <p className="text-sm text-muted-foreground">{uiText("Total Users")}</p>
               <p className="text-2xl font-bold">{totalUsers}</p>
             </div>
           </CardContent>
@@ -399,7 +399,7 @@ function UserManagement() {
               <UserCheck className="h-5 w-5 text-emerald-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Active</p>
+              <p className="text-sm text-muted-foreground">{uiText("Active")}</p>
               <p className="text-2xl font-bold">{activeUsers}</p>
             </div>
           </CardContent>
@@ -410,7 +410,7 @@ function UserManagement() {
               <Shield className="h-5 w-5 text-red-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Admins</p>
+              <p className="text-sm text-muted-foreground">{uiText("Admins")}</p>
               <p className="text-2xl font-bold">{adminUsers}</p>
             </div>
           </CardContent>
@@ -422,7 +422,7 @@ function UserManagement() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search users by name or email..."
+            placeholder={uiText("Search users by name or email...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -430,10 +430,10 @@ function UserManagement() {
         </div>
         <Select value={filterRole} onValueChange={setFilterRole}>
           <SelectTrigger className="w-full sm:w-44">
-            <SelectValue placeholder="Filter by role" />
+            <SelectValue placeholder={uiText("Filter by role")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="all">{uiText("All Roles")}</SelectItem>
             {roles.map((role) => (
               <SelectItem key={role.id} value={role.code}>
                 {getName(role)}
@@ -443,12 +443,12 @@ function UserManagement() {
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-full sm:w-36">
-            <SelectValue placeholder="Status" />
+            <SelectValue placeholder={uiText("Status")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="all">{uiText("All Status")}</SelectItem>
+            <SelectItem value="active">{uiText("Active")}</SelectItem>
+            <SelectItem value="inactive">{uiText("Inactive")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -460,11 +460,11 @@ function UserManagement() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">User</TableHead>
+                  <TableHead className="font-semibold">{uiText("User")}</TableHead>
                   <TableHead className="font-semibold">{t.users.role}</TableHead>
-                  <TableHead className="font-semibold">Organization</TableHead>
+                  <TableHead className="font-semibold">{uiText("Organization")}</TableHead>
                   <TableHead className="font-semibold">{t.users.lastLogin}</TableHead>
-                  <TableHead className="font-semibold">{t.common.status}</TableHead>
+                  <TableHead className="font-semibold">{uiText(t.common.status)}</TableHead>
                   <TableHead className="text-right font-semibold">
                     {t.common.actions}
                   </TableHead>
@@ -475,7 +475,7 @@ function UserManagement() {
                   <TableRow>
                     <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                       {searchQuery || filterRole !== "all" || filterStatus !== "all"
-                        ? "No users match your filters"
+                        ? uiText("No users match your filters")
                         : t.common.noData}
                     </TableCell>
                   </TableRow>
@@ -504,11 +504,11 @@ function UserManagement() {
                             {getName(user.role)}
                           </Badge>
                         ) : (
-                          <span className="text-xs text-muted-foreground">No role</span>
+                          <span className="text-xs text-muted-foreground">{uiText("No role")}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {user.bank ? getName(user.bank) : "PRSF"}
+                        {user.bank ? getName(user.bank) : uiText("PRSF")}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                     {new Date(user.created_at).toLocaleDateString()}
@@ -522,7 +522,7 @@ function UserManagement() {
                               : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
                           }
                         >
-                          {user.is_active ? "Active" : "Inactive"}
+                          {user.is_active ? uiText("Active") : uiText("Inactive")}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -545,14 +545,10 @@ function UserManagement() {
                             <DropdownMenuItem onClick={() => handleToggleActive(user)}>
                               {user.is_active ? (
                                 <>
-                                  <UserX className="mr-2 h-4 w-4" />
-                                  Deactivate
-                                </>
+                                  <UserX className="mr-2 h-4 w-4" />{uiText("Deactivate")}</>
                               ) : (
                                 <>
-                                  <UserCheck className="mr-2 h-4 w-4" />
-                                  Activate
-                                </>
+                                  <UserCheck className="mr-2 h-4 w-4" />{uiText("Activate")}</>
                               )}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -567,47 +563,43 @@ function UserManagement() {
         </CardContent>
       </Card>
 
-      <p className="mt-3 text-xs text-muted-foreground">
-        Showing {filteredUsers.length} of {totalUsers} users
-      </p>
+      <p className="mt-3 text-xs text-muted-foreground">{uiText("Showing ")}{filteredUsers.length} {uiText("of")} {totalUsers}{uiText(" users")}</p>
 
       {/* Create User Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Create New User</DialogTitle>
-            <DialogDescription>
-              Create an account and assign its role. Share credentials through an approved secure channel. The user can sign in immediately; no email or verification link is sent.
-            </DialogDescription>
+            <DialogTitle>{uiText("Create New User")}</DialogTitle>
+            <DialogDescription>{uiText("Create an account and assign its role. Share credentials through an approved secure channel. The user can sign in immediately; no email or verification link is sent.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>{t.auth.firstName}<RequiredMark show={userReq.isRequired("first_name")} /></Label>
-                <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="First name" />
+                <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder={uiText("First name")} />
               </div>
               <div className="space-y-2">
                 <Label>{t.auth.lastName}<RequiredMark show={userReq.isRequired("last_name")} /></Label>
-                <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Last name" />
+                <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder={uiText("Last name")} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>{t.auth.email}<RequiredMark show={userReq.isRequired("email")} /></Label>
-              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="name@bank.tj" required />
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder={uiText("name@bank.tj")} required />
             </div>
             <div className="space-y-2">
               <Label>{t.auth.password}<RequiredMark show={userReq.isRequired("password")} /></Label>
-              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 characters" required />
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={uiText("Min. 8 characters")} required />
             </div>
             <div className="space-y-2">
-              <Label>Phone<RequiredMark show={userReq.isRequired("phone")} /></Label>
-              <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+992 XX XXX XXXX" />
+              <Label>{uiText("Phone")}<RequiredMark show={userReq.isRequired("phone")} /></Label>
+              <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder={uiText("+992 XX XXX XXXX")} />
             </div>
             <Separator />
             <div className="space-y-2">
               <Label>{t.users.role}<RequiredMark show={userReq.isRequired("role")} /></Label>
               <Select value={newRoleId} onValueChange={setNewRoleId}>
-                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={uiText("Select role")} /></SelectTrigger>
                 <SelectContent>
                   {roles.map((role) => (
                     <SelectItem key={role.id} value={role.id}>{getName(role)}</SelectItem>
@@ -619,9 +611,9 @@ function UserManagement() {
               <div className="space-y-2">
                 <Label>{t.loans.bank}<RequiredMark show={userReq.isRequired("bank")} /></Label>
                 <Select value={newBankId} onValueChange={(v) => { setNewBankId(v); setNewBranchId("") }}>
-                  <SelectTrigger><SelectValue placeholder="Select bank (optional)" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={uiText("Select bank (optional)")} /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None (PRSF Staff)</SelectItem>
+                    <SelectItem value="none">{uiText("None (PRSF Staff)")}</SelectItem>
                     {banks.map((bank) => (
                       <SelectItem key={bank.id} value={bank.id}>{getName(bank)}</SelectItem>
                     ))}
@@ -635,9 +627,7 @@ function UserManagement() {
               {t.common.cancel}
             </Button>
             <Button onClick={handleCreateUser} disabled={creating || newUserMissing.length > 0} className="gap-2">
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Create User
-            </Button>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}{uiText("Create User")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -646,10 +636,8 @@ function UserManagement() {
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>User Details</DialogTitle>
-            <DialogDescription>
-              Detailed information about this user account
-            </DialogDescription>
+            <DialogTitle>{uiText("User Details")}</DialogTitle>
+            <DialogDescription>{uiText("Detailed information about this user account")}</DialogDescription>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
@@ -669,37 +657,37 @@ function UserManagement() {
 
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Role</span>
+                  <span className="text-muted-foreground">{uiText("Role")}</span>
                   <span className="font-medium">
-                    {selectedUser.role ? getName(selectedUser.role) : "Not assigned"}
+                    {selectedUser.role ? getName(selectedUser.role) : uiText("Not assigned")}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Organization</span>
+                  <span className="text-muted-foreground">{uiText("Organization")}</span>
                   <span className="font-medium">
-                    {selectedUser.bank ? getName(selectedUser.bank) : "PRSF"}
+                    {selectedUser.bank ? getName(selectedUser.bank) : uiText("PRSF")}
                   </span>
                 </div>
                 {selectedUser.branch && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Branch</span>
+                    <span className="text-muted-foreground">{uiText("Branch")}</span>
                     <span className="font-medium">{getName(selectedUser.branch)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Phone</span>
-                  <span className="font-medium">{selectedUser.phone || "Not set"}</span>
+                  <span className="text-muted-foreground">{uiText("Phone")}</span>
+                  <span className="font-medium">{selectedUser.phone || uiText("Not set")}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Status</span>
+                  <span className="text-muted-foreground">{uiText("Status")}</span>
                   <Badge
                     variant={selectedUser.is_active ? "default" : "destructive"}
                   >
-                    {selectedUser.is_active ? "Active" : "Inactive"}
+                    {selectedUser.is_active ? uiText("Active") : uiText("Inactive")}
                   </Badge>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Created</span>
+                  <span className="text-muted-foreground">{uiText("Created")}</span>
                   <span className="font-medium">
                     {new Date(selectedUser.created_at).toLocaleDateString()}
                   </span>
@@ -728,10 +716,8 @@ function UserManagement() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Update user profile, role assignment, and bank affiliation
-            </DialogDescription>
+            <DialogTitle>{uiText("Edit User")}</DialogTitle>
+            <DialogDescription>{uiText("Update user profile, role assignment, and bank affiliation")}</DialogDescription>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
@@ -743,8 +729,7 @@ function UserManagement() {
                 </Avatar>
                 <div>
                   <p className="font-medium">{selectedUser.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    ID: {selectedUser.id.slice(0, 8)}...
+                  <p className="text-xs text-muted-foreground">{uiText("ID: ")}{selectedUser.id.slice(0, 8)}...
                   </p>
                 </div>
               </div>
@@ -755,7 +740,7 @@ function UserManagement() {
                   <Input
                     value={editFirstName}
                     onChange={(e) => setEditFirstName(e.target.value)}
-                    placeholder="First name"
+                    placeholder={uiText("First name")}
                   />
                 </div>
                 <div className="space-y-2">
@@ -763,17 +748,17 @@ function UserManagement() {
                   <Input
                     value={editLastName}
                     onChange={(e) => setEditLastName(e.target.value)}
-                    placeholder="Last name"
+                    placeholder={uiText("Last name")}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Phone</Label>
+                <Label>{uiText("Phone")}</Label>
                 <Input
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="+992 XX XXX XXXX"
+                  placeholder={uiText("+992 XX XXX XXXX")}
                 />
               </div>
 
@@ -788,7 +773,7 @@ function UserManagement() {
                 <Label>{t.users.role}</Label>
                 <Select value={editRoleId} onValueChange={setEditRoleId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder={uiText("Select role")} />
                   </SelectTrigger>
                   <SelectContent>
                     {roles.map((role) => (
@@ -807,10 +792,10 @@ function UserManagement() {
                   onValueChange={setEditBankId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select bank (optional)" />
+                    <SelectValue placeholder={uiText("Select bank (optional)")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None (PRSF Staff)</SelectItem>
+                    <SelectItem value="none">{uiText("None (PRSF Staff)")}</SelectItem>
                     {banks.map((bank) => (
                       <SelectItem key={bank.id} value={bank.id}>
                         {getName(bank)}
@@ -829,10 +814,8 @@ function UserManagement() {
               />
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <p className="text-sm font-medium">Account Active</p>
-                  <p className="text-xs text-muted-foreground">
-                    Inactive users cannot log in to the system
-                  </p>
+                  <p className="text-sm font-medium">{uiText("Account Active")}</p>
+                  <p className="text-xs text-muted-foreground">{uiText("Inactive users cannot log in to the system")}</p>
                 </div>
                 <Switch checked={editIsActive} onCheckedChange={setEditIsActive} />
               </div>

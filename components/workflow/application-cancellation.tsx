@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useRef, useState } from 'react'
 import { usePermissions } from '@/lib/contexts/permission-context'
 import { useAuthorityReason } from '@/components/admin/authority-reason-provider'
@@ -11,6 +13,8 @@ import { canActOnStep, getNextStatuses, STEP_BY_STATUS } from '@/lib/workflow/fk
 import type { LoanApplication } from '@/lib/types/database'
 
 export function ApplicationCancellation({ loan, onDone }: { loan: LoanApplication; onDone: () => Promise<void> }) {
+  const uiText = useUiTranslation()
+
   const { role, profile } = usePermissions()
   const requestAuthorityReason = useAuthorityReason()
   const [open, setOpen] = useState(false)
@@ -38,5 +42,5 @@ export function ApplicationCancellation({ loan, onDone }: { loan: LoanApplicatio
     } catch { setError('Cancellation could not be confirmed. Reload to check its state before retrying.') }
     finally { inFlight.current = false; setBusy(false) }
   }
-  return <><Button variant="outline" onClick={() => { setError(null); setOpen(true) }}>Cancel application</Button>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}<Dialog open={open} onOpenChange={value => { if (!inFlight.current) setOpen(value) }}><DialogContent><DialogHeader><DialogTitle>Cancel this application?</DialogTitle><DialogDescription>This ends the current application. Existing documents, decisions and audit history are retained.</DialogDescription></DialogHeader><div className="flex flex-col gap-2"><Label htmlFor="application-cancellation-reason">Cancellation reason</Label><Textarea id="application-cancellation-reason" value={reason} maxLength={1500} onChange={event => setReason(event.target.value)} disabled={busy} /></div><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>Keep application</Button><Button variant="destructive" disabled={busy || reason.trim().length < 3} onClick={() => void cancel()}>{busy ? 'Cancelling…' : 'Confirm cancellation'}</Button></DialogFooter></DialogContent></Dialog></>
+  return <><Button variant="outline" onClick={() => { setError(null); setOpen(true) }}>{uiText("Cancel application")}</Button>{error && <p role="alert" className="text-sm text-destructive">{uiText(error)}</p>}<Dialog open={open} onOpenChange={value => { if (!inFlight.current) setOpen(value) }}><DialogContent><DialogHeader><DialogTitle>{uiText("Cancel this application?")}</DialogTitle><DialogDescription>{uiText("This ends the current application. Existing documents, decisions and audit history are retained.")}</DialogDescription></DialogHeader><div className="flex flex-col gap-2"><Label htmlFor="application-cancellation-reason">{uiText("Cancellation reason")}</Label><Textarea id="application-cancellation-reason" value={reason} maxLength={1500} onChange={event => setReason(event.target.value)} disabled={busy} /></div><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>{uiText("Keep application")}</Button><Button variant="destructive" disabled={busy || reason.trim().length < 3} onClick={() => void cancel()}>{busy ? uiText("Cancelling…") : uiText("Confirm cancellation")}</Button></DialogFooter></DialogContent></Dialog></>
 }

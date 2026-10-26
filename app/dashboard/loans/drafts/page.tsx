@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import React, { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useRouter } from "next/navigation"
@@ -55,6 +57,8 @@ import { isExpiringSoon } from "@/lib/utils/display-time"
 import { usePermissions } from "@/lib/contexts/permission-context"
 
 export default function DraftsPage() {
+  const uiText = useUiTranslation()
+
   const now = useCurrentTime()
   const { locale } = useI18n()
   const router = useRouter()
@@ -165,23 +169,17 @@ export default function DraftsPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Saved Drafts</h1>
-            <p className="text-sm text-muted-foreground">
-              Continue working on your saved loan applications
-            </p>
+            <h1 className="text-2xl font-semibold tracking-tight">{uiText("Saved Drafts")}</h1>
+            <p className="text-sm text-muted-foreground">{uiText("Continue working on your saved loan applications")}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={loadDrafts} disabled={loading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />{uiText("Refresh")}</Button>
           {canCreateLoan && (
             <Button asChild>
               <Link href="/dashboard/loans/new">
-                <Plus className="mr-2 h-4 w-4" />
-                New Application
-              </Link>
+                <Plus className="mr-2 h-4 w-4" />{uiText("New Application")}</Link>
             </Button>
           )}
         </div>
@@ -201,36 +199,36 @@ export default function DraftsPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Drafts</CardTitle>
+            <CardTitle className="text-sm font-medium">{uiText("Total Drafts")}</CardTitle>
             <FileEdit className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{drafts.length}</div>
-            <p className="text-xs text-muted-foreground">saved applications</p>
+            <p className="text-xs text-muted-foreground">{uiText("saved applications")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Near Completion</CardTitle>
+            <CardTitle className="text-sm font-medium">{uiText("Near Completion")}</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {drafts.filter(d => d.completion_percentage >= 75).length}
             </div>
-            <p className="text-xs text-muted-foreground">75%+ complete</p>
+            <p className="text-xs text-muted-foreground">{uiText("75%+ complete")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
+            <CardTitle className="text-sm font-medium">{uiText("Expiring Soon")}</CardTitle>
             <Clock className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {now === null ? '…' : drafts.filter(d => isExpiringSoon(d.expires_at, now)).length}
             </div>
-            <p className="text-xs text-muted-foreground">within 7 days</p>
+            <p className="text-xs text-muted-foreground">{uiText("within 7 days")}</p>
           </CardContent>
         </Card>
       </div>
@@ -240,7 +238,7 @@ export default function DraftsPage() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search drafts by name or TIN..."
+            placeholder={uiText("Search drafts by name or TIN...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -254,13 +252,13 @@ export default function DraftsPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead>Draft</TableHead>
-                <TableHead>Borrower</TableHead>
-                <TableHead>Current Step</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead>Last Modified</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{uiText("Draft")}</TableHead>
+                <TableHead>{uiText("Borrower")}</TableHead>
+                <TableHead>{uiText("Current Step")}</TableHead>
+                <TableHead>{uiText("Progress")}</TableHead>
+                <TableHead>{uiText("Last Modified")}</TableHead>
+                <TableHead>{uiText("Expires")}</TableHead>
+                <TableHead className="text-right">{uiText("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -275,11 +273,11 @@ export default function DraftsPage() {
                   <TableCell colSpan={7} className="py-12 text-center">
                     <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">
-                      {searchQuery ? "No drafts match your search" : "No saved drafts"}
+                      {searchQuery ? uiText("No drafts match your search") : uiText("No saved drafts")}
                     </p>
                     {!searchQuery && (
                       <Button asChild variant="outline" size="sm" className="mt-3">
-                        <Link href="/dashboard/loans/new">Start New Application</Link>
+                        <Link href="/dashboard/loans/new">{uiText("Start New Application")}</Link>
                       </Button>
                     )}
                   </TableCell>
@@ -298,9 +296,7 @@ export default function DraftsPage() {
                             <p className="font-medium">{draft.draft_name}</p>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               {draft.is_auto_saved && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  Auto-saved
-                                </Badge>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">{uiText("Auto-saved")}</Badge>
                               )}
                             </div>
                           </div>
@@ -311,8 +307,7 @@ export default function DraftsPage() {
                           <p className="text-sm font-medium">
                             {draft.form_data.clientName || "—"}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            TIN: {draft.form_data.clientTin || "—"}
+                          <p className="text-xs text-muted-foreground">{uiText("TIN: ")}{draft.form_data.clientTin || "—"}
                           </p>
                         </div>
                       </TableCell>
@@ -341,7 +336,7 @@ export default function DraftsPage() {
                       <TableCell>
                         <div className={`flex items-center gap-2 text-sm ${expiry.color}`}>
                           <Clock className="h-3.5 w-3.5" />
-                          {expiry.label}
+                          {uiText(expiry.label)}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -349,9 +344,7 @@ export default function DraftsPage() {
                           <Button
                             size="sm"
                             onClick={() => handleContinue(draft)}
-                          >
-                            Continue
-                          </Button>
+                          >{uiText("Continue")}</Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -366,9 +359,7 @@ export default function DraftsPage() {
                                   setDeleteDialogOpen(true)
                                 }}
                               >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete Draft
-                              </DropdownMenuItem>
+                                <Trash2 className="mr-2 h-4 w-4" />{uiText("Delete Draft")}</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -386,17 +377,14 @@ export default function DraftsPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Draft</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this draft? This action cannot be undone.
-            </DialogDescription>
+            <DialogTitle>{uiText("Delete Draft")}</DialogTitle>
+            <DialogDescription>{uiText("Are you sure you want to delete this draft? This action cannot be undone.")}</DialogDescription>
           </DialogHeader>
           {selectedDraft && (
             <div className="rounded-lg border p-4 bg-muted/50">
               <p className="font-medium">{selectedDraft.draft_name}</p>
               <p className="text-sm text-muted-foreground">
-                {selectedDraft.form_data.clientName || "Untitled"} - {selectedDraft.completion_percentage}% complete
-              </p>
+                {selectedDraft.form_data.clientName || uiText("Untitled")} - {selectedDraft.completion_percentage}{uiText("% complete")}</p>
             </div>
           )}
           <DialogFooter>
@@ -404,17 +392,13 @@ export default function DraftsPage() {
               variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
               disabled={isDeleting}
-            >
-              Cancel
-            </Button>
+            >{uiText("Cancel")}</Button>
             <Button
               variant="destructive"
               onClick={handleDelete}
               disabled={isDeleting}
             >
-              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete Draft
-            </Button>
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Delete Draft")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

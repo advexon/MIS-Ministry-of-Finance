@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useRouter } from "next/navigation"
@@ -37,6 +39,8 @@ interface Guarantor {
 }
 
 export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication }) {
+  const uiText = useUiTranslation()
+
   const { t, locale } = useI18n()
   const router = useRouter()
   const supabase = createClient()
@@ -585,23 +589,18 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
         <Shield className="h-14 w-14 text-muted-foreground" />
         <div className="space-y-1">
-          <h2 className="text-xl font-semibold">Access Restricted</h2>
-          <p className="max-w-md text-muted-foreground">
-            You do not have permission to create a new loan application. This action is
-            available only to Loan Officers and Super Administrators.
-          </p>
+          <h2 className="text-xl font-semibold">{uiText("Access Restricted")}</h2>
+          <p className="max-w-md text-muted-foreground">{uiText("You do not have permission to create a new loan application. This action is available only to Loan Officers and Super Administrators.")}</p>
         </div>
         <Button asChild variant="outline">
           <Link href="/dashboard/loans">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Loans
-          </Link>
+            <ArrowLeft className="mr-2 h-4 w-4" />{uiText("Back to Loans")}</Link>
         </Button>
       </div>
     )
   }
 
-  if (referenceError) return <div className="flex flex-col gap-4 p-6"><Alert variant="destructive"><AlertDescription>Application options could not be loaded. Your form has not been submitted.</AlertDescription></Alert><Button className="self-start" variant="outline" onClick={() => void reloadOptions()}>Retry loading options</Button></div>
+  if (referenceError) return <div className="flex flex-col gap-4 p-6"><Alert variant="destructive"><AlertDescription>{uiText("Application options could not be loaded. Your form has not been submitted.")}</AlertDescription></Alert><Button className="self-start" variant="outline" onClick={() => void reloadOptions()}>{uiText("Retry loading options")}</Button></div>
 
   if (loading) {
     return (
@@ -615,8 +614,8 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <CheckCircle2 className="h-16 w-16 text-emerald-500" />
-        <h2 className="text-xl font-semibold">Application Saved for Bank Manager Review</h2>
-        <p className="text-muted-foreground">Redirecting to loan list...</p>
+        <h2 className="text-xl font-semibold">{uiText("Application Saved for Bank Manager Review")}</h2>
+        <p className="text-muted-foreground">{uiText("Redirecting to loan list...")}</p>
       </div>
     )
   }
@@ -630,8 +629,8 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             <Link href="/dashboard/loans"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">{editing ? 'Correct application' : t.loans.newApplication}</h1>
-            <p className="text-muted-foreground">Save all application details for bank review. Existing shared borrower records are not overwritten; this file retains its own borrower and financial snapshot.</p>
+            <h1 className="text-2xl font-bold text-foreground">{editing ? uiText("Correct application") : t.loans.newApplication}</h1>
+            <p className="text-muted-foreground">{uiText("Save all application details for bank review. Existing shared borrower records are not overwritten; this file retains its own borrower and financial snapshot.")}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -640,7 +639,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <FileEdit className="h-4 w-4" />
               {lastSaved && (
-                <span>Saved {new Date(lastSaved).toLocaleTimeString()}</span>
+                <span>{uiText("Saved")} {new Date(lastSaved).toLocaleTimeString()}</span>
               )}
             </div>
           )}
@@ -651,13 +650,9 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             onClick={handleSaveDraft}
             disabled={isDraftSaving || editing || isSubmitting || retryLocked}
           >
-            {isDraftSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Draft
-          </Button>
+            {isDraftSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}{uiText("Save Draft")}</Button>
           <Button asChild variant="ghost" size="sm">
-            <Link href="/dashboard/loans/drafts">
-              View Drafts
-            </Link>
+            <Link href="/dashboard/loans/drafts">{uiText("View Drafts")}</Link>
           </Button>
         </div>
       </div>
@@ -666,8 +661,8 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
       <Card className="mb-6">
         <CardContent className="py-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Application Progress</span>
-            <span className="text-sm text-muted-foreground">{completionPercentage}% Complete</span>
+            <span className="text-sm font-medium">{uiText("Application Progress")}</span>
+            <span className="text-sm text-muted-foreground">{completionPercentage}{uiText("% Complete")}</span>
           </div>
           <Progress value={completionPercentage} className="h-2" />
           <div className="flex items-center justify-between mt-3">
@@ -691,7 +686,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                   )}
                 </div>
                 <span className={`text-xs hidden md:block ${activeTab === step.step ? "font-medium" : "text-muted-foreground"}`}>
-                  {step.label}
+                  {uiText(step.label)}
                 </span>
               </div>
             ))}
@@ -711,17 +706,17 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{uiText(error)}</AlertDescription>
         </Alert>
       )}
 
-      {retryLocked && <Button onClick={(event) => void handleSubmit(event)} disabled={isSubmitting}>{isSubmitting ? 'Checking save…' : 'Retry identical save'}</Button>}
+      {retryLocked && <Button onClick={(event) => void handleSubmit(event)} disabled={isSubmitting}>{isSubmitting ? uiText("Checking save…") : uiText("Retry identical save")}</Button>}
       <form onSubmit={handleSubmit}>
         <fieldset disabled={retryLocked || isSubmitting} className="min-w-0">
         <Tabs value={activeTab} onValueChange={(v) => handleStepChange(v as FormStep)} className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="borrower" className="gap-1.5 text-xs sm:text-sm relative">
-              <User className="h-3.5 w-3.5" /><span className="hidden sm:inline">Borrower</span>
+              <User className="h-3.5 w-3.5" /><span className="hidden sm:inline">{uiText("Borrower")}</span>
               {stepsStatus[0].errorCount > 0 && touchedFields.size > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
                   {stepsStatus[0].errorCount}
@@ -729,7 +724,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
               )}
             </TabsTrigger>
             <TabsTrigger value="legal_rep" className="gap-1.5 text-xs sm:text-sm relative">
-              <Shield className="h-3.5 w-3.5" /><span className="hidden sm:inline">Legal Rep</span>
+              <Shield className="h-3.5 w-3.5" /><span className="hidden sm:inline">{uiText("Legal Rep")}</span>
               {stepsStatus[1].errorCount > 0 && touchedFields.size > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
                   {stepsStatus[1].errorCount}
@@ -737,7 +732,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
               )}
             </TabsTrigger>
             <TabsTrigger value="loan" className="gap-1.5 text-xs sm:text-sm relative">
-              <DollarSign className="h-3.5 w-3.5" /><span className="hidden sm:inline">Loan</span>
+              <DollarSign className="h-3.5 w-3.5" /><span className="hidden sm:inline">{uiText("Loan")}</span>
               {stepsStatus[2].errorCount > 0 && touchedFields.size > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-white">
                   {stepsStatus[2].errorCount}
@@ -745,10 +740,10 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
               )}
             </TabsTrigger>
             <TabsTrigger value="collateral" className="gap-1.5 text-xs sm:text-sm relative">
-              <Building2 className="h-3.5 w-3.5" /><span className="hidden sm:inline">Collateral</span>
+              <Building2 className="h-3.5 w-3.5" /><span className="hidden sm:inline">{uiText("Collateral")}</span>
             </TabsTrigger>
             <TabsTrigger value="additional" className="gap-1.5 text-xs sm:text-sm relative">
-              <FileText className="h-3.5 w-3.5" /><span className="hidden sm:inline">Additional</span>
+              <FileText className="h-3.5 w-3.5" /><span className="hidden sm:inline">{uiText("Additional")}</span>
             </TabsTrigger>
           </TabsList>
 
@@ -757,18 +752,17 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="borrower" />
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Borrower Information</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />{uiText("Borrower Information")}</CardTitle>
                 <CardDescription>
                   {isIndividualEntrepreneur
-                    ? "Details of the individual entrepreneur"
-                    : "Company or individual borrower details"}
+                    ? uiText("Details of the individual entrepreneur")
+                    : uiText("Company or individual borrower details")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className={hasFieldError("legalEntityType") ? "text-destructive" : ""}>
-                      Legal Entity Type<RequiredMark show={isRequired("legalEntityType")} />
+                    <Label className={hasFieldError("legalEntityType") ? "text-destructive" : ""}>{uiText("Legal Entity Type")}<RequiredMark show={isRequired("legalEntityType")} />
                     </Label>
                     <Select 
                       value={legalEntityType} 
@@ -795,7 +789,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                       }}
                     >
                       <SelectTrigger className={hasFieldError("legalEntityType") ? "border-destructive" : ""}>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder={uiText("Select type")} />
                       </SelectTrigger>
                       <SelectContent>
                         {/* Only two borrower types are accepted. "Individual" was retired —
@@ -809,15 +803,14 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label className={hasFieldError("sectorId") ? "text-destructive" : ""}>
-                      Business Sector<RequiredMark show={isRequired("sectorId")} />
+                    <Label className={hasFieldError("sectorId") ? "text-destructive" : ""}>{uiText("Business Sector")}<RequiredMark show={isRequired("sectorId")} />
                     </Label>
                     <Select 
                       value={sectorId} 
                       onValueChange={(v) => { setSectorId(v); markTouched("sectorId") }}
                     >
                       <SelectTrigger className={hasFieldError("sectorId") ? "border-destructive" : ""}>
-                        <SelectValue placeholder="Select sector" />
+                        <SelectValue placeholder={uiText("Select sector")} />
                       </SelectTrigger>
                       <SelectContent>
                         {sectors.map((s) => <SelectItem key={s.id} value={s.id}>{getName(s)}</SelectItem>)}
@@ -832,8 +825,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                   /* The entrepreneur is a person, not a company — capture the name
                      in parts here, which also fills the Legal Representative step. */
                   <div className="space-y-2">
-                    <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
-                      Client Name<RequiredMark show={isRequired("clientName")} />
+                    <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>{uiText("Client Name")}<RequiredMark show={isRequired("clientName")} />
                     </Label>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div className="space-y-1.5">
@@ -841,51 +833,48 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                           value={legalRepSurname}
                           onChange={(e) => setLegalRepSurname(e.target.value)}
                           onBlur={() => markTouched("clientName")}
-                          placeholder="Surname"
-                          aria-label="Client surname"
+                          placeholder={uiText("Surname")}
+                          aria-label={uiText("Client surname")}
                           className={hasFieldError("clientName") ? "border-destructive" : ""}
                         />
-                        <p className="text-[10px] text-muted-foreground">Surname *</p>
+                        <p className="text-[10px] text-muted-foreground">{uiText("Surname *")}</p>
                       </div>
                       <div className="space-y-1.5">
                         <Input
                           value={legalRepName}
                           onChange={(e) => setLegalRepName(e.target.value)}
                           onBlur={() => markTouched("clientName")}
-                          placeholder="First name"
-                          aria-label="Client first name"
+                          placeholder={uiText("First name")}
+                          aria-label={uiText("Client first name")}
                           className={hasFieldError("clientName") ? "border-destructive" : ""}
                         />
-                        <p className="text-[10px] text-muted-foreground">First name *</p>
+                        <p className="text-[10px] text-muted-foreground">{uiText("First name *")}</p>
                       </div>
                       <div className="space-y-1.5">
                         <Input
                           value={legalRepPatronymic}
                           onChange={(e) => setLegalRepPatronymic(e.target.value)}
-                          placeholder="Patronymic"
-                          aria-label="Client patronymic"
+                          placeholder={uiText("Patronymic")}
+                          aria-label={uiText("Client patronymic")}
                         />
-                        <p className="text-[10px] text-muted-foreground">Patronymic</p>
+                        <p className="text-[10px] text-muted-foreground">{uiText("Patronymic")}</p>
                       </div>
                     </div>
                     {hasFieldError("clientName") ? (
                       <p className="text-xs text-destructive">{getFieldError("clientName")}</p>
                     ) : (
-                      <p className="text-xs text-muted-foreground">
-                        This name and the TIN below carry over to the Legal Representative step automatically.
-                      </p>
+                      <p className="text-xs text-muted-foreground">{uiText("This name and the TIN below carry over to the Legal Representative step automatically.")}</p>
                     )}
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>
-                      Client / Company Name<RequiredMark show={isRequired("clientName")} />
+                    <Label className={hasFieldError("clientName") ? "text-destructive" : ""}>{uiText("Client / Company Name")}<RequiredMark show={isRequired("clientName")} />
                     </Label>
                     <Input 
                       value={clientName} 
                       onChange={(e) => setClientName(e.target.value)} 
                       onBlur={() => markTouched("clientName")}
-                      placeholder="Full name or company name" 
+                      placeholder={uiText("Full name or company name")} 
                       className={hasFieldError("clientName") ? "border-destructive" : ""}
                     />
                     {hasFieldError("clientName") && (
@@ -895,7 +884,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                 )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>TIN Number<RequiredMark show={isRequired("clientTin")} /></Label>
+                    <Label>{uiText("TIN Number")}<RequiredMark show={isRequired("clientTin")} /></Label>
                     <div className="relative">
                       <Input 
                       value={clientTin}
@@ -930,95 +919,92 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                     )}
                     {borrowerLoaded && !tinError && (
                       <p className="text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Borrower data loaded successfully
-                      </p>
+                        <CheckCircle2 className="h-3 w-3" />{uiText(" Borrower data loaded successfully")}</p>
                     )}
                     {tinDuplicateWarning && !borrowerLoaded && !tinError && (
                       <p className="text-xs text-amber-600 flex items-center gap-1">
                         <AlertTriangle className="h-3 w-3" /> 
-                        <span>Existing borrower found - </span>
+                        <span>{uiText("Existing borrower found -")} </span>
                         <button 
                           type="button" 
                           onClick={() => setShowDuplicateDialog(true)} 
                           className="underline hover:no-underline font-medium"
-                        >
-                          click to load data
-                        </button>
+                        >{uiText("click to load data")}</button>
                       </p>
                     )}
-                    <p className="text-[10px] text-muted-foreground">Enter exactly 9 digits (numbers only)</p>
+                    <p className="text-[10px] text-muted-foreground">{uiText("Enter exactly 9 digits (numbers only)")}</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Registration Number</Label>
-                    <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="REG-XXXXXX" />
+                    <Label>{uiText("Registration Number")}</Label>
+                    <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder={uiText("REG-XXXXXX")} />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Bank Customer Code</Label>
-                    <Input value={bankCustomerCode} onChange={(e) => setBankCustomerCode(e.target.value)} placeholder="Customer ID at bank" />
+                    <Label>{uiText("Bank Customer Code")}</Label>
+                    <Input value={bankCustomerCode} onChange={(e) => setBankCustomerCode(e.target.value)} placeholder={uiText("Customer ID at bank")} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Year of Establishment</Label>
+                    <Label>{uiText("Year of Establishment")}</Label>
                     <Input type="number" value={establishmentYear} onChange={(e) => setEstablishmentYear(e.target.value)} placeholder="2010" min="1900" max="2026" />
                   </div>
                 </div>
                 <Separator />
-                  <h4 className="font-medium text-sm">Address </h4>
+                  <h4 className="font-medium text-sm">{uiText("Address")} </h4>
                 <div className="space-y-2">
-                  <Label>Street Address (Legal Address)<RequiredMark show={isRequired("addressStreet")} /></Label>
-                  <Input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} placeholder="Street, building" />
+                  <Label>{uiText("Street Address (Legal Address)")}<RequiredMark show={isRequired("addressStreet")} /></Label>
+                  <Input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} placeholder={uiText("Street, building")} />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>City<RequiredMark show={isRequired("city")} /></Label>
-                    <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Dushanbe" />
+                    <Label>{uiText("City")}<RequiredMark show={isRequired("city")} /></Label>
+                    <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder={uiText("Dushanbe")} />
                   </div>
                   <div className="space-y-2">
-                    <Label>District</Label>
+                    <Label>{uiText("District")}</Label>
                     <Input value={district} onChange={(e) => setDistrict(e.target.value)} />
                   </div>
                 </div>
                 <Separator />
-                <h4 className="font-medium text-sm">Contact & Business</h4>
+                <h4 className="font-medium text-sm">{uiText("Contact & Business")}</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Phone<RequiredMark show={isRequired("phone")} /></Label>
-                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+992XXXXXXXXX" />
+                    <Label>{uiText("Phone")}<RequiredMark show={isRequired("phone")} /></Label>
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={uiText("+992XXXXXXXXX")} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email<RequiredMark show={isRequired("email")} /></Label>
-                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="contact@company.tj" />
+                    <Label>{uiText("Email")}<RequiredMark show={isRequired("email")} /></Label>
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={uiText("contact@company.tj")} />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Number of Employees<RequiredMark show={isRequired("workforce")} /></Label>
+                    <Label>{uiText("Number of Employees")}<RequiredMark show={isRequired("workforce")} /></Label>
                     <Input type="number" value={workforce} onChange={(e) => setWorkforce(e.target.value)} placeholder="10" min="1" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Business Description</Label>
-                  <Textarea value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} placeholder="Brief description of business activities..." rows={2} />
+                  <Label>{uiText("Business Description")}</Label>
+                  <Textarea value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} placeholder={uiText("Brief description of business activities...")} rows={2} />
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div>
-                    <p className="text-sm font-medium">TNB / NABPP Blacklist Check</p>
-                    <p className="text-xs text-muted-foreground">Mark if this borrower appears on TNB blacklist</p>
+                    <p className="text-sm font-medium">{uiText("TNB / NABPP Blacklist Check")}</p>
+                    <p className="text-xs text-muted-foreground">{uiText("Mark if this borrower appears on TNB blacklist")}</p>
                   </div>
                   <Switch checked={isBlacklisted} onCheckedChange={setIsBlacklisted} />
                 </div>
                 {isBlacklisted && (
                   <div className="space-y-2">
-                    <Label>Blacklist Reason</Label>
-                    <Input value={blacklistReason} onChange={(e) => setBlacklistReason(e.target.value)} placeholder="Reason for blacklist" />
+                    <Label>{uiText("Blacklist Reason")}</Label>
+                    <Input value={blacklistReason} onChange={(e) => setBlacklistReason(e.target.value)} placeholder={uiText("Reason for blacklist")} />
                   </div>
                 )}
               </CardContent>
             </Card>
             <div className="flex justify-end">
-              <Button type="button" onClick={handleNextStep}>Next: Legal Representative</Button>
+              <Button type="button" onClick={handleNextStep}>{uiText("Next: Legal Representative")}</Button>
             </div>
           </TabsContent>
 
@@ -1027,33 +1013,28 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="legal_rep" />
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />Legal Representative</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" />{uiText("Legal Representative")}</CardTitle>
                 <CardDescription>
                   {isIndividualEntrepreneur
-                    ? "Identity details of the entrepreneur signing the application"
-                    : "Details of the person authorized to sign on behalf of the borrower"}
+                    ? uiText("Identity details of the entrepreneur signing the application")
+                    : uiText("Details of the person authorized to sign on behalf of the borrower")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 {isIndividualEntrepreneur && (
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-muted/50 p-3 text-xs">
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                    <span className="text-muted-foreground">
-                      An Individual Entrepreneur is their own legal representative, so the name and TIN
-                      are carried over from the Borrower step.
-                    </span>
+                    <span className="text-muted-foreground">{uiText("An Individual Entrepreneur is their own legal representative, so the name and TIN are carried over from the Borrower step.")}</span>
                     <button
                       type="button"
                       onClick={() => handleStepChange("borrower")}
                       className="font-medium underline hover:no-underline"
-                    >
-                      Edit in Borrower step
-                    </button>
+                    >{uiText("Edit in Borrower step")}</button>
                   </div>
                 )}
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Surname<RequiredMark show={isRequired("legalRepSurname")} /></Label>
+                    <Label>{uiText("Surname")}<RequiredMark show={isRequired("legalRepSurname")} /></Label>
                     <Input
                       value={legalRepSurname}
                       onChange={(e) => setLegalRepSurname(e.target.value)}
@@ -1064,7 +1045,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>First Name<RequiredMark show={isRequired("legalRepName")} /></Label>
+                    <Label>{uiText("First Name")}<RequiredMark show={isRequired("legalRepName")} /></Label>
                     <Input
                       value={legalRepName}
                       onChange={(e) => setLegalRepName(e.target.value)}
@@ -1075,7 +1056,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Patronymic</Label>
+                    <Label>{uiText("Patronymic")}</Label>
                     <Input
                       value={legalRepPatronymic}
                       onChange={(e) => setLegalRepPatronymic(e.target.value)}
@@ -1087,27 +1068,27 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Gender<RequiredMark show={isRequired("legalRepGender")} /></Label>
+                    <Label>{uiText("Gender")}<RequiredMark show={isRequired("legalRepGender")} /></Label>
                     <Select value={legalRepGender} onValueChange={setLegalRepGender}>
-                      <SelectTrigger className={!legalRepGender ? "border-destructive" : ""}><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectTrigger className={!legalRepGender ? "border-destructive" : ""}><SelectValue placeholder={uiText("Select")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
+                        <SelectItem value="male">{uiText("Male")}</SelectItem>
+                        <SelectItem value="female">{uiText("Female")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Date of Birth<RequiredMark show={isRequired("legalRepBirthdate")} /></Label>
+                    <Label>{uiText("Date of Birth")}<RequiredMark show={isRequired("legalRepBirthdate")} /></Label>
                     <Input type="date" value={legalRepBirthdate} onChange={(e) => setLegalRepBirthdate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Country of Birth</Label>
+                    <Label>{uiText("Country of Birth")}</Label>
                     <Input value={legalRepCountry} onChange={(e) => setLegalRepCountry(e.target.value)} />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>TIN Number<RequiredMark show={isRequired("legalRepTin")} /></Label>
+                    <Label>{uiText("TIN Number")}<RequiredMark show={isRequired("legalRepTin")} /></Label>
                     <Input 
                       value={legalRepTin} 
                       onChange={(e) => {
@@ -1124,19 +1105,19 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                       required
                     />
                     <p className="text-[10px] text-muted-foreground">
-                      {isIndividualEntrepreneur ? "Same as the borrower TIN" : "9 digits only"}
+                      {isIndividualEntrepreneur ? uiText("Same as the borrower TIN") : uiText("9 digits only")}
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Passport / ID Number<RequiredMark show={isRequired("passportNumber")} /></Label>
-                    <Input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} placeholder="AA1234567" />
+                    <Label>{uiText("Passport / ID Number")}<RequiredMark show={isRequired("passportNumber")} /></Label>
+                    <Input value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} placeholder={uiText("AA1234567")} />
                   </div>
                 </div>
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
-              <Button type="button" onClick={handleNextStep}>Next: Loan Details</Button>
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>{uiText("Previous")}</Button>
+              <Button type="button" onClick={handleNextStep}>{uiText("Next: Loan Details")}</Button>
             </div>
           </TabsContent>
 
@@ -1145,24 +1126,24 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="loan" />
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" />Loan & Guarantee Details</CardTitle>
-                <CardDescription>Financial terms and guarantee parameters</CardDescription>
+                <CardTitle className="flex items-center gap-2"><DollarSign className="h-5 w-5" />{uiText("Loan & Guarantee Details")}</CardTitle>
+                <CardDescription>{uiText("Financial terms and guarantee parameters")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Partner Bank<RequiredMark show={isRequired("bankId")} /></Label>
+                    <Label>{uiText("Partner Bank")}<RequiredMark show={isRequired("bankId")} /></Label>
                     <Select value={bankId} onValueChange={handleBankChange} disabled={editing}>
-                      <SelectTrigger><SelectValue placeholder="Select bank" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={uiText("Select bank")} /></SelectTrigger>
                       <SelectContent>
                         {banks.map((b) => <SelectItem key={b.id} value={b.id}>{getName(b)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Branch<RequiredMark show={isRequired("branchId")} /></Label>
-                    {branchError && <p role="alert" className="text-sm text-destructive">Branches could not be loaded. Reload before choosing a branch.</p>}
-                    {bankId && !branchesLoading && !branchError && branches.length === 0 && <p role="status" className="text-sm text-destructive">No active branch is configured for this bank. {isRequired('branchId') ? 'Ask an administrator to add or activate a branch before saving.' : 'Branch is optional under the current field settings.'} <Link className="underline" href={`/dashboard/banks/${bankId}`}>Open bank directory</Link></p>}
+                    <Label>{uiText("Branch")}<RequiredMark show={isRequired("branchId")} /></Label>
+                    {branchError && <p role="alert" className="text-sm text-destructive">{uiText("Branches could not be loaded. Reload before choosing a branch.")}</p>}
+                    {bankId && !branchesLoading && !branchError && branches.length === 0 && <p role="status" className="text-sm text-destructive">{uiText("No active branch is configured for this bank.")} {isRequired('branchId') ? uiText("Ask an administrator to add or activate a branch before saving.") : uiText("Branch is optional under the current field settings.")} <Link className="underline" href={`/dashboard/banks/${bankId}`}>{uiText("Open bank directory")}</Link></p>}
                     <Select value={branchId} onValueChange={setBranchId} disabled={!bankId || branches.length === 0}>
                       <SelectTrigger><SelectValue placeholder={bankId ? (branches.length === 0 ? "No branches" : "Select branch") : "Select bank first"} /></SelectTrigger>
                       <SelectContent>
@@ -1174,15 +1155,15 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                 <Separator />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Loan Amount<RequiredMark show={isRequired("requestedAmount")} /></Label>
+                    <Label>{uiText("Loan Amount")}<RequiredMark show={isRequired("requestedAmount")} /></Label>
                     <Input type="number" value={requestedAmount} onChange={(e) => setRequestedAmount(e.target.value)} placeholder="500000" min="0" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Loan Currency<RequiredMark show={isRequired("currency")} /></Label>
+                    <Label>{uiText("Loan Currency")}<RequiredMark show={isRequired("currency")} /></Label>
                     <Select value={currency} onValueChange={setCurrency}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="TJS">TJS - Tajikistani Somoni</SelectItem>
+                        <SelectItem value="TJS">{uiText("TJS - Tajikistani Somoni")}</SelectItem>
 
                       </SelectContent>
                     </Select>
@@ -1190,77 +1171,76 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Loan Term (months)<RequiredMark show={isRequired("loanTerm")} /></Label>
+                    <Label>{uiText("Loan Term (months)")}<RequiredMark show={isRequired("loanTerm")} /></Label>
                     <Input type="number" value={loanTerm} onChange={(e) => setLoanTerm(e.target.value)} placeholder="36" min="1" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Loan Grace Period (months)</Label>
+                    <Label>{uiText("Loan Grace Period (months)")}</Label>
                     <Input type="number" value={gracePeriod} onChange={(e) => setGracePeriod(e.target.value)} placeholder="6" min="0" />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Loan Repayment Frequency</Label>
+                    <Label>{uiText("Loan Repayment Frequency")}</Label>
                     <Select value={frequency} onValueChange={setFrequency}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                        <SelectItem value="quarterly">Quarterly</SelectItem>
+                        <SelectItem value="monthly">{uiText("Monthly")}</SelectItem>
+                        <SelectItem value="quarterly">{uiText("Quarterly")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Repayment Method</Label>
+                    <Label>{uiText("Repayment Method")}</Label>
                     <Select value={repaymentMethod} onValueChange={setRepaymentMethod}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="annuity">Annuity (equal payments)</SelectItem>
-                        <SelectItem value="declining_balance">Declining Balance</SelectItem>
+                        <SelectItem value="annuity">{uiText("Annuity (equal payments)")}</SelectItem>
+                        <SelectItem value="declining_balance">{uiText("Declining Balance")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Guarantee Coverage (%)<RequiredMark show={isRequired("guaranteeCoverage")} /></Label>
-                    <Input type="number" value={guaranteeCoverage} onChange={(e) => setGuaranteeCoverage(e.target.value)} placeholder="Enter coverage" min="0.01" max="70" step="0.01" />
+                    <Label>{uiText("Guarantee Coverage (%)")}<RequiredMark show={isRequired("guaranteeCoverage")} /></Label>
+                    <Input type="number" value={guaranteeCoverage} onChange={(e) => setGuaranteeCoverage(e.target.value)} placeholder={uiText("Enter coverage")} min="0.01" max="70" step="0.01" />
                     {requestedAmount && guaranteeCoverage && (
-                      <p className="text-xs text-muted-foreground">
-                        Guarantee amount: {new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(parseFloat(requestedAmount) * parseFloat(guaranteeCoverage) / 100)}
+                      <p className="text-xs text-muted-foreground">{uiText("Guarantee amount: ")}{new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(parseFloat(requestedAmount) * parseFloat(guaranteeCoverage) / 100)}
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Guarantee Type<RequiredMark show={isRequired("guaranteeType")} /></Label>
+                    <Label>{uiText("Guarantee Type")}<RequiredMark show={isRequired("guaranteeType")} /></Label>
                     <Select value={guaranteeType} onValueChange={setGuaranteeType}>
-                      <SelectTrigger><SelectValue placeholder="Select guarantee type" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={uiText("Select guarantee type")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="individual">Individual Guarantee</SelectItem>
-                        <SelectItem value="blanket">Blanket Guarantee</SelectItem>
+                        <SelectItem value="individual">{uiText("Individual Guarantee")}</SelectItem>
+                        <SelectItem value="blanket">{uiText("Blanket Guarantee")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <Separator />
-                <div className="flex flex-col gap-2"><Label htmlFor="configured-product">Configured guarantee product (optional)</Label><Select value={productId || 'none'} onValueChange={(value) => { setProductId(value === 'none' ? '' : value); setGuaranteeCoverage(undefined) }}><SelectTrigger id="configured-product"><SelectValue placeholder="Choose a configured product" /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="none">No configured product — enter coverage explicitly</SelectItem>{products.map(item => <SelectItem key={item.id} value={item.id}>{getName(item)}</SelectItem>)}</SelectGroup></SelectContent></Select><p className="text-sm text-muted-foreground">The selected product supplies its configured coverage. An explicit valid coverage is required; no default percentage is silently applied.</p></div>
-                <h4 className="text-sm font-medium">Dates</h4>
+                <div className="flex flex-col gap-2"><Label htmlFor="configured-product">{uiText("Configured guarantee product (optional)")}</Label><Select value={productId || 'none'} onValueChange={(value) => { setProductId(value === 'none' ? '' : value); setGuaranteeCoverage(undefined) }}><SelectTrigger id="configured-product"><SelectValue placeholder={uiText("Choose a configured product")} /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="none">{uiText("No configured product — enter coverage explicitly")}</SelectItem>{products.map(item => <SelectItem key={item.id} value={item.id}>{getName(item)}</SelectItem>)}</SelectGroup></SelectContent></Select><p className="text-sm text-muted-foreground">{uiText("The selected product supplies its configured coverage. An explicit valid coverage is required; no default percentage is silently applied.")}</p></div>
+                <h4 className="text-sm font-medium">{uiText("Dates")}</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Application Date<RequiredMark show={isRequired("applicationDate")} /></Label>
+                    <Label>{uiText("Application Date")}<RequiredMark show={isRequired("applicationDate")} /></Label>
                     <Input type="date" value={applicationDate} onChange={(e) => setApplicationDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Bank Approval Date</Label>
+                    <Label>{uiText("Bank Approval Date")}</Label>
                     <Input type="date" value={bankApprovalDate} onChange={(e) => setBankApprovalDate(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                    <Label>Loan Officer (at Bank)</Label>
-                    {officerError && <p role="alert" className="text-sm text-destructive">Loan officer options could not be loaded. Reload to retry.</p>}
+                    <Label>{uiText("Loan Officer (at Bank)")}</Label>
+                    {officerError && <p role="alert" className="text-sm text-destructive">{uiText("Loan officer options could not be loaded. Reload to retry.")}</p>}
                   {bankOfficers.length > 0 ? (
                     <Select value={loanOfficer} onValueChange={setLoanOfficer}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select loan officer" />
+                        <SelectValue placeholder={uiText("Select loan officer")} />
                       </SelectTrigger>
                       <SelectContent>
                         {bankOfficers.map((officer) => (
@@ -1271,53 +1251,53 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="text-sm text-muted-foreground">{bankId ? 'No active loan officers are available. This optional assignment can be left blank.' : 'Select a bank first.'}</p>
+                    <p className="text-sm text-muted-foreground">{bankId ? uiText("No active loan officers are available. This optional assignment can be left blank.") : uiText("Select a bank first.")}</p>
                   )}
                 </div>
                 <Separator />
-                <h4 className="text-sm font-medium">Loan Purpose</h4>
+                <h4 className="text-sm font-medium">{uiText("Loan Purpose")}</h4>
                 <div className="space-y-2">
-                  <Label>Purpose<RequiredMark show={isRequired("purpose")} /></Label>
+                  <Label>{uiText("Purpose")}<RequiredMark show={isRequired("purpose")} /></Label>
                   <Select value={purpose} onValueChange={setPurpose}>
-                    <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={uiText("Select purpose")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="working_capital">Working Capital</SelectItem>
-                      <SelectItem value="investment">Investment / Fixed Assets</SelectItem>
-                      <SelectItem value="operational">Operational Expenses</SelectItem>
+                      <SelectItem value="working_capital">{uiText("Working Capital")}</SelectItem>
+                      <SelectItem value="investment">{uiText("Investment / Fixed Assets")}</SelectItem>
+                      <SelectItem value="operational">{uiText("Operational Expenses")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Purpose Details</Label>
-                  <Textarea value={purposeDetails} onChange={(e) => setPurposeDetails(e.target.value)} placeholder="Describe how the loan will be used..." rows={2} />
+                  <Label>{uiText("Purpose Details")}</Label>
+                  <Textarea value={purposeDetails} onChange={(e) => setPurposeDetails(e.target.value)} placeholder={uiText("Describe how the loan will be used...")} rows={2} />
                 </div>
                 <Separator />
-                <h4 className="text-sm font-medium">Financial Analysis</h4>
+                <h4 className="text-sm font-medium">{uiText("Financial Analysis")}</h4>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Annual Turnover ({currency})</Label>
+                    <Label>{uiText("Annual Turnover (")}{currency})</Label>
                     <Input type="number" value={annualTurnover} onChange={(e) => setAnnualTurnover(e.target.value)} placeholder="1000000" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Net Income ({currency})</Label>
+                    <Label>{uiText("Net Income (")}{currency})</Label>
                     <Input type="number" value={netIncome} onChange={(e) => setNetIncome(e.target.value)} placeholder="150000" />
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Total Bank Exposure ({currency})</Label>
-                    <Input type="number" value={totalExposure} onChange={(e) => setTotalExposure(e.target.value)} placeholder="Total outstanding at this bank" />
+                    <Label>{uiText("Total Bank Exposure (")}{currency})</Label>
+                    <Input type="number" value={totalExposure} onChange={(e) => setTotalExposure(e.target.value)} placeholder={uiText("Total outstanding at this bank")} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Risk Rating</Label>
+                    <Label>{uiText("Risk Rating")}</Label>
                     <Select value={riskRating} onValueChange={setRiskRating}>
-                      <SelectTrigger><SelectValue placeholder="Select rating" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={uiText("Select rating")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="A">A - Excellent</SelectItem>
-                        <SelectItem value="B">B - Good</SelectItem>
-                        <SelectItem value="C">C - Satisfactory</SelectItem>
-                        <SelectItem value="D">D - Substandard</SelectItem>
-                        <SelectItem value="E">E - Doubtful</SelectItem>
+                        <SelectItem value="A">{uiText("A - Excellent")}</SelectItem>
+                        <SelectItem value="B">{uiText("B - Good")}</SelectItem>
+                        <SelectItem value="C">{uiText("C - Satisfactory")}</SelectItem>
+                        <SelectItem value="D">{uiText("D - Substandard")}</SelectItem>
+                        <SelectItem value="E">{uiText("E - Doubtful")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1325,8 +1305,8 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
-              <Button type="button" onClick={handleNextStep}>Next: Collateral</Button>
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>{uiText("Previous")}</Button>
+              <Button type="button" onClick={handleNextStep}>{uiText("Next: Collateral")}</Button>
             </div>
           </TabsContent>
 
@@ -1335,29 +1315,29 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="collateral" />
             <Card>
               <CardHeader>
-                <CardTitle>Collateral & Guarantors</CardTitle>
-                <CardDescription>Security provided for this loan application</CardDescription>
+                <CardTitle>{uiText("Collateral & Guarantors")}</CardTitle>
+                <CardDescription>{uiText("Security provided for this loan application")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-2">
-                  <Label>Collateral Description<RequiredMark show={isRequired("collateralDescription")} /></Label>
-                  <Textarea value={collateralDescription} onChange={(e) => setCollateralDescription(e.target.value)} placeholder="Type and description of collateral (real estate, equipment, inventory...)" rows={3} />
+                  <Label>{uiText("Collateral Description")}<RequiredMark show={isRequired("collateralDescription")} /></Label>
+                  <Textarea value={collateralDescription} onChange={(e) => setCollateralDescription(e.target.value)} placeholder={uiText("Type and description of collateral (real estate, equipment, inventory...)")} rows={3} />
                 </div>
                 <Separator />
-                <h4 className="text-sm font-medium">Covenants</h4>
+                <h4 className="text-sm font-medium">{uiText("Covenants")}</h4>
                 <div className="space-y-2">
-                  <Label>Bank Covenants</Label>
-                  <Textarea value={covenantBank} onChange={(e) => setCovenantBank(e.target.value)} placeholder="Conditions imposed by the bank..." rows={2} />
+                  <Label>{uiText("Bank Covenants")}</Label>
+                  <Textarea value={covenantBank} onChange={(e) => setCovenantBank(e.target.value)} placeholder={uiText("Conditions imposed by the bank...")} rows={2} />
                 </div>
                 <div className="space-y-2">
-                  <Label>PRSF Covenants</Label>
-                  <Textarea value={covenantPrsf} onChange={(e) => setCovenantPrsf(e.target.value)} placeholder="Conditions required by PRSF..." rows={2} />
+                  <Label>{uiText("PRSF Covenants")}</Label>
+                  <Textarea value={covenantPrsf} onChange={(e) => setCovenantPrsf(e.target.value)} placeholder={uiText("Conditions required by PRSF...")} rows={2} />
                 </div>
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
-              <Button type="button" onClick={handleNextStep}>Next: Additional Info</Button>
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>{uiText("Previous")}</Button>
+              <Button type="button" onClick={handleNextStep}>{uiText("Next: Additional Info")}</Button>
             </div>
           </TabsContent>
 
@@ -1366,31 +1346,31 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
             <StepValidationPanel stepsStatus={stepsStatus} hasTouchedFields={touchedFields.size > 0} step="additional" />
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Notes & Submission</CardTitle>
-                <CardDescription>Final review and any additional comments</CardDescription>
+                <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />{uiText("Notes & Submission")}</CardTitle>
+                <CardDescription>{uiText("Final review and any additional comments")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-2">
-                  <Label>Internal Notes<RequiredMark show={isRequired("notes")} /></Label>
-                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes for PRSF reviewers..." rows={4} />
+                  <Label>{uiText("Internal Notes")}<RequiredMark show={isRequired("notes")} /></Label>
+                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={uiText("Additional notes for PRSF reviewers...")} rows={4} />
                 </div>
                 <Separator />
                 {/* Summary */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                  <h4 className="font-medium text-sm">Application Summary</h4>
+                  <h4 className="font-medium text-sm">{uiText("Application Summary")}</h4>
                   <div className="grid gap-1.5 text-sm sm:grid-cols-2">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Borrower:</span><span className="font-medium">{clientName || "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">TIN:</span><span className="font-medium">{clientTin || "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Bank:</span><span className="font-medium">{banks.find((b) => b.id === bankId)?.name_en || "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Amount:</span><span className="font-medium">{requestedAmount ? new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(parseFloat(requestedAmount)) : "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Term:</span><span className="font-medium">{loanTerm ? `${loanTerm} months` : "—"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Coverage:</span><span className="font-medium">{guaranteeCoverage ? `${guaranteeCoverage}%` : "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{uiText("Borrower:")}</span><span className="font-medium">{clientName || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{uiText("TIN:")}</span><span className="font-medium">{clientTin || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{uiText("Bank:")}</span><span className="font-medium">{banks.find((b) => b.id === bankId)?.name_en || "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{uiText("Amount:")}</span><span className="font-medium">{requestedAmount ? new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 0 }).format(parseFloat(requestedAmount)) : "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{uiText("Term:")}</span><span className="font-medium">{loanTerm ? uiText("{0} months", loanTerm) : "—"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">{uiText("Coverage:")}</span><span className="font-medium">{guaranteeCoverage ? `${guaranteeCoverage}%` : "—"}</span></div>
                   </div>
                 </div>
               </CardContent>
             </Card>
             <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={handlePreviousStep}>Previous</Button>
+              <Button type="button" variant="outline" onClick={handlePreviousStep}>{uiText("Previous")}</Button>
               <Button 
                 type="submit" 
                 disabled={isSubmitting || (!retryLocked && !isFormValid)} 
@@ -1398,20 +1378,18 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                 title={!isFormValid ? "Please complete all required fields" : ""}
               >
                 {isSubmitting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Submitting...</>
+                  <><Loader2 className="h-4 w-4 animate-spin" />{uiText("Submitting...")}</>
                 ) : (
-                  <><Save className="h-4 w-4" />{editing ? 'Save corrections' : 'Save for bank review'}</>
+                  <><Save className="h-4 w-4" />{editing ? uiText("Save corrections") : uiText("Save for bank review")}</>
                 )}
               </Button>
             </div>
             {!isFormValid && (
               <Alert variant="destructive" className="mt-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Please complete all required fields before submitting.{" "}
-                  {allErrors.length} field{allErrors.length === 1 ? "" : "s"} still{" "}
-                  {allErrors.length === 1 ? "needs" : "need"} your attention.
-                </AlertDescription>
+                <AlertDescription>{uiText("Please complete all required fields before submitting.")}{" "}
+                  {allErrors.length} {uiText("field")}{allErrors.length === 1 ? "" : "s"} {uiText("still")}{" "}
+                  {allErrors.length === 1 ? uiText("needs") : uiText("need")}{uiText(" your attention.")}</AlertDescription>
               </Alert>
             )}
           </TabsContent>
@@ -1424,43 +1402,39 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-primary">
-              <CheckCircle2 className="h-5 w-5" />
-              Existing Borrower Found
-            </DialogTitle>
-            <DialogDescription>
-              A borrower with this TIN number already exists in the system. You can load their information to save time.
-            </DialogDescription>
+              <CheckCircle2 className="h-5 w-5" />{uiText("Existing Borrower Found")}</DialogTitle>
+            <DialogDescription>{uiText("A borrower with this TIN number already exists in the system. You can load their information to save time.")}</DialogDescription>
           </DialogHeader>
           {tinDuplicateWarning && foundBorrower && (
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Name:</span>
+                  <span className="text-muted-foreground">{uiText("Name:")}</span>
                   <p className="font-medium">{tinDuplicateWarning.name}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Type:</span>
+                  <span className="text-muted-foreground">{uiText("Type:")}</span>
                   <p className="font-medium">{tinDuplicateWarning.type}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">TIN:</span>
+                  <span className="text-muted-foreground">{uiText("TIN:")}</span>
                   <p className="font-medium">{clientTin}</p>
                 </div>
                 {foundBorrower.phone && (
                   <div>
-                    <span className="text-muted-foreground">Phone:</span>
+                    <span className="text-muted-foreground">{uiText("Phone:")}</span>
                     <p className="font-medium">{foundBorrower.phone}</p>
                   </div>
                 )}
                 {foundBorrower.address_city && (
                   <div>
-                    <span className="text-muted-foreground">City:</span>
+                    <span className="text-muted-foreground">{uiText("City:")}</span>
                     <p className="font-medium">{foundBorrower.address_city}</p>
                   </div>
                 )}
                 {foundBorrower.email && (
                   <div>
-                    <span className="text-muted-foreground">Email:</span>
+                    <span className="text-muted-foreground">{uiText("Email:")}</span>
                     <p className="font-medium">{foundBorrower.email}</p>
                   </div>
                 )}
@@ -1469,9 +1443,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
           )}
           <Alert className="border-primary/20 bg-primary/5">
             <CheckCircle2 className="h-4 w-4 text-primary" />
-            <AlertDescription className="ml-2 text-sm">
-              Click &quot;Load Borrower Data&quot; to automatically fill in all available information from this existing borrower.
-            </AlertDescription>
+            <AlertDescription className="ml-2 text-sm">{uiText("Click \"Load Borrower Data\" to automatically fill in all available information from this existing borrower.")}</AlertDescription>
           </Alert>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button 
@@ -1482,22 +1454,16 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                 setTinDuplicateWarning(null)
                 setFoundBorrower(null)
               }}
-            >
-              Clear & Enter New TIN
-            </Button>
+            >{uiText("Clear & Enter New TIN")}</Button>
             <Button 
               variant="secondary"
               onClick={() => setShowDuplicateDialog(false)}
-            >
-              Continue Without Loading
-            </Button>
+            >{uiText("Continue Without Loading")}</Button>
             <Button 
               onClick={loadBorrowerData}
               className="gap-2"
             >
-              <CheckCircle2 className="h-4 w-4" />
-              Load Borrower Data
-            </Button>
+              <CheckCircle2 className="h-4 w-4" />{uiText("Load Borrower Data")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

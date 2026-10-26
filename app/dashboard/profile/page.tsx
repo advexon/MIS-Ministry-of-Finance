@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
@@ -35,6 +37,8 @@ interface ProfileWithRelations extends Profile {
 }
 
 export default function ProfilePage() {
+  const uiText = useUiTranslation()
+
   const { t, locale, setLocale } = useI18n()
   const supabase = createClient()
 
@@ -187,9 +191,7 @@ export default function ProfilePage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">{t.nav.profile}</h1>
-        <p className="mt-1 text-muted-foreground">
-          Manage your account settings and preferences
-        </p>
+        <p className="mt-1 text-muted-foreground">{uiText("Manage your account settings and preferences")}</p>
       </div>
 
       {/* Status Messages */}
@@ -227,7 +229,7 @@ export default function ProfilePage() {
             <div className="w-full space-y-3">
               <div className="flex items-center gap-3 text-sm">
                 <Shield className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Role:</span>
+                <span className="text-muted-foreground">{uiText("Role:")}</span>
                 <Badge variant="secondary" className="ml-auto">
                   {getRoleName()}
                 </Badge>
@@ -236,7 +238,7 @@ export default function ProfilePage() {
               {getBankName() && (
                 <div className="flex items-center gap-3 text-sm">
                   <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Bank:</span>
+                  <span className="text-muted-foreground">{uiText("Bank:")}</span>
                   <span className="ml-auto font-medium text-foreground">
                     {getBankName()}
                   </span>
@@ -246,7 +248,7 @@ export default function ProfilePage() {
               {getBranchName() && (
                 <div className="flex items-center gap-3 text-sm">
                   <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Branch:</span>
+                  <span className="text-muted-foreground">{uiText("Branch:")}</span>
                   <span className="ml-auto font-medium text-foreground">
                     {getBranchName()}
                   </span>
@@ -255,7 +257,7 @@ export default function ProfilePage() {
 
               <div className="flex items-center gap-3 text-sm">
                 <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Email:</span>
+                <span className="text-muted-foreground">{uiText("Email:")}</span>
                 <span className="ml-auto truncate font-medium text-foreground">
                   {profile?.email}
                 </span>
@@ -264,7 +266,7 @@ export default function ProfilePage() {
               {profile?.phone && (
                 <div className="flex items-center gap-3 text-sm">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Phone:</span>
+                  <span className="text-muted-foreground">{uiText("Phone:")}</span>
                   <span className="ml-auto font-medium text-foreground">
                     {profile.phone}
                   </span>
@@ -273,40 +275,40 @@ export default function ProfilePage() {
 
               <div className="flex items-center gap-3 text-sm">
                 <Globe className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Language:</span>
+                <span className="text-muted-foreground">{uiText("Language:")}</span>
                 <span className="ml-auto font-medium text-foreground">
-                  {preferredLanguage === "en" ? "English" : preferredLanguage === "ru" ? "Русский" : "Тоҷикӣ"}
+                  {preferredLanguage === "en" ? uiText("English") : preferredLanguage === "ru" ? "Русский" : "Тоҷикӣ"}
                 </span>
               </div>
 
               <div className="flex items-center gap-3 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Last login:</span>
+                <span className="text-muted-foreground">{uiText("Last login:")}</span>
                 <span className="ml-auto font-medium text-foreground">
                   {profile?.last_login_at
                     ? new Date(profile.last_login_at).toLocaleDateString()
-                    : "Never"}
+                    : uiText("Never")}
                 </span>
               </div>
 
               <Separator />
 
               <div className="flex items-center gap-3 text-sm">
-                <span className="text-muted-foreground">Status:</span>
+                <span className="text-muted-foreground">{uiText("Status:")}</span>
                 <Badge
                   variant={profile?.is_active ? "default" : "destructive"}
                   className="ml-auto"
                 >
-                  {profile?.is_active ? "Active" : "Inactive"}
+                  {profile?.is_active ? uiText("Active") : uiText("Inactive")}
                 </Badge>
               </div>
 
               <div className="flex items-center gap-3 text-sm">
-                <span className="text-muted-foreground">Member since:</span>
+                <span className="text-muted-foreground">{uiText("Member since:")}</span>
                 <span className="ml-auto font-medium text-foreground">
                   {profile?.created_at
                     ? new Date(profile.created_at).toLocaleDateString()
-                    : "Unknown"}
+                    : uiText("Unknown")}
                 </span>
               </div>
             </div>
@@ -318,27 +320,19 @@ export default function ProfilePage() {
           <Tabs defaultValue="profile" className="space-y-6">
             <TabsList>
               <TabsTrigger value="profile" className="gap-2">
-                <User className="h-4 w-4" />
-                Personal Information
-              </TabsTrigger>
+                <User className="h-4 w-4" />{uiText("Personal Information")}</TabsTrigger>
               <TabsTrigger value="security" className="gap-2">
-                <Key className="h-4 w-4" />
-                Security
-              </TabsTrigger>
+                <Key className="h-4 w-4" />{uiText("Security")}</TabsTrigger>
               <TabsTrigger value="preferences" className="gap-2">
-                <Globe className="h-4 w-4" />
-                Preferences
-              </TabsTrigger>
+                <Globe className="h-4 w-4" />{uiText("Preferences")}</TabsTrigger>
             </TabsList>
 
             {/* Personal Information Tab */}
             <TabsContent value="profile" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
-                  <CardDescription>
-                    Update your name and contact details
-                  </CardDescription>
+                  <CardTitle>{uiText("Personal Information")}</CardTitle>
+                  <CardDescription>{uiText("Update your name and contact details")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -348,7 +342,7 @@ export default function ProfilePage() {
                         id="firstName"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        placeholder="Enter your first name"
+                        placeholder={uiText("Enter your first name")}
                       />
                     </div>
                     <div className="space-y-2">
@@ -357,7 +351,7 @@ export default function ProfilePage() {
                         id="lastName"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        placeholder="Enter your last name"
+                        placeholder={uiText("Enter your last name")}
                       />
                     </div>
                   </div>
@@ -370,19 +364,17 @@ export default function ProfilePage() {
                       disabled
                       className="bg-muted"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Email address cannot be changed. Contact an administrator for assistance.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{uiText("Email address cannot be changed. Contact an administrator for assistance.")}</p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
+                    <Label htmlFor="phone">{uiText("Phone Number")}</Label>
                     <Input
                       id="phone"
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+992 XX XXX XXXX"
+                      placeholder={uiText("+992 XX XXX XXXX")}
                     />
                   </div>
 
@@ -391,12 +383,8 @@ export default function ProfilePage() {
                     <>
                       <Separator />
                       <div>
-                        <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-                          Organizational Assignment
-                        </h3>
-                        <p className="text-xs text-muted-foreground mb-3">
-                          These fields are managed by system administrators and cannot be changed here.
-                        </p>
+                        <h3 className="mb-3 text-sm font-medium text-muted-foreground">{uiText("Organizational Assignment")}</h3>
+                        <p className="text-xs text-muted-foreground mb-3">{uiText("These fields are managed by system administrators and cannot be changed here.")}</p>
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2">
                             <Label>{t.users.role}</Label>
@@ -449,32 +437,30 @@ export default function ProfilePage() {
             <TabsContent value="security" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Change Password</CardTitle>
-                  <CardDescription>
-                    Update your password to keep your account secure
-                  </CardDescription>
+                  <CardTitle>{uiText("Change Password")}</CardTitle>
+                  <CardDescription>{uiText("Update your password to keep your account secure")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Label htmlFor="currentPassword">{uiText("Current Password")}</Label>
                     <Input
                       id="currentPassword"
                       type="password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      placeholder="Enter your current password"
+                      placeholder={uiText("Enter your current password")}
                     />
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="newPassword">New Password</Label>
+                      <Label htmlFor="newPassword">{uiText("New Password")}</Label>
                       <Input
                         id="newPassword"
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
+                        placeholder={uiText("Enter new password")}
                       />
                     </div>
                     <div className="space-y-2">
@@ -484,29 +470,24 @@ export default function ProfilePage() {
                         type="password"
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="Confirm new password"
+                        placeholder={uiText("Confirm new password")}
                       />
                     </div>
                   </div>
 
                   <div className="rounded-lg bg-muted/50 p-4">
-                    <h4 className="mb-2 text-sm font-medium">Password Requirements</h4>
+                    <h4 className="mb-2 text-sm font-medium">{uiText("Password Requirements")}</h4>
                     <ul className="space-y-1 text-xs text-muted-foreground">
                       <li className={newPassword.length >= 8 ? "text-green-600 dark:text-green-400" : ""}>
-                        {newPassword.length >= 8 ? "+" : "-"} At least 8 characters
-                      </li>
+                        {newPassword.length >= 8 ? "+" : "-"}{uiText(" At least 8 characters")}</li>
                       <li className={/[A-Z]/.test(newPassword) ? "text-green-600 dark:text-green-400" : ""}>
-                        {/[A-Z]/.test(newPassword) ? "+" : "-"} At least one uppercase letter
-                      </li>
+                        {/[A-Z]/.test(newPassword) ? "+" : "-"}{uiText(" At least one uppercase letter")}</li>
                       <li className={/[0-9]/.test(newPassword) ? "text-green-600 dark:text-green-400" : ""}>
-                        {/[0-9]/.test(newPassword) ? "+" : "-"} At least one number
-                      </li>
+                        {/[0-9]/.test(newPassword) ? "+" : "-"}{uiText(" At least one number")}</li>
                       <li className={/[^A-Za-z0-9]/.test(newPassword) ? "text-green-600 dark:text-green-400" : ""}>
-                        {/[^A-Za-z0-9]/.test(newPassword) ? "+" : "-"} At least one special character
-                      </li>
+                        {/[^A-Za-z0-9]/.test(newPassword) ? "+" : "-"}{uiText(" At least one special character")}</li>
                       <li className={newPassword === confirmNewPassword && newPassword.length > 0 ? "text-green-600 dark:text-green-400" : ""}>
-                        {newPassword === confirmNewPassword && newPassword.length > 0 ? "+" : "-"} Passwords match
-                      </li>
+                        {newPassword === confirmNewPassword && newPassword.length > 0 ? "+" : "-"}{uiText(" Passwords match")}</li>
                     </ul>
                   </div>
 
@@ -520,33 +501,29 @@ export default function ProfilePage() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Key className="h-4 w-4" />
-                      )}
-                      Change Password
-                    </Button>
+                      )}{uiText("Change Password")}</Button>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Session Information</CardTitle>
-                  <CardDescription>
-                    Details about your current session
-                  </CardDescription>
+                  <CardTitle>{uiText("Session Information")}</CardTitle>
+                  <CardDescription>{uiText("Details about your current session")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between rounded-lg border p-3">
                       <div>
-                        <p className="text-sm font-medium">Current Session</p>
-                        <p className="text-xs text-muted-foreground">Active now</p>
+                        <p className="text-sm font-medium">{uiText("Current Session")}</p>
+                        <p className="text-xs text-muted-foreground">{uiText("Active now")}</p>
                       </div>
-                      <Badge variant="secondary">Active</Badge>
+                      <Badge variant="secondary">{uiText("Active")}</Badge>
                     </div>
                     {profile?.last_login_at && (
                       <div className="flex items-center justify-between rounded-lg border p-3">
                         <div>
-                          <p className="text-sm font-medium">Last Login</p>
+                          <p className="text-sm font-medium">{uiText("Last Login")}</p>
                           <p className="text-xs text-muted-foreground">
                             {new Date(profile.last_login_at).toLocaleString()}
                           </p>
@@ -562,10 +539,8 @@ export default function ProfilePage() {
             <TabsContent value="preferences" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Language Preference</CardTitle>
-                  <CardDescription>
-                    Choose your preferred language for the system interface
-                  </CardDescription>
+                  <CardTitle>{uiText("Language Preference")}</CardTitle>
+                  <CardDescription>{uiText("Choose your preferred language for the system interface")}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -578,14 +553,12 @@ export default function ProfilePage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="ru">Русский (Russian)</SelectItem>
-                        <SelectItem value="tj">Тоҷикӣ (Tajik)</SelectItem>
+                        <SelectItem value="en">{uiText("English")}</SelectItem>
+                        <SelectItem value="ru">{uiText("Русский (Russian)")}</SelectItem>
+                        <SelectItem value="tj">{uiText("Тоҷикӣ (Tajik)")}</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">
-                      This setting will change the language of all labels, menus, and system messages.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{uiText("This setting will change the language of all labels, menus, and system messages.")}</p>
                   </div>
 
                   <div className="flex justify-end">
@@ -603,42 +576,40 @@ export default function ProfilePage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Account Details</CardTitle>
-                  <CardDescription>
-                    Information about your account
-                  </CardDescription>
+                  <CardTitle>{uiText("Account Details")}</CardTitle>
+                  <CardDescription>{uiText("Information about your account")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Account ID</span>
+                      <span className="text-sm text-muted-foreground">{uiText("Account ID")}</span>
                       <code className="rounded bg-muted px-2 py-1 text-xs font-mono">
                         {profile?.id?.slice(0, 8)}...
                       </code>
                     </div>
                     <Separator />
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Account Status</span>
+                      <span className="text-sm text-muted-foreground">{uiText("Account Status")}</span>
                       <Badge variant={profile?.is_active ? "default" : "destructive"}>
-                        {profile?.is_active ? "Active" : "Inactive"}
+                        {profile?.is_active ? uiText("Active") : uiText("Inactive")}
                       </Badge>
                     </div>
                     <Separator />
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Created</span>
+                      <span className="text-sm text-muted-foreground">{uiText("Created")}</span>
                       <span className="text-sm text-foreground">
                         {profile?.created_at
                           ? new Date(profile.created_at).toLocaleDateString()
-                          : "Unknown"}
+                          : uiText("Unknown")}
                       </span>
                     </div>
                     <Separator />
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Last Updated</span>
+                      <span className="text-sm text-muted-foreground">{uiText("Last Updated")}</span>
                       <span className="text-sm text-foreground">
                         {profile?.updated_at
                           ? new Date(profile.updated_at).toLocaleDateString()
-                          : "Unknown"}
+                          : uiText("Unknown")}
                       </span>
                     </div>
                   </div>

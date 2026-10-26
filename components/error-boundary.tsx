@@ -1,5 +1,7 @@
 'use client'
 
+import { LocalizedText } from '@/components/localized-text'
+
 import React, { ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,19 +73,17 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                   <AlertTriangle className="h-6 w-6 text-red-600" />
                 </div>
               </div>
-              <CardTitle className="text-red-900">Something went wrong</CardTitle>
-              <CardDescription className="text-red-700">
-                The application encountered an unexpected error.
-              </CardDescription>
+              <CardTitle className="text-red-900"><LocalizedText>{"Something went wrong"}</LocalizedText></CardTitle>
+              <CardDescription className="text-red-700"><LocalizedText>{"The application encountered an unexpected error."}</LocalizedText></CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <div className="rounded bg-red-100 p-2 text-xs text-red-800 font-mono overflow-auto max-h-32">
-                  <p className="font-bold mb-1">Error:</p>
+                  <p className="font-bold mb-1"><LocalizedText>{"Error:"}</LocalizedText></p>
                   <p>{this.state.error.toString()}</p>
                   {this.state.errorInfo && (
                     <>
-                      <p className="font-bold mt-2 mb-1">Stack trace:</p>
+                      <p className="font-bold mt-2 mb-1"><LocalizedText>{"Stack trace:"}</LocalizedText></p>
                       <p className="whitespace-pre-wrap text-xs">
                         {this.state.errorInfo.componentStack}
                       </p>
@@ -91,9 +91,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                   )}
                 </div>
               )}
-              <Button onClick={this.handleReset} className="w-full bg-red-600 hover:bg-red-700 text-white">
-                Try again
-              </Button>
+              <Button onClick={this.handleReset} className="w-full bg-red-600 hover:bg-red-700 text-white"><LocalizedText>{"Try again"}</LocalizedText></Button>
             </CardContent>
           </Card>
         </div>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { one } from '@/lib/utils/supabase-relation'
@@ -58,6 +60,8 @@ const fmt = (value: number, currency: string | null) => currency
   : `${value.toLocaleString()} (currency unreconciled)`
 
 export default function RecoveriesPage() {
+  const uiText = useUiTranslation()
+
   const supabase = createClient()
   const { toast } = useToast()
   const { role } = usePermissions()
@@ -137,33 +141,31 @@ export default function RecoveriesPage() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-emerald-500/10 p-2"><TrendingUp className="h-5 w-5 text-emerald-600" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Recovery Tracking</h1>
-            <p className="text-sm text-muted-foreground">Track post-claim repayments and recoveries from borrowers</p>
+            <h1 className="text-2xl font-bold text-foreground">{uiText("Recovery Tracking")}</h1>
+            <p className="text-sm text-muted-foreground">{uiText("Track post-claim repayments and recoveries from borrowers")}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={fetchRecoveries}>
-            <RefreshCw className="h-3.5 w-3.5" />Refresh
-          </Button>
+            <RefreshCw className="h-3.5 w-3.5" />{uiText("Refresh")}</Button>
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={exportCSV}>
-            <Download className="h-3.5 w-3.5" />Export CSV
-          </Button>
+            <Download className="h-3.5 w-3.5" />{uiText("Export CSV")}</Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             {canRecord && <DialogTrigger asChild>
-              <Button size="sm" className="gap-2"><Plus className="h-4 w-4" />Record Recovery</Button>
+              <Button size="sm" className="gap-2"><Plus className="h-4 w-4" />{uiText("Record Recovery")}</Button>
             </DialogTrigger>}
             <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>Record Post-Claim Recovery</DialogTitle>
-                <DialogDescription>Enter the details of a recovered amount from a paid claim.</DialogDescription>
+                <DialogTitle>{uiText("Record Post-Claim Recovery")}</DialogTitle>
+                <DialogDescription>{uiText("Enter the details of a recovered amount from a paid claim.")}</DialogDescription>
               </DialogHeader>
-              <Field><FieldLabel htmlFor="recovery-claim">Related paid claim</FieldLabel><Select value={selectedClaimId} onValueChange={setSelectedClaimId}><SelectTrigger id="recovery-claim"><SelectValue placeholder="Select paid claim…" /></SelectTrigger><SelectContent><SelectGroup>{claims.length === 0 && <SelectItem value="_none" disabled>No paid claims found</SelectItem>}{claims.map((claim) => <SelectItem key={claim.id} value={claim.id}>{claim.claim_number} — {claim.banks?.name_en}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+              <Field><FieldLabel htmlFor="recovery-claim">{uiText("Related paid claim")}</FieldLabel><Select value={selectedClaimId} onValueChange={setSelectedClaimId}><SelectTrigger id="recovery-claim"><SelectValue placeholder={uiText("Select paid claim…")} /></SelectTrigger><SelectContent><SelectGroup>{claims.length === 0 && <SelectItem value="_none" disabled>{uiText("No paid claims found")}</SelectItem>}{claims.map((claim) => <SelectItem key={claim.id} value={claim.id}>{claim.claim_number} — {claim.banks?.name_en}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
               {selectedClaim && <RecoveryForm key={selectedClaim.id} claim={selectedClaim} onRecorded={async (receipt) => {
                 setDialogOpen(false)
                 toast({ title: 'Recovery recorded', description: `Fund ${receipt.prsf_share} ${receipt.currency}; bank ${receipt.bank_share} ${receipt.currency}; policy ${receipt.policy_revision}.` })
                 try { await fetchRecoveries() } catch { toast({ title: 'Recovery saved; list refresh failed', description: 'Refresh the page. Do not submit another recovery.', variant: 'destructive' }) }
               }} />}
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>{uiText("Cancel")}</Button>
             </DialogContent>
           </Dialog>
         </div>
@@ -175,7 +177,7 @@ export default function RecoveriesPage() {
           <CardContent className="flex items-center gap-4 pt-5">
             <div className="rounded-xl bg-emerald-500/10 p-3"><DollarSign className="h-5 w-5 text-emerald-600" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">Total Recovered</p>
+              <p className="text-xs text-muted-foreground">{uiText("Total Recovered")}</p>
               <p className="text-xl font-bold">{totalRecovered}</p>
             </div>
           </CardContent>
@@ -184,7 +186,7 @@ export default function RecoveriesPage() {
           <CardContent className="flex items-center gap-4 pt-5">
             <div className="rounded-xl bg-primary/10 p-3"><TrendingUp className="h-5 w-5 text-primary" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">PRSF Share</p>
+              <p className="text-xs text-muted-foreground">{uiText("PRSF Share")}</p>
               <p className="text-xl font-bold">{totalPrsfShare}</p>
             </div>
           </CardContent>
@@ -193,7 +195,7 @@ export default function RecoveriesPage() {
           <CardContent className="flex items-center gap-4 pt-5">
             <div className="rounded-xl bg-blue-500/10 p-3"><Search className="h-5 w-5 text-blue-500" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">Recovery Events</p>
+              <p className="text-xs text-muted-foreground">{uiText("Recovery Events")}</p>
               <p className="text-xl font-bold">{filtered.length}</p>
             </div>
           </CardContent>
@@ -204,19 +206,19 @@ export default function RecoveriesPage() {
       <div className="mb-4 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9 h-9 text-sm" placeholder="Search by claim, loan, or bank..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9 h-9 text-sm" placeholder={uiText("Search by claim, loan, or bank...")} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Select value={bankFilter} onValueChange={setBankFilter}>
-          <SelectTrigger className="h-9 w-48 text-sm"><SelectValue placeholder="All Banks" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-48 text-sm"><SelectValue placeholder={uiText("All Banks")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Banks</SelectItem>
+            <SelectItem value="all">{uiText("All Banks")}</SelectItem>
             {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={methodFilter} onValueChange={setMethodFilter}>
-          <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder="All Methods" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-44 text-sm"><SelectValue placeholder={uiText("All Methods")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Methods</SelectItem>
+            <SelectItem value="all">{uiText("All Methods")}</SelectItem>
             {Object.entries(METHOD_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -229,14 +231,14 @@ export default function RecoveriesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50 hover:bg-muted/50">
-                  <TableHead className="font-semibold">Recovery Date</TableHead>
-                  <TableHead className="font-semibold">Claim #</TableHead>
-                  <TableHead className="font-semibold">Loan #</TableHead>
-                  <TableHead className="font-semibold">Bank</TableHead>
-                  <TableHead className="text-right font-semibold">Recovery Amt</TableHead>
-                  <TableHead className="text-right font-semibold">PRSF Share</TableHead>
-                  <TableHead className="font-semibold">Method</TableHead>
-                  <TableHead className="font-semibold">Notes</TableHead>
+                  <TableHead className="font-semibold">{uiText("Recovery Date")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Claim #")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Loan #")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Bank")}</TableHead>
+                  <TableHead className="text-right font-semibold">{uiText("Recovery Amt")}</TableHead>
+                  <TableHead className="text-right font-semibold">{uiText("PRSF Share")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Method")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Notes")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,11 +251,10 @@ export default function RecoveriesPage() {
                     <TableCell colSpan={8} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <TrendingUp className="h-8 w-8 opacity-30" />
-                        <p className="text-sm">{search || bankFilter !== 'all' ? 'No recoveries match your filters' : 'No recoveries recorded yet'}</p>
+                        <p className="text-sm">{search || bankFilter !== 'all' ? uiText("No recoveries match your filters") : uiText("No recoveries recorded yet")}</p>
                         {canRecord && !search && bankFilter === 'all' && (
                           <Button variant="outline" size="sm" className="mt-2 gap-2" onClick={() => setDialogOpen(true)}>
-                            <Plus className="h-3.5 w-3.5" />Record First Recovery
-                          </Button>
+                            <Plus className="h-3.5 w-3.5" />{uiText("Record First Recovery")}</Button>
                         )}
                       </div>
                     </TableCell>
@@ -283,7 +284,7 @@ export default function RecoveriesPage() {
                           {METHOD_LABELS[rec.recovery_method] || rec.recovery_method}
                         </Badge>
                       </TableCell>
-                      <TableCell className="min-w-56 text-sm text-muted-foreground"><div className="flex flex-col gap-1"><span>{rec.notes || '—'}</span>{rec.policy_revision ? <><span>Policy {rec.policy_revision} · reference {rec.payment_reference}</span><span>Bank: {fmt(rec.bank_share ?? 0, rec.currency)} · costs: {fmt(rec.documented_costs ?? 0, rec.currency)}</span></> : <span>Legacy receipt · reconciliation required</span>}</div></TableCell>
+                      <TableCell className="min-w-56 text-sm text-muted-foreground"><div className="flex flex-col gap-1"><span>{rec.notes || '—'}</span>{rec.policy_revision ? <><span>{uiText("Policy")} {rec.policy_revision} {uiText("· reference")} {rec.payment_reference}</span><span>{uiText("Bank:")} {fmt(rec.bank_share ?? 0, rec.currency)} {uiText("· costs:")} {fmt(rec.documented_costs ?? 0, rec.currency)}</span></> : <span>{uiText("Legacy receipt · reconciliation required")}</span>}</div></TableCell>
                     </TableRow>
                   ))
                 )}

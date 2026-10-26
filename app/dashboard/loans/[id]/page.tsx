@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { use, useState, useRef } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { usePermissions } from "@/lib/contexts/permission-context"
@@ -129,6 +131,8 @@ const getAvailableActions = applicationActions
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const uiText = useUiTranslation()
+
   const resolvedParams = use(params)
   const supabase = createClient()
 
@@ -362,12 +366,12 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
     </div>
   )
 
-  if (loadError) return <div className="flex flex-col items-start gap-4 p-6"><p role="alert">Application details could not be loaded. This is not a confirmed missing application.</p><Button variant="outline" onClick={() => void fetchLoan().catch(() => showToast('Reload failed. Please retry.', 'error'))}>Retry loading application</Button></div>
+  if (loadError) return <div className="flex flex-col items-start gap-4 p-6"><p role="alert">{uiText("Application details could not be loaded. This is not a confirmed missing application.")}</p><Button variant="outline" onClick={() => void fetchLoan().catch(() => showToast('Reload failed. Please retry.', 'error'))}>{uiText("Retry loading application")}</Button></div>
 
   if (!loan) return (
     <div className="flex h-64 flex-col items-center justify-center gap-3">
-      <p className="text-muted-foreground">Loan application not found.</p>
-      <Button asChild variant="outline"><Link href="/dashboard/loans"><ArrowLeft className="mr-2 h-4 w-4" />Back to Loans</Link></Button>
+      <p className="text-muted-foreground">{uiText("Loan application not found.")}</p>
+      <Button asChild variant="outline"><Link href="/dashboard/loans"><ArrowLeft className="mr-2 h-4 w-4" />{uiText("Back to Loans")}</Link></Button>
     </div>
   )
 
@@ -403,27 +407,26 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <div className="flex flex-wrap items-center gap-2">
           {["guarantee_issued", "disbursed", "active", "approved"].includes(loan.status) && (
             <Button variant="outline" size="sm" className="gap-2 bg-transparent border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => setShowGuaranteePreview(true)}>
-              <FileCheck className="h-3.5 w-3.5" />Letter of Guarantee
-            </Button>
+              <FileCheck className="h-3.5 w-3.5" />{uiText("Letter of Guarantee")}</Button>
           )}
           <ApplicationCancellation loan={loan} onDone={fetchLoan} />
-          {canCorrect && <Button asChild variant="outline"><Link href={`/dashboard/loans/${loan.id}/edit`}>Edit application terms</Link></Button>}
+          {canCorrect && <Button asChild variant="outline"><Link href={`/dashboard/loans/${loan.id}/edit`}>{uiText("Edit application terms")}</Link></Button>}
           {/* Primary action buttons */}
-          {actions.includes("submit")             && <Button size="sm" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("submit") }}>Submit to PRSF</Button>}
-          {actions.includes("mark_received")     && <Button size="sm" className="gap-1.5" onClick={() => setDialog("mark_received")}>Mark as Received</Button>}
-          {actions.includes("approve")           && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? "")); setCoverage(String(loan.guarantee_coverage ?? 50)); setDialog("approve") }}><CheckCircle2 className="h-3.5 w-3.5" />Approve</Button>}
-          {actions.includes("reject")            && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("reject")}><XCircle className="h-3.5 w-3.5" />Reject</Button>}
-          {actions.includes("request_extension") && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent border-yellow-300 text-yellow-700 hover:bg-yellow-50" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("request_extension") }}><Clock className="h-3.5 w-3.5" />Request Extension</Button>}
-          {actions.includes("grant_extension")   && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("grant_extension") }}><CheckCircle2 className="h-3.5 w-3.5" />Grant Extension</Button>}
-          {actions.includes("decline_extension") && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("decline_extension")}><XCircle className="h-3.5 w-3.5" />Decline Extension</Button>}
-          {actions.includes("issue_guarantee")   && <Button size="sm" className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setDialog("issue_guarantee")}><Shield className="h-3.5 w-3.5" />Issue Guarantee</Button>}
-          {actions.includes("cancel")            && <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 bg-transparent" onClick={() => setDialog("cancel")}><XCircle className="h-3.5 w-3.5" />Cancel</Button>}
-          {actions.includes("record_disbursement")&& <Button size="sm" className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? "")); setDialog("disbursement") }}><Banknote className="h-3.5 w-3.5" />Record Disbursement</Button>}
-          {actions.includes("mark_settled")      && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setDialog("settle")}><CheckCircle2 className="h-3.5 w-3.5" />Mark Settled</Button>}
-          {actions.includes("reschedule")        && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent" onClick={() => setDialog("reschedule")}><RefreshCw className="h-3.5 w-3.5" />Reschedule</Button>}
-          {actions.includes("mark_defaulted")    && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("defaulted") }}><TrendingDown className="h-3.5 w-3.5" />Mark Defaulted</Button>}
-          {actions.includes("file_claim")        && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("claim")}><AlertTriangle className="h-3.5 w-3.5" />File Claim</Button>}
-          {actions.includes("claims_committee") && <Button size="sm" variant="outline" asChild><Link href="/dashboard/committee#claims-committee">Review in claims committee</Link></Button>}
+          {actions.includes("submit")             && <Button size="sm" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("submit") }}>{uiText("Submit to PRSF")}</Button>}
+          {actions.includes("mark_received")     && <Button size="sm" className="gap-1.5" onClick={() => setDialog("mark_received")}>{uiText("Mark as Received")}</Button>}
+          {actions.includes("approve")           && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? "")); setCoverage(String(loan.guarantee_coverage ?? 50)); setDialog("approve") }}><CheckCircle2 className="h-3.5 w-3.5" />{uiText("Approve")}</Button>}
+          {actions.includes("reject")            && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("reject")}><XCircle className="h-3.5 w-3.5" />{uiText("Reject")}</Button>}
+          {actions.includes("request_extension") && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent border-yellow-300 text-yellow-700 hover:bg-yellow-50" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("request_extension") }}><Clock className="h-3.5 w-3.5" />{uiText("Request Extension")}</Button>}
+          {actions.includes("grant_extension")   && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setDialog("grant_extension") }}><CheckCircle2 className="h-3.5 w-3.5" />{uiText("Grant Extension")}</Button>}
+          {actions.includes("decline_extension") && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("decline_extension")}><XCircle className="h-3.5 w-3.5" />{uiText("Decline Extension")}</Button>}
+          {actions.includes("issue_guarantee")   && <Button size="sm" className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setDialog("issue_guarantee")}><Shield className="h-3.5 w-3.5" />{uiText("Issue Guarantee")}</Button>}
+          {actions.includes("cancel")            && <Button size="sm" variant="outline" className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 bg-transparent" onClick={() => setDialog("cancel")}><XCircle className="h-3.5 w-3.5" />{uiText("Cancel")}</Button>}
+          {actions.includes("record_disbursement")&& <Button size="sm" className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => { setAmount(String(loan.approved_amount ?? "")); setDialog("disbursement") }}><Banknote className="h-3.5 w-3.5" />{uiText("Record Disbursement")}</Button>}
+          {actions.includes("mark_settled")      && <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setDialog("settle")}><CheckCircle2 className="h-3.5 w-3.5" />{uiText("Mark Settled")}</Button>}
+          {actions.includes("reschedule")        && <Button size="sm" variant="outline" className="gap-1.5 bg-transparent" onClick={() => setDialog("reschedule")}><RefreshCw className="h-3.5 w-3.5" />{uiText("Reschedule")}</Button>}
+          {actions.includes("mark_defaulted")    && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => { setDateField(new Date().toISOString().split("T")[0]); setReason(""); setDialog("defaulted") }}><TrendingDown className="h-3.5 w-3.5" />{uiText("Mark Defaulted")}</Button>}
+          {actions.includes("file_claim")        && <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setDialog("claim")}><AlertTriangle className="h-3.5 w-3.5" />{uiText("File Claim")}</Button>}
+          {actions.includes("claims_committee") && <Button size="sm" variant="outline" asChild><Link href="/dashboard/committee#claims-committee">{uiText("Review in claims committee")}</Link></Button>}
         </div>
       </div>
 
@@ -438,9 +441,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* ── Workflow Stepper ── */}
       <Card className="mb-6 shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">
-            Guarantee issuance progress — ФКГ scheme
-          </CardTitle>
+          <CardTitle className="text-sm font-semibold">{uiText("Guarantee issuance progress — ФКГ scheme")}</CardTitle>
         </CardHeader>
         <CardContent>
           <SchemeStepper status={loan.status as LoanStatus} />
@@ -449,56 +450,56 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
           {loan.status === "rejected" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
               <XCircle className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 4A — Rejected.</strong> Bank has been notified. End of process.</span>
-              {loan.notes && <span className="ml-2 text-xs opacity-75">Reason: {loan.notes}</span>}
+              <span><strong>{uiText("Step 4A — Rejected.")}</strong> {uiText("Bank has been notified. End of process.")}</span>
+              {loan.notes && <span className="ml-2 text-xs opacity-75">{uiText("Reason:")} {loan.notes}</span>}
             </div>
           )}
           {loan.status === "cancelled" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
               <XCircle className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 6A — Cancelled.</strong> Guarantee cancelled before disbursement. End of process.</span>
+              <span><strong>{uiText("Step 6A — Cancelled.")}</strong> {uiText("Guarantee cancelled before disbursement. End of process.")}</span>
             </div>
           )}
           {loan.status === "settled" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 7A — Loan Settled.</strong> Borrower repaid in full. End of process.</span>
+              <span><strong>{uiText("Step 7A — Loan Settled.")}</strong> {uiText("Borrower repaid in full. End of process.")}</span>
             </div>
           )}
           {loan.status === "rescheduled" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm text-orange-700">
               <RefreshCw className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 7B — Rescheduled.</strong> New maturity: {fmtDate(loan.new_maturity_date)}. Awaiting settlement or claim.</span>
+              <span><strong>{uiText("Step 7B — Rescheduled.")}</strong> {uiText("New maturity:")} {fmtDate(loan.new_maturity_date)}{uiText(". Awaiting settlement or claim.")}</span>
             </div>
           )}
           {loan.status === "claim_pending" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 7C — Claim Filed.</strong> Awaiting PRSF review (Step 8B).</span>
+              <span><strong>{uiText("Step 7C — Claim Filed.")}</strong> {uiText("Awaiting PRSF review (Step 8B).")}</span>
             </div>
           )}
           {loan.status === "defaulted" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
               <TrendingDown className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 7C — Defaulted.</strong> Borrower has defaulted on {fmtDate(loan.defaulted_date)}. File a guarantee claim to proceed.</span>
+              <span><strong>{uiText("Step 7C — Defaulted.")}</strong> {uiText("Borrower has defaulted on")} {fmtDate(loan.defaulted_date)}{uiText(". File a guarantee claim to proceed.")}</span>
             </div>
           )}
           {loan.status === "extension_pending" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-800">
               <Clock className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Extension Requested</strong> on {fmtDate(loan.extension_requested_date)}. Reason: {loan.extension_reason ?? "—"}. Awaiting PRSF decision.</span>
+              <span><strong>{uiText("Extension Requested")}</strong> {uiText("on")} {fmtDate(loan.extension_requested_date)}{uiText(". Reason:")} {loan.extension_reason ?? "—"}{uiText(". Awaiting PRSF decision.")}</span>
             </div>
           )}
           {loan.status === "claim_paid" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-4 py-2.5 text-sm text-purple-700">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 8B2 — Claim Approved & Paid.</strong> Recovery tracking in progress (Step 9).</span>
+              <span><strong>{uiText("Step 8B2 — Claim Approved & Paid.")}</strong> {uiText("Recovery tracking in progress (Step 9).")}</span>
             </div>
           )}
           {loan.status === "claim_rejected" && (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
               <XCircle className="h-4 w-4 flex-shrink-0" />
-              <span><strong>Step 8B1 — Claim Rejected.</strong> PRSF has rejected the guarantee claim. End of process.</span>
+              <span><strong>{uiText("Step 8B1 — Claim Rejected.")}</strong> {uiText("PRSF has rejected the guarantee claim. End of process.")}</span>
             </div>
           )}
         </CardContent>
@@ -507,71 +508,71 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* ── Detail Tabs ── */}
       <Tabs defaultValue="overview">
         <TabsList className="mb-4 h-9">
-          <TabsTrigger value="overview"   className="text-xs">Overview</TabsTrigger>
-          <TabsTrigger value="borrower"   className="text-xs">Borrower</TabsTrigger>
-          <TabsTrigger value="financials" className="text-xs">Financials</TabsTrigger>
-          <TabsTrigger value="claims"     className="text-xs">Claims {claims.length > 0 && `(${claims.length})`}</TabsTrigger>
-          <TabsTrigger value="timeline"   className="text-xs">Timeline</TabsTrigger>
+          <TabsTrigger value="overview"   className="text-xs">{uiText("Overview")}</TabsTrigger>
+          <TabsTrigger value="borrower"   className="text-xs">{uiText("Borrower")}</TabsTrigger>
+          <TabsTrigger value="financials" className="text-xs">{uiText("Financials")}</TabsTrigger>
+          <TabsTrigger value="claims"     className="text-xs">{uiText("Claims")} {claims.length > 0 && `(${claims.length})`}</TabsTrigger>
+          <TabsTrigger value="timeline"   className="text-xs">{uiText("Timeline")}</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
         <TabsContent value="overview">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Building2 className="h-3.5 w-3.5" />Bank & Branch</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Building2 className="h-3.5 w-3.5" />{uiText("Bank & Branch")}</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 <div className="font-medium">{loan.bank?.name_en ?? "—"}</div>
-                <div className="text-muted-foreground">{loan.branch?.name_en ?? "Head Office"}</div>
-                <div className="text-muted-foreground">Officer: {loan.loan_officer ?? "—"}</div>
+                <div className="text-muted-foreground">{loan.branch?.name_en ?? uiText("Head Office")}</div>
+                <div className="text-muted-foreground">{uiText("Officer:")} {loan.loan_officer ?? "—"}</div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><DollarSign className="h-3.5 w-3.5" />Loan Amount</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><DollarSign className="h-3.5 w-3.5" />{uiText("Loan Amount")}</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 <div className="text-lg font-bold text-foreground">{fmt(loan.approved_amount, loan.currency)}</div>
-                <div className="text-xs text-muted-foreground">Disbursed: {fmt(loan.disbursed_amount, loan.currency)}</div>
+                <div className="text-xs text-muted-foreground">{uiText("Disbursed:")} {fmt(loan.disbursed_amount, loan.currency)}</div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Shield className="h-3.5 w-3.5" />Guarantee</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Shield className="h-3.5 w-3.5" />{uiText("Guarantee")}</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 <div className="text-lg font-bold text-foreground">{fmt(loan.guarantee_amount, loan.currency)}</div>
-                <div className="text-xs text-muted-foreground">Coverage: {loan.guarantee_coverage ?? 50}%</div>
-                <div className="text-xs text-muted-foreground">Issued: {fmtDate(loan.guarantee_issued_date)}</div>
+                <div className="text-xs text-muted-foreground">{uiText("Coverage:")} {loan.guarantee_coverage ?? 50}%</div>
+                <div className="text-xs text-muted-foreground">{uiText("Issued:")} {fmtDate(loan.guarantee_issued_date)}</div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Calendar className="h-3.5 w-3.5" />Key Dates</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Calendar className="h-3.5 w-3.5" />{uiText("Key Dates")}</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Loan Approval:</span><span className="text-foreground">{fmtDate(loan.loan_approval_date)}</span></div>
-                <div className="flex justify-between"><span>Guarantee Issued:</span><span className="text-foreground">{fmtDate(loan.guarantee_issued_date)}</span></div>
+                <div className="flex justify-between"><span>{uiText("Loan Approval:")}</span><span className="text-foreground">{fmtDate(loan.loan_approval_date)}</span></div>
+                <div className="flex justify-between"><span>{uiText("Guarantee Issued:")}</span><span className="text-foreground">{fmtDate(loan.guarantee_issued_date)}</span></div>
                 {loan.extension_granted_date && (
-                  <div className="flex justify-between"><span>Extension Granted:</span><span className="text-foreground">{fmtDate(loan.extension_granted_date)}</span></div>
+                  <div className="flex justify-between"><span>{uiText("Extension Granted:")}</span><span className="text-foreground">{fmtDate(loan.extension_granted_date)}</span></div>
                 )}
-                <div className="flex justify-between"><span>Disbursement:</span><span className="text-foreground">{fmtDate(loan.disbursement_date)}</span></div>
+                <div className="flex justify-between"><span>{uiText("Disbursement:")}</span><span className="text-foreground">{fmtDate(loan.disbursement_date)}</span></div>
                 {loan.defaulted_date && (
-                  <div className="flex justify-between"><span className="text-red-600">Defaulted:</span><span className="text-red-600 font-medium">{fmtDate(loan.defaulted_date)}</span></div>
+                  <div className="flex justify-between"><span className="text-red-600">{uiText("Defaulted:")}</span><span className="text-red-600 font-medium">{fmtDate(loan.defaulted_date)}</span></div>
                 )}
-                <div className="flex justify-between"><span>Maturity:</span><span className="text-foreground">{fmtDate(loan.extension_new_maturity ?? loan.new_maturity_date ?? loan.maturity_date)}</span></div>
+                <div className="flex justify-between"><span>{uiText("Maturity:")}</span><span className="text-foreground">{fmtDate(loan.extension_new_maturity ?? loan.new_maturity_date ?? loan.maturity_date)}</span></div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><FileText className="h-3.5 w-3.5" />Loan Terms</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><FileText className="h-3.5 w-3.5" />{uiText("Loan Terms")}</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Product:</span><span className="text-foreground">{loan.product?.name_en ?? "—"}</span></div>
-                <div className="flex justify-between"><span>Term:</span><span className="text-foreground">{loan.duration_months ?? "—"} months</span></div>
-                <div className="flex justify-between"><span>Interest Rate:</span><span className="text-foreground">{loan.interest_rate ?? "—"}% p.a.</span></div>
-                <div className="flex justify-between"><span>Frequency:</span><span className="text-foreground capitalize">{loan.frequency ?? "—"}</span></div>
+                <div className="flex justify-between"><span>{uiText("Product:")}</span><span className="text-foreground">{loan.product?.name_en ?? "—"}</span></div>
+                <div className="flex justify-between"><span>{uiText("Term:")}</span><span className="text-foreground">{loan.duration_months ?? "—"} {uiText("months")}</span></div>
+                <div className="flex justify-between"><span>{uiText("Interest Rate:")}</span><span className="text-foreground">{loan.interest_rate ?? "—"}% p.a.</span></div>
+                <div className="flex justify-between"><span>{uiText("Frequency:")}</span><span className="text-foreground capitalize">{loan.frequency ?? "—"}</span></div>
               </CardContent>
             </Card>
             <Card className="shadow-sm">
-              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Clock className="h-3.5 w-3.5" />Rescheduling</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Clock className="h-3.5 w-3.5" />{uiText("Rescheduling")}</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-xs text-muted-foreground">
                 {loan.reschedule_date ? (<>
-                  <div className="flex justify-between"><span>Reschedule Date:</span><span className="text-foreground">{fmtDate(loan.reschedule_date)}</span></div>
-                  <div className="flex justify-between"><span>New Maturity:</span><span className="text-foreground">{fmtDate(loan.new_maturity_date)}</span></div>
-                  <div className="flex justify-between"><span>Reason:</span><span className="text-foreground">{loan.reschedule_reason ?? "—"}</span></div>
-                </>) : <div className="text-muted-foreground">No rescheduling recorded.</div>}
+                  <div className="flex justify-between"><span>{uiText("Reschedule Date:")}</span><span className="text-foreground">{fmtDate(loan.reschedule_date)}</span></div>
+                  <div className="flex justify-between"><span>{uiText("New Maturity:")}</span><span className="text-foreground">{fmtDate(loan.new_maturity_date)}</span></div>
+                  <div className="flex justify-between"><span>{uiText("Reason:")}</span><span className="text-foreground">{loan.reschedule_reason ?? "—"}</span></div>
+                </>) : <div className="text-muted-foreground">{uiText("No rescheduling recorded.")}</div>}
               </CardContent>
             </Card>
           </div>
@@ -580,7 +581,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         {/* Borrower */}
         <TabsContent value="borrower">
           <Card className="shadow-sm">
-            <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><User className="h-4 w-4" />Borrower Information</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><User className="h-4 w-4" />{uiText("Borrower Information")}</CardTitle></CardHeader>
             <CardContent>
               {loan.borrower ? (
                 <div className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -602,12 +603,12 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                     ["Legal Rep TIN", loan.borrower.legal_rep_tin],
                   ].map(([label, value]) => value ? (
                     <div key={label as string}>
-                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p className="text-xs text-muted-foreground">{uiText(label)}</p>
                       <p className="font-medium text-foreground capitalize">{value as string}</p>
                     </div>
                   ) : null)}
                 </div>
-              ) : <p className="text-sm text-muted-foreground">No borrower data.</p>}
+              ) : <p className="text-sm text-muted-foreground">{uiText("No borrower data.")}</p>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -616,7 +617,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <TabsContent value="financials">
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="shadow-sm">
-              <CardHeader><CardTitle className="text-sm">Loan Financials</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">{uiText("Loan Financials")}</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {[
                   ["Approved Amount", fmt(loan.approved_amount, loan.currency)],
@@ -634,15 +635,15 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               </CardContent>
             </Card>
             <Card className="shadow-sm">
-              <CardHeader><CardTitle className="text-sm">Notes & Purpose</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">{uiText("Notes & Purpose")}</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div>
-                  <p className="text-xs text-muted-foreground">Loan Purpose</p>
+                  <p className="text-xs text-muted-foreground">{uiText("Loan Purpose")}</p>
                   <p className="mt-1">{loan.purpose ?? "—"}</p>
                 </div>
                 <Separator />
                 <div>
-                  <p className="text-xs text-muted-foreground">Notes</p>
+                  <p className="text-xs text-muted-foreground">{uiText("Notes")}</p>
                   <p className="mt-1">{loan.notes ?? "—"}</p>
                 </div>
               </CardContent>
@@ -653,20 +654,20 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         {/* Claims */}
         <TabsContent value="claims">
           <Card className="shadow-sm">
-            <CardHeader><CardTitle className="text-sm">Claims History</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{uiText("Claims History")}</CardTitle></CardHeader>
             <CardContent>
               {claims.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No claims filed for this loan.</p>
+                <p className="text-sm text-muted-foreground">{uiText("No claims filed for this loan.")}</p>
               ) : (
                 <div className="space-y-3">
                   {claims.map(c => (
                     <div key={c.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
                       <div>
                         <p className="font-semibold">{c.claim_number ?? c.id.slice(0, 8)}</p>
-                        <p className="text-xs text-muted-foreground">Filed: {fmtDate(c.claim_date)} · Amount: {fmt(c.claim_amount)}</p>
-                        {c.review_notes && <p className="text-xs text-muted-foreground mt-1">Notes: {c.review_notes}</p>}
+                        <p className="text-xs text-muted-foreground">{uiText("Filed:")} {fmtDate(c.claim_date)} {uiText("· Amount:")} {fmt(c.claim_amount)}</p>
+                        {c.review_notes && <p className="text-xs text-muted-foreground mt-1">{uiText("Notes:")} {c.review_notes}</p>}
                       </div>
-                      <Badge className={`border text-xs ${STATUS_COLORS[c.status] ?? ""}`}>{c.status}</Badge>
+                      <Badge className={`border text-xs ${STATUS_COLORS[c.status] ?? ""}`}>{uiText(c.status)}</Badge>
                     </div>
                   ))}
                 </div>
@@ -678,7 +679,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         {/* Timeline */}
         <TabsContent value="timeline">
           <Card className="shadow-sm">
-            <CardHeader><CardTitle className="text-sm">Workflow Timeline</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{uiText("Workflow Timeline")}</CardTitle></CardHeader>
             <CardContent>
               <ol className="relative border-l border-border ml-3 space-y-6">
                 {[
@@ -700,7 +701,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                   <li key={i} className="ml-6">
                     <span className={`absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full border-2
                       ${e.done ? "border-primary bg-primary" : "border-border bg-background"}`} />
-                    <p className={`text-sm font-medium ${e.done ? "text-foreground" : "text-muted-foreground"}`}>{e.label}</p>
+                    <p className={`text-sm font-medium ${e.done ? "text-foreground" : "text-muted-foreground"}`}>{uiText(e.label)}</p>
                     {e.date && <p className="text-xs text-muted-foreground">{fmtDate(e.date)}</p>}
                     {e.extra && <p className="text-xs text-muted-foreground italic">{e.extra}</p>}
                   </li>
@@ -716,14 +717,14 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Submit to PRSF */}
       <Dialog open={dialog === "submit"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 2 · Submit to PRSF</DialogTitle><DialogDescription>Confirm bank internal approval and submit this loan application to PRSF for processing.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{uiText("Step 2 · Submit to PRSF")}</DialogTitle><DialogDescription>{uiText("Confirm bank internal approval and submit this loan application to PRSF for processing.")}</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Bank Approval Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Notes (optional)</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Bank Approval Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Notes (optional)")}</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit to PRSF</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
+            <Button onClick={handleSubmit} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Submit to PRSF")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -731,11 +732,11 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Mark Received */}
       <Dialog open={dialog === "mark_received"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 3 · Mark as Received by PRSF</DialogTitle><DialogDescription>Confirm PRSF has received this application and it is now under review.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Receipt Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+          <DialogHeader><DialogTitle>{uiText("Step 3 · Mark as Received by PRSF")}</DialogTitle><DialogDescription>{uiText("Confirm PRSF has received this application and it is now under review.")}</DialogDescription></DialogHeader>
+          <div><Label className="text-xs">{uiText("Receipt Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={handleMarkReceived} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirm Receipt</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
+            <Button onClick={handleMarkReceived} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Confirm Receipt")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -743,21 +744,19 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Approve — Step 4B */}
       <Dialog open={dialog === "approve"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Step 4B · Approve Application</DialogTitle><DialogDescription>PRSF credit decision: Approve. Bank will be notified (Step 5B) and guarantee will be issued (Step 6).</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{uiText("Step 4B · Approve Application")}</DialogTitle><DialogDescription>{uiText("PRSF credit decision: Approve. Bank will be notified (Step 5B) and guarantee will be issued (Step 6).")}</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">PRSF Approval Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Approved Amount ({loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Guarantee Coverage (%)</Label><Input type="number" min={1} max={100} value={coverage} onChange={e => setCoverage(e.target.value)} className="mt-1" /></div>
-            <div className="rounded-lg bg-secondary/50 p-3 text-sm">
-              Guaranteed Amount: <strong>{fmt((parseFloat(amount) || 0) * ((parseFloat(coverage) || 50) / 100), loan.currency)}</strong>
+            <div><Label className="text-xs">{uiText("PRSF Approval Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Approved Amount (")}{loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Guarantee Coverage (%)")}</Label><Input type="number" min={1} max={100} value={coverage} onChange={e => setCoverage(e.target.value)} className="mt-1" /></div>
+            <div className="rounded-lg bg-secondary/50 p-3 text-sm">{uiText("Guaranteed Amount: ")}<strong>{fmt((parseFloat(amount) || 0) * ((parseFloat(coverage) || 50) / 100), loan.currency)}</strong>
             </div>
-            <div><Label className="text-xs">Notes</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Notes")}</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleApprove} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Approve
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Approve")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -765,13 +764,12 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Reject — Step 4A */}
       <Dialog open={dialog === "reject"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 4A · Reject Application</DialogTitle><DialogDescription>PRSF credit decision: Reject. Bank will be notified (Step 5A). This is end of process.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Rejection Reason<RequiredMark show={rejectReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Provide detailed reason..." className="mt-1" /></div>
+          <DialogHeader><DialogTitle>{uiText("Step 4A · Reject Application")}</DialogTitle><DialogDescription>{uiText("PRSF credit decision: Reject. Bank will be notified (Step 5A). This is end of process.")}</DialogDescription></DialogHeader>
+          <div><Label className="text-xs">{uiText("Rejection Reason")}<RequiredMark show={rejectReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder={uiText("Provide detailed reason...")} className="mt-1" /></div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button variant="destructive" onClick={handleReject} disabled={saving || rejectReq.missingFields({ reason }).length > 0}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reject Application
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Reject Application")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -781,33 +779,29 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-teal-600" />
-              Step 6 · Issue Letter of Guarantee
-            </DialogTitle>
-            <DialogDescription>
-              Issue the formal PRSF guarantee. You can preview the letter before issuing.
-            </DialogDescription>
+              <Shield className="h-5 w-5 text-teal-600" />{uiText("Step 6 · Issue Letter of Guarantee")}</DialogTitle>
+            <DialogDescription>{uiText("Issue the formal PRSF guarantee. You can preview the letter before issuing.")}</DialogDescription>
           </DialogHeader>
           
           {/* Guarantee Summary */}
           <div className="rounded-lg border bg-teal-50/50 p-4 space-y-2">
-            <h4 className="font-medium text-sm text-teal-800">Guarantee Summary</h4>
+            <h4 className="font-medium text-sm text-teal-800">{uiText("Guarantee Summary")}</h4>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <span className="text-muted-foreground">Borrower:</span>
+              <span className="text-muted-foreground">{uiText("Borrower:")}</span>
               <span className="font-medium">{borrowerName}</span>
-              <span className="text-muted-foreground">Approved Amount:</span>
+              <span className="text-muted-foreground">{uiText("Approved Amount:")}</span>
               <span className="font-medium">{fmt(loan.approved_amount, loan.currency)}</span>
-              <span className="text-muted-foreground">Guarantee Coverage:</span>
+              <span className="text-muted-foreground">{uiText("Guarantee Coverage:")}</span>
               <span className="font-medium">{loan.guarantee_coverage || 50}%</span>
-              <span className="text-muted-foreground">Guarantee Amount:</span>
+              <span className="text-muted-foreground">{uiText("Guarantee Amount:")}</span>
               <span className="font-medium text-teal-700">{fmt(loan.guarantee_amount, loan.currency)}</span>
             </div>
           </div>
 
           {/* Form Fields */}
           <div className="space-y-3">
-            <div><Label className="text-xs">Guarantee Issue Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Notes (optional)</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" placeholder="Add any internal notes..." /></div>
+            <div><Label className="text-xs">{uiText("Guarantee Issue Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Notes (optional)")}</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" placeholder={uiText("Add any internal notes...")} /></div>
           </div>
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -816,14 +810,12 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               className="gap-2 border-teal-200 text-teal-700 hover:bg-teal-50"
               onClick={() => { setDialog(null); setShowGuaranteePreview(true) }}
             >
-              <Eye className="h-4 w-4" />Preview Letter
-            </Button>
+              <Eye className="h-4 w-4" />{uiText("Preview Letter")}</Button>
             <div className="flex gap-2 ml-auto">
-              <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
               <Button className="gap-2 bg-teal-600 hover:bg-teal-700 text-white" onClick={handleIssueGuarantee} disabled={issuingGuarantee}>
                 {issuingGuarantee && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <Shield className="h-4 w-4" />Issue Guarantee
-              </Button>
+                <Shield className="h-4 w-4" />{uiText("Issue Guarantee")}</Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -832,13 +824,12 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Cancel — Step 6A */}
       <Dialog open={dialog === "cancel"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 6A · Cancel Guarantee</DialogTitle><DialogDescription>Cancel the guarantee before disbursement. This is end of process.</DialogDescription></DialogHeader>
-          <div><Label className="text-xs">Cancellation Reason<RequiredMark show={cancelReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
+          <DialogHeader><DialogTitle>{uiText("Step 6A · Cancel Guarantee")}</DialogTitle><DialogDescription>{uiText("Cancel the guarantee before disbursement. This is end of process.")}</DialogDescription></DialogHeader>
+          <div><Label className="text-xs">{uiText("Cancellation Reason")}<RequiredMark show={cancelReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} className="mt-1" /></div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button variant="destructive" onClick={handleCancel} disabled={saving || cancelReq.missingFields({ reason }).length > 0}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Cancel Guarantee
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Cancel Guarantee")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -846,17 +837,16 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Record Disbursement — Step 7C */}
       <Dialog open={dialog === "disbursement"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 7C · Record Disbursement</DialogTitle><DialogDescription>Record the actual loan disbursement to the borrower.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{uiText("Step 7C · Record Disbursement")}</DialogTitle><DialogDescription>{uiText("Record the actual loan disbursement to the borrower.")}</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Disbursement Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Disbursed Amount ({loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Maturity Date</Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Disbursement Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Disbursed Amount (")}{loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Maturity Date")}</Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleDisbursement} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Record Disbursement
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Record Disbursement")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -864,16 +854,15 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Mark Settled — Step 7A */}
       <Dialog open={dialog === "settle"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 7A · Mark Loan as Settled</DialogTitle><DialogDescription>Borrower has repaid the loan in full. This is end of process.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{uiText("Step 7A · Mark Loan as Settled")}</DialogTitle><DialogDescription>{uiText("Borrower has repaid the loan in full. This is end of process.")}</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Settlement Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Final Settlement Amount ({loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Settlement Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Final Settlement Amount (")}{loan.currency})</Label><Input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSettle} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Mark Settled
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Mark Settled")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -881,17 +870,16 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* Reschedule — Step 7B */}
       <Dialog open={dialog === "reschedule"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 7B · Reschedule Loan</DialogTitle><DialogDescription>Extend the loan maturity. After rescheduling the loan can still be settled (Step 8A) or proceed to claim (Step 7C).</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{uiText("Step 7B · Reschedule Loan")}</DialogTitle><DialogDescription>{uiText("Extend the loan maturity. After rescheduling the loan can still be settled (Step 8A) or proceed to claim (Step 7C).")}</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Reschedule Date<RequiredMark show={rescheduleReq.isRequired("reschedule_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">New Maturity Date<RequiredMark show={rescheduleReq.isRequired("new_maturity_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Reason for Rescheduling<RequiredMark show={rescheduleReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Reschedule Date")}<RequiredMark show={rescheduleReq.isRequired("reschedule_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("New Maturity Date")}<RequiredMark show={rescheduleReq.isRequired("new_maturity_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Reason for Rescheduling")}<RequiredMark show={rescheduleReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button onClick={handleReschedule} disabled={saving || rescheduleReq.missingFields({ reschedule_date: dateField, new_maturity_date: dateField2, reason }).length > 0}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Reschedule
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Reschedule")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -899,20 +887,18 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       {/* File Claim — Step 7C */}
       <Dialog open={dialog === "claim"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Step 7C · File Guarantee Claim</DialogTitle><DialogDescription>Borrower has defaulted. File a claim with PRSF for review under the guarantee (Step 8B).</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{uiText("Step 7C · File Guarantee Claim")}</DialogTitle><DialogDescription>{uiText("Borrower has defaulted. File a claim with PRSF for review under the guarantee (Step 8B).")}</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Claim Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Principal Claimed ({loan.currency})</Label><Input type="number" value={claimPrincipal} onChange={e => setClaimPrincipal(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Interest Claimed ({loan.currency})</Label><Input type="number" value={claimInterest} onChange={e => setClaimInterest(e.target.value)} className="mt-1" /></div>
-            <div className="rounded-lg bg-secondary/50 p-3 text-sm">
-              Total Claim: <strong>{fmt((parseFloat(claimPrincipal) || 0) + (parseFloat(claimInterest) || 0), loan.currency)}</strong>
+            <div><Label className="text-xs">{uiText("Claim Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Principal Claimed (")}{loan.currency})</Label><Input type="number" value={claimPrincipal} onChange={e => setClaimPrincipal(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Interest Claimed (")}{loan.currency})</Label><Input type="number" value={claimInterest} onChange={e => setClaimInterest(e.target.value)} className="mt-1" /></div>
+            <div className="rounded-lg bg-secondary/50 p-3 text-sm">{uiText("Total Claim: ")}<strong>{fmt((parseFloat(claimPrincipal) || 0) + (parseFloat(claimInterest) || 0), loan.currency)}</strong>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button variant="destructive" onClick={handleFileClaim} disabled={saving || !claimPrincipal}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}File Claim
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("File Claim")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -921,18 +907,17 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "defaulted"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Step 7C · Mark Loan as Defaulted</DialogTitle>
-            <DialogDescription>Record that the borrower has defaulted. After this, you can file a guarantee claim with PRSF.</DialogDescription>
+            <DialogTitle>{uiText("Step 7C · Mark Loan as Defaulted")}</DialogTitle>
+            <DialogDescription>{uiText("Record that the borrower has defaulted. After this, you can file a guarantee claim with PRSF.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Default Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Notes (optional)</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder="Reason for default, missed payments, etc." className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Default Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Notes (optional)")}</Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder={uiText("Reason for default, missed payments, etc.")} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button variant="destructive" onClick={handleMarkDefaulted} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Mark as Defaulted
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Mark as Defaulted")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -941,18 +926,17 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "request_extension"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Request Guarantee Validity Extension</DialogTitle>
-            <DialogDescription>Request PRSF to extend the guarantee approval validity before disbursement.</DialogDescription>
+            <DialogTitle>{uiText("Request Guarantee Validity Extension")}</DialogTitle>
+            <DialogDescription>{uiText("Request PRSF to extend the guarantee approval validity before disbursement.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label className="text-xs">Request Date</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Reason for Extension<RequiredMark show={extendRequestReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Explain why additional time is needed before disbursement..." className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Request Date")}</Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Reason for Extension")}<RequiredMark show={extendRequestReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder={uiText("Explain why additional time is needed before disbursement...")} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button className="bg-yellow-600 hover:bg-yellow-700 text-white" onClick={handleRequestExtension} disabled={saving || extendRequestReq.missingFields({ reason }).length > 0}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Submit Extension Request
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Submit Extension Request")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -961,23 +945,22 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "grant_extension"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Grant Extension Request</DialogTitle>
-            <DialogDescription>Approve the bank&apos;s extension request. The loan returns to Approved status with the new validity date.</DialogDescription>
+            <DialogTitle>{uiText("Grant Extension Request")}</DialogTitle>
+            <DialogDescription>{uiText("Approve the bank's extension request. The loan returns to Approved status with the new validity date.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="rounded-lg bg-secondary/50 p-3 text-sm">
-              <p className="text-xs text-muted-foreground">Extension requested on {fmtDate(loan?.extension_requested_date)}</p>
+              <p className="text-xs text-muted-foreground">{uiText("Extension requested on")} {fmtDate(loan?.extension_requested_date)}</p>
               <p className="mt-1 font-medium">{loan?.extension_reason ?? "—"}</p>
             </div>
-            <div><Label className="text-xs">Grant Date<RequiredMark show={extendGrantReq.isRequired("grant_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">New Guarantee Validity / Maturity Date<RequiredMark show={extendGrantReq.isRequired("new_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
-            <div><Label className="text-xs">Notes<RequiredMark show={extendGrantReq.isRequired("notes")} /></Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Grant Date")}<RequiredMark show={extendGrantReq.isRequired("grant_date")} /></Label><Input type="date" value={dateField} onChange={e => setDateField(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("New Guarantee Validity / Maturity Date")}<RequiredMark show={extendGrantReq.isRequired("new_date")} /></Label><Input type="date" value={dateField2} onChange={e => setDateField2(e.target.value)} className="mt-1" /></div>
+            <div><Label className="text-xs">{uiText("Notes")}<RequiredMark show={extendGrantReq.isRequired("notes")} /></Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleGrantExtension} disabled={saving || extendGrantReq.missingFields({ grant_date: dateField, new_date: dateField2, notes }).length > 0}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Grant Extension
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Grant Extension")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -986,20 +969,17 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
       <Dialog open={dialog === "decline_extension"} onOpenChange={o => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Decline Extension Request</DialogTitle>
-            <DialogDescription>Decline the bank&apos;s extension request. The guarantee will be cancelled.</DialogDescription>
+            <DialogTitle>{uiText("Decline Extension Request")}</DialogTitle>
+            <DialogDescription>{uiText("Decline the bank's extension request. The guarantee will be cancelled.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
-              Declining this request will cancel the guarantee. The bank will need to reapply if they still wish to proceed.
-            </div>
-            <div><Label className="text-xs">Reason for Declining<RequiredMark show={declineReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">{uiText("Declining this request will cancel the guarantee. The bank will need to reapply if they still wish to proceed.")}</div>
+            <div><Label className="text-xs">{uiText("Reason for Declining")}<RequiredMark show={declineReq.isRequired("reason")} /></Label><Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>{uiText("Cancel")}</Button>
             <Button variant="destructive" onClick={handleDeclineExtension} disabled={saving || declineReq.missingFields({ reason }).length > 0}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Decline & Cancel
-            </Button>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Decline & Cancel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1009,13 +989,12 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <FileCheck className="h-5 w-5 text-teal-600" />
-              Letter of Guarantee {loan.guarantee_number ? '' : '(Preview)'}
+              <FileCheck className="h-5 w-5 text-teal-600" />{uiText("Letter of Guarantee ")}{loan.guarantee_number ? '' : uiText("(Preview)")}
             </DialogTitle>
             <DialogDescription>
               {loan.guarantee_number
-                ? `Guarantee Number: ${loan.guarantee_number} · Issued: ${fmtDate(loan.guarantee_issued_date)}`
-                : 'Preview the Letter of Guarantee before issuing. This is a draft preview.'}
+                ? uiText("Guarantee Number: {0} · Issued: {1}", loan.guarantee_number, fmtDate(loan.guarantee_issued_date))
+                : uiText("Preview the Letter of Guarantee before issuing. This is a draft preview.")}
             </DialogDescription>
           </DialogHeader>
           
@@ -1024,9 +1003,9 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-amber-800">
                 <AlertTriangle className="h-4 w-4" />
-                <span>This guarantee has not been issued yet. This is a preview only.</span>
+                <span>{uiText("This guarantee has not been issued yet. This is a preview only.")}</span>
               </div>
-              <p className="text-sm text-muted-foreground">Use the authorized signature panel on the application detail page.</p>
+              <p className="text-sm text-muted-foreground">{uiText("Use the authorized signature panel on the application detail page.")}</p>
             </div>
           )}
           
@@ -1042,9 +1021,7 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Download className="h-4 w-4" />
-              )}
-              Download PDF
-            </Button>
+              )}{uiText("Download PDF")}</Button>
             <Button 
               variant="outline" 
               onClick={handlePrintGuarantee} 
@@ -1052,12 +1029,9 @@ export default function LoanDetailPage({ params }: { params: Promise<{ id: strin
               disabled={!loan.guarantee_number}
               title={!loan.guarantee_number ? 'Issue the guarantee first to print' : ''}
             >
-              <Printer className="h-4 w-4" />
-              Print
-            </Button>
+              <Printer className="h-4 w-4" />{uiText("Print")}</Button>
             {loan.guarantee_number && (
-              <div className="ml-auto text-xs text-muted-foreground">
-                Valid until: {fmtDate(loan.maturity_date)}
+              <div className="ml-auto text-xs text-muted-foreground">{uiText("Valid until: ")}{fmtDate(loan.maturity_date)}
               </div>
             )}
           </div>

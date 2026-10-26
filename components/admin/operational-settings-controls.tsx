@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
@@ -21,6 +23,8 @@ export async function loadOperationalSettings() {
 }
 
 function Editor({ current, refresh }: { current: OperationalSettings; refresh: () => Promise<unknown> }) {
+  const uiText = useUiTranslation()
+
   const [baseline, setBaseline] = useState(current)
   const [draft, setDraft] = useState(effectiveOperationalValues(current))
   const [reason, setReason] = useState('')
@@ -45,26 +49,28 @@ function Editor({ current, refresh }: { current: OperationalSettings; refresh: (
     finally { setBusy(false) }
   }
 
-  return <Card><CardHeader><CardTitle>Operational rules</CardTitle><CardDescription>Only controls with an implemented runtime consumer are editable. Saves validate and commit every changed value with a reason and before/after audit records, or roll back entirely.</CardDescription></CardHeader>
+  return <Card><CardHeader><CardTitle>{uiText("Operational rules")}</CardTitle><CardDescription>{uiText("Only controls with an implemented runtime consumer are editable. Saves validate and commit every changed value with a reason and before/after audit records, or roll back entirely.")}</CardDescription></CardHeader>
     <CardContent className="flex flex-col gap-6">
-      {stale && <Alert><AlertDescription>A newer configuration is available. Your draft has not been overwritten.</AlertDescription></Alert>}
-      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      {message && <p role="status" className="text-sm">{message}</p>}
-      <fieldset disabled={busy} className="flex flex-col gap-6"><legend className="sr-only">Operational configuration</legend><FieldGroup>
-        {OPERATIONAL_SETTINGS.map((setting) => <Field key={setting.key}><FieldLabel htmlFor={setting.key}>{setting.label} · {setting.unit}</FieldLabel>{setting.kind === 'boolean' ? <Switch id={setting.key} checked={draft[setting.key] === 'true'} onCheckedChange={(value) => setDraft((current) => ({ ...current, [setting.key]: String(value) }))} /> : <Input id={setting.key} type="number" min={setting.min} max={setting.max} step={['assessment_sla_days', 'committee_voting_days', 'committee_operations_members'].includes(setting.key) ? '1' : 'any'} value={draft[setting.key]} onChange={(event) => setDraft((current) => ({ ...current, [setting.key]: event.target.value }))} />}<FieldDescription>{setting.description}</FieldDescription></Field>)}
-        <Field><FieldLabel htmlFor="configuration-reason">Change reason / approval reference</FieldLabel><Textarea id="configuration-reason" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
+      {stale && <Alert><AlertDescription>{uiText("A newer configuration is available. Your draft has not been overwritten.")}</AlertDescription></Alert>}
+      {error && <Alert variant="destructive"><AlertDescription>{uiText(error)}</AlertDescription></Alert>}
+      {message && <p role="status" className="text-sm">{uiText(message)}</p>}
+      <fieldset disabled={busy} className="flex flex-col gap-6"><legend className="sr-only">{uiText("Operational configuration")}</legend><FieldGroup>
+        {OPERATIONAL_SETTINGS.map((setting) => <Field key={setting.key}><FieldLabel htmlFor={setting.key}>{uiText(setting.label)} · {uiText(setting.unit)}</FieldLabel>{setting.kind === 'boolean' ? <Switch id={setting.key} checked={draft[setting.key] === 'true'} onCheckedChange={(value) => setDraft((current) => ({ ...current, [setting.key]: String(value) }))} /> : <Input id={setting.key} type="number" min={setting.min} max={setting.max} step={['assessment_sla_days', 'committee_voting_days', 'committee_operations_members'].includes(setting.key) ? '1' : 'any'} value={draft[setting.key]} onChange={(event) => setDraft((current) => ({ ...current, [setting.key]: event.target.value }))} />}<FieldDescription>{uiText(setting.description)}</FieldDescription></Field>)}
+        <Field><FieldLabel htmlFor="configuration-reason">{uiText("Change reason / approval reference")}</FieldLabel><Textarea id="configuration-reason" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
       </FieldGroup></fieldset>
     </CardContent>
-    <CardFooter className="flex flex-wrap gap-3"><Button disabled={busy || stale || !changed.length || reason.trim().length < 3} onClick={() => void save()}>Save audited configuration</Button><Button variant="outline" disabled={busy} onClick={() => { setBaseline(current); setDraft(effectiveOperationalValues(current)); setReason(''); setError(null) }}>Discard draft and load latest</Button><Button variant="outline" disabled={busy} onClick={() => void refresh().catch(() => setError('Could not refresh settings'))}>Refresh</Button></CardFooter>
+    <CardFooter className="flex flex-wrap gap-3"><Button disabled={busy || stale || !changed.length || reason.trim().length < 3} onClick={() => void save()}>{uiText("Save audited configuration")}</Button><Button variant="outline" disabled={busy} onClick={() => { setBaseline(current); setDraft(effectiveOperationalValues(current)); setReason(''); setError(null) }}>{uiText("Discard draft and load latest")}</Button><Button variant="outline" disabled={busy} onClick={() => void refresh().catch(() => setError('Could not refresh settings'))}>{uiText("Refresh")}</Button></CardFooter>
   </Card>
 }
 
 export function OperationalSettingsControls() {
+  const uiText = useUiTranslation()
+
   const { role, user } = usePermissions()
   const admin = ['super_admin', 'prsf_admin'].includes(role?.code ?? '')
   const { data, error, mutate } = useSWR(admin ? ['operational-settings', user.id] : null, loadOperationalSettings)
-  if (!admin) return <Alert><AlertDescription>Active administrator access is required.</AlertDescription></Alert>
-  if (error) return <Alert variant="destructive"><AlertDescription>Could not load the configuration. No editable fallback is shown.</AlertDescription></Alert>
+  if (!admin) return <Alert><AlertDescription>{uiText("Active administrator access is required.")}</AlertDescription></Alert>
+  if (error) return <Alert variant="destructive"><AlertDescription>{uiText("Could not load the configuration. No editable fallback is shown.")}</AlertDescription></Alert>
   if (!data) return <Skeleton className="h-40" />
   return <Editor current={data} refresh={() => mutate()} />
 }

@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useRef, useState } from "react"
 import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
@@ -78,6 +80,8 @@ const tierColors: Record<number, string> = {
 }
 
 export default function RolesPage() {
+  const uiText = useUiTranslation()
+
   const { locale } = useI18n()
   const { role: userRole, profile, refreshPermissions } = usePermissions()
   const administrator = !!profile?.is_active && !profile.bank_id && userRole?.is_active === true && (
@@ -157,10 +161,8 @@ export default function RolesPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col items-center gap-3 text-center">
               <Lock className="h-12 w-12 text-destructive" />
-              <h3 className="font-semibold text-destructive">Access Denied</h3>
-              <p className="text-sm text-muted-foreground">
-                Only administrators can access role management.
-              </p>
+              <h3 className="font-semibold text-destructive">{uiText("Access Denied")}</h3>
+              <p className="text-sm text-muted-foreground">{uiText("Only administrators can access role management.")}</p>
             </div>
           </CardContent>
         </Card>
@@ -267,24 +269,19 @@ export default function RolesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Role Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage system roles and their permissions
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{uiText("Role Management")}</h1>
+          <p className="text-sm text-muted-foreground">{uiText("Manage system roles and their permissions")}</p>
         </div>
         <Badge variant="outline" className="gap-1.5">
           <Shield className="h-3.5 w-3.5" />
-          {roles.length} Roles
-        </Badge>
+          {roles.length}{uiText(" Roles")}</Badge>
       </div>
 
       {/* Roles Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">System Roles</CardTitle>
-          <CardDescription>
-            Each role has a tier level that determines its authority. Lower tier = higher authority.
-          </CardDescription>
+          <CardTitle className="text-base">{uiText("System Roles")}</CardTitle>
+          <CardDescription>{uiText("Each role has a tier level that determines its authority. Lower tier = higher authority.")}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -295,12 +292,12 @@ export default function RolesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead className="text-center">Tier</TableHead>
-                  <TableHead className="text-center">Users</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{uiText("Role")}</TableHead>
+                  <TableHead>{uiText("Code")}</TableHead>
+                  <TableHead className="text-center">{uiText("Tier")}</TableHead>
+                  <TableHead className="text-center">{uiText("Users")}</TableHead>
+                  <TableHead>{uiText("Description")}</TableHead>
+                  <TableHead className="text-right">{uiText("Actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -316,8 +313,7 @@ export default function RolesPage() {
                       <Badge
                         variant="outline"
                         className={tierColors[role.tier] || 'bg-gray-100'}
-                      >
-                        Tier {role.tier}
+                      >{uiText("Tier ")}{role.tier}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
@@ -361,7 +357,7 @@ export default function RolesPage() {
       {/* Permission Legend */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Permission Types</CardTitle>
+          <CardTitle className="text-base">{uiText("Permission Types")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -375,8 +371,8 @@ export default function RolesPage() {
               <div key={perm.key} className="flex items-start gap-3 rounded-lg border p-3">
                 <perm.icon className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="font-medium text-sm">{perm.label}</p>
-                  <p className="text-xs text-muted-foreground">{perm.desc}</p>
+                  <p className="font-medium text-sm">{uiText(perm.label)}</p>
+                  <p className="text-xs text-muted-foreground">{uiText(perm.desc)}</p>
                 </div>
               </div>
             ))}
@@ -389,12 +385,9 @@ export default function RolesPage() {
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              Edit Permissions: {getLocalizedName(selectedRole, locale)}
+              <Shield className="h-5 w-5 text-primary" />{uiText("Edit Permissions: ")}{getLocalizedName(selectedRole, locale)}
             </DialogTitle>
-            <DialogDescription>
-              Configure registered resource grants. Disabled actions are protected business restrictions; grants never override database workflows, bank isolation or financial authority.
-            </DialogDescription>
+            <DialogDescription>{uiText("Configure registered resource grants. Disabled actions are protected business restrictions; grants never override database workflows, bank isolation or financial authority.")}</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-auto py-4">
@@ -409,14 +402,14 @@ export default function RolesPage() {
                   <AccordionItem key={resource.key} value={resource.key} className="border rounded-lg px-4">
                     <AccordionTrigger className="hover:no-underline py-3">
                       <div className="flex items-center gap-3">
-                        <span className="font-medium">{resource.label}</span>
+                        <span className="font-medium">{uiText(resource.label)}</span>
                         <Badge variant="secondary" className="text-xs">
                           {activeCount}/5
                         </Badge>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pb-4">
-                      <p className="text-sm text-muted-foreground mb-4">{resource.description}</p>
+                      <p className="text-sm text-muted-foreground mb-4">{uiText(resource.description)}</p>
                       <div className="grid grid-cols-5 gap-4">
                         {PERMISSIONS.map((permission) => (
                           <label
@@ -442,18 +435,14 @@ export default function RolesPage() {
           </div>
 
           <Field>
-            <FieldLabel htmlFor="permission-change-reason">Change reason</FieldLabel>
+            <FieldLabel htmlFor="permission-change-reason">{uiText("Change reason")}</FieldLabel>
             <Textarea id="permission-change-reason" value={changeReason} onChange={(event) => setChangeReason(event.target.value)} minLength={3} maxLength={2000} disabled={saving} aria-describedby="permission-change-help" />
-            <FieldDescription id="permission-change-help">Required. All grants and the before/after audit save together. Revision {selectedRole?.permission_revision ?? 0}; conflicting edits require reloading.</FieldDescription>
+            <FieldDescription id="permission-change-help">{uiText("Required. All grants and the before/after audit save together. Revision")} {selectedRole?.permission_revision ?? 0}{uiText("; conflicting edits require reloading.")}</FieldDescription>
           </Field>
           <DialogFooter className="border-t pt-4">
-            <Button variant="outline" disabled={saving} onClick={() => setEditDialog(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" disabled={saving} onClick={() => setEditDialog(false)}>{uiText("Cancel")}</Button>
             <Button onClick={handleSavePermissions} disabled={saving || changeReason.trim().length < 3} className="gap-2">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save Permissions
-            </Button>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{uiText("Save Permissions")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

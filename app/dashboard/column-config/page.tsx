@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState, useCallback, useMemo } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
@@ -81,6 +83,8 @@ const defaultColumns: Partial<ColumnConfiguration>[] = [
 ]
 
 export default function ColumnConfigPage() {
+  const uiText = useUiTranslation()
+
   const { locale } = useI18n()
   const { role } = usePermissions()
   const supabase = useMemo(() => createClient(), [])
@@ -238,9 +242,7 @@ export default function ColumnConfigPage() {
       <div className="p-6">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            You do not have permission to access this page. Column Settings is only available for administrators.
-          </AlertDescription>
+          <AlertDescription>{uiText("You do not have permission to access this page. Column Settings is only available for administrators.")}</AlertDescription>
         </Alert>
       </div>
     )
@@ -259,33 +261,25 @@ export default function ColumnConfigPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Column Configuration</h1>
-          <p className="text-muted-foreground mt-1">
-            Customize which fields are visible and required in loan applications
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">{uiText("Column Configuration")}</h1>
+          <p className="text-muted-foreground mt-1">{uiText("Customize which fields are visible and required in loan applications")}</p>
         </div>
         <div className="flex items-center gap-3">
           {hasChanges && (
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-              Unsaved Changes
-            </Badge>
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">{uiText("Unsaved Changes")}</Badge>
           )}
           <Button
             variant="outline"
             onClick={handleResetChanges}
             disabled={!hasChanges || saving}
           >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reset
-          </Button>
+            <RotateCcw className="h-4 w-4 mr-2" />{uiText("Reset")}</Button>
           <Button
             onClick={handleSaveAll}
             disabled={!hasChanges || saving}
             className="bg-primary"
           >
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Save Changes
-          </Button>
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}{uiText("Save Changes")}</Button>
         </div>
       </div>
 
@@ -307,21 +301,13 @@ export default function ColumnConfigPage() {
       <Tabs defaultValue="form-requirements" className="space-y-4">
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="form-requirements" className="flex items-center gap-2">
-            <Lock className="h-4 w-4" />
-            Form Requirements
-          </TabsTrigger>
+            <Lock className="h-4 w-4" />{uiText("Form Requirements")}</TabsTrigger>
           <TabsTrigger value="configure" className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4" />
-            Column Settings
-          </TabsTrigger>
+            <Settings2 className="h-4 w-4" />{uiText("Column Settings")}</TabsTrigger>
           <TabsTrigger value="preview-table" className="flex items-center gap-2">
-            <Eye className="h-4 w-4" />
-            Table Preview
-          </TabsTrigger>
+            <Eye className="h-4 w-4" />{uiText("Table Preview")}</TabsTrigger>
           <TabsTrigger value="preview-form" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Form Preview
-          </TabsTrigger>
+            <FileText className="h-4 w-4" />{uiText("Form Preview")}</TabsTrigger>
         </TabsList>
 
         {/* Form Requirements Tab - New dedicated interface for mandatory/optional fields */}
@@ -329,13 +315,8 @@ export default function ColumnConfigPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Lock className="h-5 w-5" />
-                Loan Application Form Field Requirements
-              </CardTitle>
-              <CardDescription>
-                Configure which fields are mandatory (*) or optional in the loan application form. 
-                Mandatory fields will show an asterisk and trigger validation errors when left empty.
-              </CardDescription>
+                <Lock className="h-5 w-5" />{uiText("Loan Application Form Field Requirements")}</CardTitle>
+              <CardDescription>{uiText("Configure which fields are mandatory (*) or optional in the loan application form. Mandatory fields will show an asterisk and trigger validation errors when left empty.")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {(Object.entries(fieldGroups) as Array<[ColumnFieldGroup, { label: string; icon: React.ElementType; color: string }]>).map(([groupKey, group]) => {
@@ -352,15 +333,13 @@ export default function ColumnConfigPage() {
                       <div className="flex items-center gap-3">
                         <GroupIcon className="h-5 w-5 text-muted-foreground" />
                         <div>
-                          <h3 className="font-semibold">{group.label}</h3>
+                          <h3 className="font-semibold">{uiText(group.label)}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {requiredCount} of {totalCount} fields are mandatory
-                          </p>
+                            {requiredCount} {uiText("of")} {totalCount}{uiText(" fields are mandatory")}</p>
                         </div>
                       </div>
                       <Badge variant={requiredCount > 0 ? "default" : "secondary"}>
-                        {requiredCount} required
-                      </Badge>
+                        {requiredCount}{uiText(" required")}</Badge>
                     </div>
                     <div className="p-4">
                       <div className="grid gap-3">
@@ -378,7 +357,7 @@ export default function ColumnConfigPage() {
                                   <span className="font-medium">{getDisplayName(col)}</span>
                                   {col.is_required && <span className="text-destructive font-bold">*</span>}
                                   {col.is_system_required && (
-                                    <Badge variant="outline" className="text-xs">System Required</Badge>
+                                    <Badge variant="outline" className="text-xs">{uiText("System Required")}</Badge>
                                   )}
                                 </div>
                                 <p className="text-xs text-muted-foreground">{col.column_key}</p>
@@ -386,7 +365,7 @@ export default function ColumnConfigPage() {
                             </div>
                             <div className="flex items-center gap-3">
                               <span className={`text-sm ${col.is_required ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                                {col.is_required ? 'Mandatory' : 'Optional'}
+                                {col.is_required ? uiText("Mandatory") : uiText("Optional")}
                               </span>
                               <TooltipProvider>
                                 <Tooltip>
@@ -399,10 +378,10 @@ export default function ColumnConfigPage() {
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     {col.is_system_required 
-                                      ? "This field is required by the system and cannot be changed"
+                                      ? uiText("This field is required by the system and cannot be changed")
                                       : col.is_required 
-                                        ? "Click to make this field optional"
-                                        : "Click to make this field mandatory"
+                                        ? uiText("Click to make this field optional")
+                                        : uiText("Click to make this field mandatory")
                                     }
                                   </TooltipContent>
                                 </Tooltip>
@@ -419,12 +398,11 @@ export default function ColumnConfigPage() {
               {/* Info Box */}
               <Alert className="bg-blue-50 border-blue-200">
                 <AlertDescription className="text-blue-800">
-                  <strong>How it works:</strong> When a field is set to mandatory, the loan application form will:
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>Display an asterisk (*) next to the field label</li>
-                    <li>Show a validation error if the field is left empty</li>
-                    <li>List missing mandatory fields in a &quot;fields missing&quot; notification per section</li>
-                    <li>Prevent form submission until all mandatory fields are filled</li>
+                  <strong>{uiText("How it works:")}</strong>{uiText(" When a field is set to mandatory, the loan application form will:")}<ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>{uiText("Display an asterisk (*) next to the field label")}</li>
+                    <li>{uiText("Show a validation error if the field is left empty")}</li>
+                    <li>{uiText("List missing mandatory fields in a \"fields missing\" notification per section")}</li>
+                    <li>{uiText("Prevent form submission until all mandatory fields are filled")}</li>
                   </ul>
                 </AlertDescription>
               </Alert>
@@ -438,7 +416,7 @@ export default function ColumnConfigPage() {
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search columns..."
+              placeholder={uiText("Search columns...")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
@@ -461,10 +439,9 @@ export default function ColumnConfigPage() {
                   <AccordionTrigger className="px-4 py-3 hover:no-underline">
                     <div className="flex items-center gap-3">
                       <GroupIcon className="h-5 w-5 text-muted-foreground" />
-                      <span className="font-medium">{group.label}</span>
+                      <span className="font-medium">{uiText(group.label)}</span>
                       <Badge variant="secondary" className="ml-2">
-                        {groupCols.length} fields
-                      </Badge>
+                        {groupCols.length}{uiText(" fields")}</Badge>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
@@ -472,11 +449,11 @@ export default function ColumnConfigPage() {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-muted/50">
-                            <TableHead className="w-[200px]">Field Name</TableHead>
-                            <TableHead className="w-[120px] text-center">Show in Table</TableHead>
-                            <TableHead className="w-[120px] text-center">Show in Form</TableHead>
-                            <TableHead className="w-[100px] text-center">Required</TableHead>
-                            <TableHead className="w-[100px] text-center">Input Type</TableHead>
+                            <TableHead className="w-[200px]">{uiText("Field Name")}</TableHead>
+                            <TableHead className="w-[120px] text-center">{uiText("Show in Table")}</TableHead>
+                            <TableHead className="w-[120px] text-center">{uiText("Show in Form")}</TableHead>
+                            <TableHead className="w-[100px] text-center">{uiText("Required")}</TableHead>
+                            <TableHead className="w-[100px] text-center">{uiText("Input Type")}</TableHead>
                             <TableHead className="w-[80px]"></TableHead>
                           </TableRow>
                         </TableHeader>
@@ -506,7 +483,7 @@ export default function ColumnConfigPage() {
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      {col.is_visible_in_table ? "Visible in table" : "Hidden in table"}
+                                      {col.is_visible_in_table ? uiText("Visible in table") : uiText("Hidden in table")}
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
@@ -525,7 +502,7 @@ export default function ColumnConfigPage() {
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      {col.is_visible_in_form ? "Visible in form" : "Hidden in form"}
+                                      {col.is_visible_in_form ? uiText("Visible in form") : uiText("Hidden in form")}
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
@@ -552,10 +529,10 @@ export default function ColumnConfigPage() {
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       {col.is_system_required 
-                                        ? "System required (cannot change)" 
+                                        ? uiText("System required (cannot change)") 
                                         : col.is_required 
-                                          ? "Required field" 
-                                          : "Optional field"}
+                                          ? uiText("Required field") 
+                                          : uiText("Optional field")}
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
@@ -590,10 +567,8 @@ export default function ColumnConfigPage() {
         <TabsContent value="preview-table">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Table View Preview</CardTitle>
-              <CardDescription>
-                Preview how the loan applications table will appear with current settings
-              </CardDescription>
+              <CardTitle className="text-lg">{uiText("Table View Preview")}</CardTitle>
+              <CardDescription>{uiText("Preview how the loan applications table will appear with current settings")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="rounded-lg border overflow-x-auto">
@@ -608,7 +583,7 @@ export default function ColumnConfigPage() {
                           </div>
                         </TableHead>
                       ))}
-                      <TableHead className="w-[80px]">Actions</TableHead>
+                      <TableHead className="w-[80px]">{uiText("Actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -617,9 +592,7 @@ export default function ColumnConfigPage() {
                       <TableRow key={row}>
                         {tableVisibleColumns.map((col) => (
                           <TableCell key={col.column_key} className="text-muted-foreground">
-                            <span className="inline-block bg-muted rounded px-2 py-1 text-xs">
-                              Sample data
-                            </span>
+                            <span className="inline-block bg-muted rounded px-2 py-1 text-xs">{uiText("Sample data")}</span>
                           </TableCell>
                         ))}
                         <TableCell>
@@ -632,9 +605,7 @@ export default function ColumnConfigPage() {
                   </TableBody>
                 </Table>
               </div>
-              <p className="text-sm text-muted-foreground mt-3">
-                Showing {tableVisibleColumns.length} of {columns.length} columns
-              </p>
+              <p className="text-sm text-muted-foreground mt-3">{uiText("Showing ")}{tableVisibleColumns.length} {uiText("of")} {columns.length}{uiText(" columns")}</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -643,10 +614,8 @@ export default function ColumnConfigPage() {
         <TabsContent value="preview-form">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Form View Preview</CardTitle>
-              <CardDescription>
-                Preview how the loan application form will appear with current settings
-              </CardDescription>
+              <CardTitle className="text-lg">{uiText("Form View Preview")}</CardTitle>
+              <CardDescription>{uiText("Preview how the loan application form will appear with current settings")}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-6 max-w-2xl">
@@ -659,7 +628,7 @@ export default function ColumnConfigPage() {
                     <div key={groupKey} className={`p-4 rounded-lg border ${group.color}`}>
                       <h3 className="font-medium text-sm mb-4 flex items-center gap-2">
                         <GroupIcon className="h-4 w-4" />
-                        {group.label}
+                        {uiText(group.label)}
                       </h3>
                       <div className="grid gap-4 sm:grid-cols-2">
                         {groupCols.map((col) => (
@@ -671,9 +640,7 @@ export default function ColumnConfigPage() {
                             {col.input_type === "textarea" ? (
                               <div className="h-20 rounded-md border bg-muted/30" />
                             ) : col.input_type === "select" ? (
-                              <div className="h-10 rounded-md border bg-muted/30 flex items-center px-3 text-sm text-muted-foreground">
-                                Select...
-                              </div>
+                              <div className="h-10 rounded-md border bg-muted/30 flex items-center px-3 text-sm text-muted-foreground">{uiText("Select...")}</div>
                             ) : (
                               <div className="h-10 rounded-md border bg-muted/30" />
                             )}
@@ -684,9 +651,7 @@ export default function ColumnConfigPage() {
                   )
                 })}
               </div>
-              <p className="text-sm text-muted-foreground mt-4">
-                Showing {formVisibleColumns.length} form fields ({formVisibleColumns.filter(c => c.is_required).length} required)
-              </p>
+              <p className="text-sm text-muted-foreground mt-4">{uiText("Showing ")}{formVisibleColumns.length} {uiText("form fields (")}{formVisibleColumns.filter(c => c.is_required).length}{uiText(" required)")}</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -696,36 +661,35 @@ export default function ColumnConfigPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Edit Column Settings</DialogTitle>
-            <DialogDescription>
-              Configure advanced settings for {selectedColumn?.display_name_en}
+            <DialogTitle>{uiText("Edit Column Settings")}</DialogTitle>
+            <DialogDescription>{uiText("Configure advanced settings for ")}{selectedColumn?.display_name_en}
             </DialogDescription>
           </DialogHeader>
           {selectedColumn && (
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label>Display Name (English)</Label>
+                <Label>{uiText("Display Name (English)")}</Label>
                 <Input
                   value={selectedColumn.display_name_en || ""}
                   onChange={(e) => setSelectedColumn({ ...selectedColumn, display_name_en: e.target.value })}
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Display Name (Russian)</Label>
+                <Label>{uiText("Display Name (Russian)")}</Label>
                 <Input
                   value={selectedColumn.display_name_ru || ""}
                   onChange={(e) => setSelectedColumn({ ...selectedColumn, display_name_ru: e.target.value })}
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Display Name (Tajik)</Label>
+                <Label>{uiText("Display Name (Tajik)")}</Label>
                 <Input
                   value={selectedColumn.display_name_tj || ""}
                   onChange={(e) => setSelectedColumn({ ...selectedColumn, display_name_tj: e.target.value })}
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Input Type</Label>
+                <Label>{uiText("Input Type")}</Label>
                 <Select
                   value={selectedColumn.input_type}
                   onValueChange={(value: ColumnInputType) => setSelectedColumn({ ...selectedColumn, input_type: value })}
@@ -736,7 +700,7 @@ export default function ColumnConfigPage() {
                   <SelectContent>
                     {inputTypes.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
-                        {type.label}
+                        {uiText(type.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -744,7 +708,7 @@ export default function ColumnConfigPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label>Display Order</Label>
+                  <Label>{uiText("Display Order")}</Label>
                   <Input
                     type="number"
                     value={selectedColumn.display_order || 0}
@@ -752,7 +716,7 @@ export default function ColumnConfigPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Table Column Order</Label>
+                  <Label>{uiText("Table Column Order")}</Label>
                   <Input
                     type="number"
                     value={selectedColumn.table_column_order || 0}
@@ -761,21 +725,21 @@ export default function ColumnConfigPage() {
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <Label>Visible in Table</Label>
+                <Label>{uiText("Visible in Table")}</Label>
                 <Switch
                   checked={selectedColumn.is_visible_in_table || false}
                   onCheckedChange={(checked) => setSelectedColumn({ ...selectedColumn, is_visible_in_table: checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label>Visible in Form</Label>
+                <Label>{uiText("Visible in Form")}</Label>
                 <Switch
                   checked={selectedColumn.is_visible_in_form || false}
                   onCheckedChange={(checked) => setSelectedColumn({ ...selectedColumn, is_visible_in_form: checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label>Required Field</Label>
+                <Label>{uiText("Required Field")}</Label>
                 <Switch
                   checked={selectedColumn.is_required || false}
                   onCheckedChange={(checked) => setSelectedColumn({ ...selectedColumn, is_required: checked })}
@@ -783,19 +747,13 @@ export default function ColumnConfigPage() {
                 />
               </div>
               {selectedColumn.is_system_required && (
-                <p className="text-xs text-muted-foreground">
-                  This is a system-required field and cannot be made optional.
-                </p>
+                <p className="text-xs text-muted-foreground">{uiText("This is a system-required field and cannot be made optional.")}</p>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveColumnEdit}>
-              Save Changes
-            </Button>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>{uiText("Cancel")}</Button>
+            <Button onClick={handleSaveColumnEdit}>{uiText("Save Changes")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

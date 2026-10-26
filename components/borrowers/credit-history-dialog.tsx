@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePermissions } from '@/lib/contexts/permission-context'
@@ -18,6 +20,8 @@ export function CreditHistoryDialog({ borrower, onClose }: {
   borrower: { id: string; name: string }
   onClose: () => void
 }) {
+  const uiText = useUiTranslation()
+
   const { profile, role, can } = usePermissions()
   const { t, locale } = useI18n()
   const [page, setPage] = useState(0)
@@ -68,7 +72,7 @@ export function CreditHistoryDialog({ borrower, onClose }: {
                   <TableRow>
                     <TableHead>{t.guaranteeReports.loanNumber}</TableHead>
                     <TableHead>{t.guaranteeReports.bank}</TableHead>
-                    <TableHead>{t.common.status}</TableHead>
+                    <TableHead>{uiText(t.common.status)}</TableHead>
                     <TableHead>{t.guaranteeReports.approvedAmount}</TableHead>
                     <TableHead>{t.common.date}</TableHead>
                   </TableRow>

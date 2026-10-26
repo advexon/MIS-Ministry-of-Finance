@@ -1,6 +1,9 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import React from "react"
+import { useI18n } from '@/lib/i18n/context'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,12 +67,14 @@ const translations = {
 }
 
 export default function LoginPage() {
+  const uiText = useUiTranslation()
+
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [language, setLanguage] = useState<'en' | 'ru' | 'tj'>('en')
+  const { locale: language, setLocale: setLanguage } = useI18n()
 
   const t = translations[language]
 
@@ -104,20 +109,15 @@ export default function LoginPage() {
       {/* Left panel - branding */}
       <div className="hidden flex-col justify-between bg-primary p-10 lg:flex lg:w-[480px]">
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Emblem of Tajikistan" width={40} height={40} className="h-10 w-10 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          <Image src="/logo.png" alt={uiText("Emblem of Tajikistan")} width={40} height={40} className="h-10 w-10 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
           <div>
-            <span className="text-base font-bold text-primary-foreground">Credit Guarantee Fund</span>
-            <p className="text-[11px] text-primary-foreground/60">Management Information System</p>
+            <span className="text-base font-bold text-primary-foreground">{uiText("Credit Guarantee Fund")}</span>
+            <p className="text-[11px] text-primary-foreground/60">{uiText("Management Information System")}</p>
           </div>
         </div>
         <div>
-          <h2 className="text-balance text-3xl font-bold leading-tight text-primary-foreground">
-            Credit Guarantee Fund
-          </h2>
-          <p className="mt-4 text-pretty text-sm leading-relaxed text-primary-foreground/60">
-            A comprehensive system for tracking and managing loan guarantees 
-            to MSME borrowers across partner financial institutions.
-          </p>
+          <h2 className="text-balance text-3xl font-bold leading-tight text-primary-foreground">{uiText("Credit Guarantee Fund")}</h2>
+          <p className="mt-4 text-pretty text-sm leading-relaxed text-primary-foreground/60">{uiText("A comprehensive system for tracking and managing loan guarantees to MSME borrowers across partner financial institutions.")}</p>
         </div>
         <p className="text-xs text-primary-foreground/40">
           {t.ministry}
@@ -129,8 +129,8 @@ export default function LoginPage() {
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3 lg:hidden">
-            <Image src="/logo.png" alt="Emblem of Tajikistan" width={32} height={32} className="h-8 w-8 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
-            <span className="text-sm font-bold text-foreground">Credit Guarantee Fund</span>
+            <Image src="/logo.png" alt={uiText("Emblem of Tajikistan")} width={32} height={32} className="h-8 w-8 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+            <span className="text-sm font-bold text-foreground">{uiText("Credit Guarantee Fund")}</span>
           </div>
           <div className="ml-auto">
             <Select value={language} onValueChange={(v) => setLanguage(v as 'en' | 'ru' | 'tj')}>
@@ -141,7 +141,7 @@ export default function LoginPage() {
               <SelectContent>
                 {languages.map((lang) => (
                   <SelectItem key={lang.code} value={lang.code}>
-                    <span className="font-medium">{lang.flag}</span> {lang.label}
+                    <span className="font-medium">{lang.flag}</span> {uiText(lang.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -153,8 +153,8 @@ export default function LoginPage() {
         <div className="flex flex-1 items-center justify-center px-6 pb-10">
           <div className="w-full max-w-sm">
             <div className="mb-8">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">{t.title}</h1>
-              <p className="mt-1.5 text-sm text-muted-foreground">{t.description}</p>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">{uiText(t.title)}</h1>
+              <p className="mt-1.5 text-sm text-muted-foreground">{uiText(t.description)}</p>
             </div>
 
             <form onSubmit={handleLogin} className="flex flex-col gap-5">
@@ -163,7 +163,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="name@bank.tj"
+                  placeholder={uiText("name@bank.tj")}
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -191,7 +191,7 @@ export default function LoginPage() {
               </div>
               {error && (
                 <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  {error}
+                  {uiText(error)}
                 </div>
               )}
               <Button type="submit" className="h-11 w-full text-sm font-semibold" disabled={isLoading}>
@@ -206,9 +206,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <p className="mt-8 text-center text-sm text-muted-foreground">
-              Contact your system administrator if you need an account.
-            </p>
+            <p className="mt-8 text-center text-sm text-muted-foreground">{uiText("Contact your system administrator if you need an account.")}</p>
           </div>
         </div>
       </div>

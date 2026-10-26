@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
@@ -57,6 +59,8 @@ function RowSkeleton() {
 }
 
 export default function AuditTrailPage() {
+  const uiText = useUiTranslation()
+
   const supabase = createClient()
 
   const [page, setPage] = useState(0)
@@ -127,17 +131,15 @@ export default function AuditTrailPage() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary/10 p-2"><Shield className="h-5 w-5 text-primary" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Audit Trail</h1>
-            <p className="text-sm text-muted-foreground">Complete log of all system activity — {total.toLocaleString()} records</p>
+            <h1 className="text-2xl font-bold text-foreground">{uiText("Audit Trail")}</h1>
+            <p className="text-sm text-muted-foreground">{uiText("Complete log of all system activity —")} {total.toLocaleString()} {uiText("records")}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={fetchEntries}>
-            <RefreshCw className="h-3.5 w-3.5" />Refresh
-          </Button>
+            <RefreshCw className="h-3.5 w-3.5" />{uiText("Refresh")}</Button>
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={exportCSV}>
-            <Download className="h-3.5 w-3.5" />Export CSV
-          </Button>
+            <Download className="h-3.5 w-3.5" />{uiText("Export CSV")}</Button>
         </div>
       </div>
 
@@ -147,38 +149,37 @@ export default function AuditTrailPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="relative lg:col-span-2">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-9 text-sm" placeholder="Search tables, actions..." value={filters.search}
+              <Input className="pl-9 text-sm" placeholder={uiText("Search tables, actions...")} value={filters.search}
                 onChange={e => { setFilters(p => ({ ...p, search: e.target.value })); setPage(0) }} />
             </div>
             <Select value={filters.table} onValueChange={v => { setFilters(p => ({ ...p, table: v })); setPage(0) }}>
-              <SelectTrigger className="text-sm"><SelectValue placeholder="All tables" /></SelectTrigger>
+              <SelectTrigger className="text-sm"><SelectValue placeholder={uiText("All tables")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Tables</SelectItem>
+                <SelectItem value="all">{uiText("All Tables")}</SelectItem>
                 {Object.entries(TABLE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filters.action} onValueChange={v => { setFilters(p => ({ ...p, action: v })); setPage(0) }}>
-              <SelectTrigger className="text-sm"><SelectValue placeholder="All actions" /></SelectTrigger>
+              <SelectTrigger className="text-sm"><SelectValue placeholder={uiText("All actions")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Actions</SelectItem>
-                <SelectItem value="create">Create</SelectItem>
-                <SelectItem value="insert">Insert</SelectItem>
-                <SelectItem value="update">Update</SelectItem>
-                <SelectItem value="delete">Delete</SelectItem>
+                <SelectItem value="all">{uiText("All Actions")}</SelectItem>
+                <SelectItem value="create">{uiText("Create")}</SelectItem>
+                <SelectItem value="insert">{uiText("Insert")}</SelectItem>
+                <SelectItem value="update">{uiText("Update")}</SelectItem>
+                <SelectItem value="delete">{uiText("Delete")}</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" className="gap-2 bg-transparent h-9" onClick={resetFilters}>
-              <Filter className="h-3.5 w-3.5" />Reset
-            </Button>
+              <Filter className="h-3.5 w-3.5" />{uiText("Reset")}</Button>
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <Label className="text-xs">From</Label>
+              <Label className="text-xs">{uiText("From")}</Label>
               <Input type="date" className="h-8 text-sm" value={filters.dateFrom}
                 onChange={e => { setFilters(p => ({ ...p, dateFrom: e.target.value })); setPage(0) }} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">To</Label>
+              <Label className="text-xs">{uiText("To")}</Label>
               <Input type="date" className="h-8 text-sm" value={filters.dateTo}
                 onChange={e => { setFilters(p => ({ ...p, dateTo: e.target.value })); setPage(0) }} />
             </div>
@@ -193,12 +194,12 @@ export default function AuditTrailPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50 hover:bg-muted/50">
-                  <TableHead className="font-semibold text-xs uppercase tracking-wide">Timestamp</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wide">User</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wide">Table</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wide">Action</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wide">Record ID</TableHead>
-                  <TableHead className="font-semibold text-xs uppercase tracking-wide">IP</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide">{uiText("Timestamp")}</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide">{uiText("User")}</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide">{uiText("Table")}</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide">{uiText("Action")}</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide">{uiText("Record ID")}</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wide">{uiText("IP")}</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -210,7 +211,7 @@ export default function AuditTrailPage() {
                     <TableCell colSpan={7} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Shield className="h-8 w-8 opacity-30" />
-                        <p className="text-sm">No audit records found for the selected filters</p>
+                        <p className="text-sm">{uiText("No audit records found for the selected filters")}</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -222,7 +223,7 @@ export default function AuditTrailPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{entry.profiles ? (`${entry.profiles.first_name || ''} ${entry.profiles.last_name || ''}`.trim() || entry.profiles.email) : 'System'}</span>
+                          <span className="font-medium">{entry.profiles ? (`${entry.profiles.first_name || ''} ${entry.profiles.last_name || ''}`.trim() || entry.profiles.email) : uiText("System")}</span>
                           <span className="text-xs text-muted-foreground">{entry.profiles?.email || ''}</span>
                         </div>
                       </TableCell>
@@ -252,12 +253,10 @@ export default function AuditTrailPage() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between border-t px-4 py-3">
-              <p className="text-xs text-muted-foreground">
-                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()} records
-              </p>
+              <p className="text-xs text-muted-foreground">{uiText("Showing ")}{page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} {uiText("of")} {total.toLocaleString()}{uiText(" records")}</p>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-7 text-xs">Previous</Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-7 text-xs">Next</Button>
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-7 text-xs">{uiText("Previous")}</Button>
+                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-7 text-xs">{uiText("Next")}</Button>
               </div>
             </div>
           )}
@@ -274,31 +273,31 @@ export default function AuditTrailPage() {
               </Badge>
               {TABLE_LABELS[selected?.table_name || ''] || selected?.table_name}
             </DialogTitle>
-            <DialogDescription>View details of this audit log entry including old and new data states.</DialogDescription>
+            <DialogDescription>{uiText("View details of this audit log entry including old and new data states.")}</DialogDescription>
           </DialogHeader>
           {selected && (
             <div className="space-y-4 pt-2 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Timestamp</p>
+                  <p className="text-xs text-muted-foreground">{uiText("Timestamp")}</p>
                   <p className="font-medium">{new Date(selected.changed_at).toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Performed By</p>
-                  <p className="font-medium">{selected.profiles ? (`${selected.profiles.first_name || ''} ${selected.profiles.last_name || ''}`.trim() || selected.profiles.email) : 'System'}</p>
+                  <p className="text-xs text-muted-foreground">{uiText("Performed By")}</p>
+                  <p className="font-medium">{selected.profiles ? (`${selected.profiles.first_name || ''} ${selected.profiles.last_name || ''}`.trim() || selected.profiles.email) : uiText("System")}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Record ID</p>
+                  <p className="text-xs text-muted-foreground">{uiText("Record ID")}</p>
                   <p className="font-mono text-xs">{selected.record_id || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">IP Address</p>
+                  <p className="text-xs text-muted-foreground">{uiText("IP Address")}</p>
                   <p className="font-medium">{selected.ip_address || '—'}</p>
                 </div>
               </div>
               {selected.old_data && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Previous State</p>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Previous State")}</p>
                   <pre className="max-h-48 overflow-auto rounded-lg bg-red-50 p-3 text-xs text-red-900">
                     {JSON.stringify(selected.old_data, null, 2)}
                   </pre>
@@ -306,7 +305,7 @@ export default function AuditTrailPage() {
               )}
               {selected.new_data && (
                 <div>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">New State</p>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{uiText("New State")}</p>
                   <pre className="max-h-48 overflow-auto rounded-lg bg-emerald-50 p-3 text-xs text-emerald-900">
                     {JSON.stringify(selected.new_data, null, 2)}
                   </pre>

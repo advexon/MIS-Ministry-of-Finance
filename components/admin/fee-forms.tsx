@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useRef, useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
@@ -48,6 +50,8 @@ export function FeeCreateForm({
   onRecorded: (receipt: FeeReceipt) => Promise<void>
   onBusyChange: (busy: boolean) => void
 }) {
+  const uiText = useUiTranslation()
+
   const {
     data: version,
     error: policyError,
@@ -195,34 +199,29 @@ export function FeeCreateForm({
     <div className="flex flex-col gap-4">
       <p className="text-sm leading-relaxed">
         {version
-          ? `Policy revision ${version.revision}: ${version.policy.fees.base.replaceAll('_', ' ')}; upfront ${version.policy.fees.upfront_rate_percent}%; recurring ${version.policy.fees.recurring_rate_percent}% ${version.policy.fees.recurring_rate_basis}; ${version.policy.fees.proration.replaceAll('_', ' ')}; half-up to ${version.policy.fees.decimal_places} decimal places.`
-          : 'Loading approved policy…'}{' '}
-        The database calculates the final fee from signed terms. No manual base,
-        rate or FX override is accepted.
-      </p>
+          ? uiText("Policy revision {0}: {1}; upfront {2}%; recurring {3}% {4}; {5}; half-up to {6} decimal places.", version.revision, uiText(version.policy.fees.base.replaceAll('_', ' ')), version.policy.fees.upfront_rate_percent, version.policy.fees.recurring_rate_percent, uiText(version.policy.fees.recurring_rate_basis), uiText(version.policy.fees.proration.replaceAll('_', ' ')), version.policy.fees.decimal_places)
+          : uiText("Loading approved policy…")}{' '}{uiText("The database calculates the final fee from signed terms. No manual base, rate or FX override is accepted.")}</p>
       {(error || policyError || version === null || balanceError) && (
         <Alert variant="destructive">
           <AlertDescription>
-            {error ??
+            {uiText(error ??
               (version === null
                 ? 'Save a financial policy in Settings before creating fees.'
-                : 'Could not load policy or balance evidence.')}
+                : 'Could not load policy or balance evidence.'))}
             <Button
               variant="outline"
               size="sm"
               disabled={busy}
               onClick={() => void mutate()}
-            >
-              Reload policy
-            </Button>
+            >{uiText("Reload policy")}</Button>
           </AlertDescription>
         </Alert>
       )}
       <fieldset disabled={busy || !version} className="flex flex-col gap-4">
-        <legend className="sr-only">Fee assessment inputs</legend>
+        <legend className="sr-only">{uiText("Fee assessment inputs")}</legend>
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="fee-loan">Loan application</FieldLabel>
+            <FieldLabel htmlFor="fee-loan">{uiText("Loan application")}</FieldLabel>
             <Select
               value={form.loanId}
               onValueChange={(loanId) => {
@@ -231,14 +230,14 @@ export function FeeCreateForm({
               }}
             >
               <SelectTrigger id="fee-loan">
-                <SelectValue placeholder="Select loan with an issued guarantee" />
+                <SelectValue placeholder={uiText("Select loan with an issued guarantee")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   {loans.map((loan) => (
                     <SelectItem key={loan.id} value={loan.id}>
                       {loan.loan_number ?? loan.id} ·{' '}
-                      {loan.currency ?? 'currency unavailable'}
+                      {loan.currency ?? uiText("currency unavailable")}
                     </SelectItem>
                   ))}
                 </SelectGroup>
@@ -246,7 +245,7 @@ export function FeeCreateForm({
             </Select>
           </Field>
           <Field>
-            <FieldLabel htmlFor="fee-type">Fee type</FieldLabel>
+            <FieldLabel htmlFor="fee-type">{uiText("Fee type")}</FieldLabel>
             <Select
               value={form.type}
               onValueChange={(type) => {
@@ -259,22 +258,15 @@ export function FeeCreateForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="upfront" disabled={outstanding}>
-                    Upfront · once per loan
-                  </SelectItem>
-                  <SelectItem value="quarterly">
-                    Recurring · quarterly billing
-                  </SelectItem>
+                  <SelectItem value="upfront" disabled={outstanding}>{uiText("Upfront · once per loan")}</SelectItem>
+                  <SelectItem value="quarterly">{uiText("Recurring · quarterly billing")}</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <FieldDescription>
-              Annual recurring rates are billed quarterly using the configured
-              day-count method.
-            </FieldDescription>
+            <FieldDescription>{uiText("Annual recurring rates are billed quarterly using the configured day-count method.")}</FieldDescription>
           </Field>
           <Field>
-            <FieldLabel htmlFor="fee-date">Assessment date</FieldLabel>
+            <FieldLabel htmlFor="fee-date">{uiText("Assessment date")}</FieldLabel>
             <Input
               id="fee-date"
               type="date"
@@ -288,9 +280,7 @@ export function FeeCreateForm({
           {form.type === 'quarterly' && (
             <>
               <Field>
-                <FieldLabel htmlFor="fee-start">
-                  Period start · inclusive
-                </FieldLabel>
+                <FieldLabel htmlFor="fee-start">{uiText("Period start · inclusive")}</FieldLabel>
                 <Input
                   id="fee-start"
                   type="date"
@@ -304,9 +294,7 @@ export function FeeCreateForm({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="fee-end">
-                  Period end · exclusive
-                </FieldLabel>
+                <FieldLabel htmlFor="fee-end">{uiText("Period end · exclusive")}</FieldLabel>
                 <Input
                   id="fee-end"
                   type="date"
@@ -319,19 +307,13 @@ export function FeeCreateForm({
                     }))
                   }
                 />
-                <FieldDescription>
-                  Use a completed period within one calendar quarter.
-                  No-proration policy requires a full quarter. For
-                  July–September, use July 1 to October 1.
-                </FieldDescription>
+                <FieldDescription>{uiText("Use a completed period within one calendar quarter. No-proration policy requires a full quarter. For July–September, use July 1 to October 1.")}</FieldDescription>
               </Field>
             </>
           )}
           {outstanding && (
             <Field>
-              <FieldLabel htmlFor="fee-balance">
-                Approved month-end principal evidence
-              </FieldLabel>
+              <FieldLabel htmlFor="fee-balance">{uiText("Approved month-end principal evidence")}</FieldLabel>
               <Select
                 value={form.balanceId}
                 onValueChange={(balanceId) =>
@@ -339,30 +321,24 @@ export function FeeCreateForm({
                 }
               >
                 <SelectTrigger id="fee-balance">
-                  <SelectValue placeholder="Select approved report row" />
+                  <SelectValue placeholder={uiText("Select approved report row")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
                     {balances.map((row) => (
                       <SelectItem key={row.id} value={row.id}>
-                        {row.month} · {row.outstanding_principal ?? 'missing'}{' '}
+                        {row.month} · {row.outstanding_principal ?? uiText("missing")}{' '}
                         {row.currency}
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <FieldDescription>
-                Only approved monthly reports ending immediately before the
-                exclusive period end are offered. The database applies the
-                original signed guarantee ratio.
-              </FieldDescription>
+              <FieldDescription>{uiText("Only approved monthly reports ending immediately before the exclusive period end are offered. The database applies the original signed guarantee ratio.")}</FieldDescription>
             </Field>
           )}
           <Field>
-            <FieldLabel htmlFor="fee-notes">
-              Assessment reason / authority evidence
-            </FieldLabel>
+            <FieldLabel htmlFor="fee-notes">{uiText("Assessment reason / authority evidence")}</FieldLabel>
             <Textarea
               id="fee-notes"
               minLength={3}
@@ -380,10 +356,7 @@ export function FeeCreateForm({
             checked={confirmed}
             onCheckedChange={(value) => setConfirmed(value === true)}
           />
-          <Label htmlFor="fee-confirm">
-            I authorize the policy-calculated assessment. Its calculation,
-            signed terms, currency and policy revision are immutable.
-          </Label>
+          <Label htmlFor="fee-confirm">{uiText("I authorize the policy-calculated assessment. Its calculation, signed terms, currency and policy revision are immutable.")}</Label>
         </div>
         <Button
           disabled={
@@ -395,7 +368,7 @@ export function FeeCreateForm({
           }
           onClick={() => void submit()}
         >
-          {busy ? 'Creating fee…' : 'Create policy-backed fee'}
+          {busy ? uiText("Creating fee…") : uiText("Create policy-backed fee")}
         </Button>
       </fieldset>
     </div>
@@ -413,6 +386,8 @@ export function FeeActionForm({
   onRecorded: (receipt: FeeReceipt) => Promise<void>
   onBusyChange: (busy: boolean) => void
 }) {
+  const uiText = useUiTranslation()
+
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState('')
   const [reason, setReason] = useState('')
@@ -467,24 +442,23 @@ export function FeeActionForm({
   }
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm leading-relaxed">
-        Fee {fee.fee_amount} {fee.currency} · policy revision{' '}
+      <p className="text-sm leading-relaxed">{uiText("Fee ")}{fee.fee_amount} {fee.currency} {uiText("· policy revision")}{' '}
         {fee.policy_revision}.{' '}
         {action === 'invoice'
-          ? 'The due date uses this fee’s saved policy, not the current policy.'
-          : 'This records a full external receipt; it does not initiate a bank transfer. Paid history cannot be edited.'}
+          ? uiText("The due date uses this fee’s saved policy, not the current policy.")
+          : uiText("This records a full external receipt; it does not initiate a bank transfer. Paid history cannot be edited.")}
       </p>
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{uiText(error)}</AlertDescription>
         </Alert>
       )}
       <fieldset disabled={busy} className="flex flex-col gap-4">
-        <legend className="sr-only">Fee action evidence</legend>
+        <legend className="sr-only">{uiText("Fee action evidence")}</legend>
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="fee-action-date">
-              {action === 'invoice' ? 'Invoice date' : 'Payment date'}
+              {action === 'invoice' ? uiText("Invoice date") : uiText("Payment date")}
             </FieldLabel>
             <Input
               id="fee-action-date"
@@ -496,7 +470,7 @@ export function FeeActionForm({
           </Field>
           {action === 'pay' && (
             <Field>
-              <FieldLabel htmlFor="fee-reference">Payment reference</FieldLabel>
+              <FieldLabel htmlFor="fee-reference">{uiText("Payment reference")}</FieldLabel>
               <Input
                 id="fee-reference"
                 maxLength={200}
@@ -506,9 +480,7 @@ export function FeeActionForm({
             </Field>
           )}
           <Field>
-            <FieldLabel htmlFor="fee-action-reason">
-              Reason / supporting evidence
-            </FieldLabel>
+            <FieldLabel htmlFor="fee-action-reason">{uiText("Reason / supporting evidence")}</FieldLabel>
             <Textarea
               id="fee-action-reason"
               minLength={3}
@@ -524,9 +496,7 @@ export function FeeActionForm({
             checked={confirmed}
             onCheckedChange={(value) => setConfirmed(value === true)}
           />
-          <Label htmlFor="fee-action-confirm">
-            I confirm this action and its supporting evidence.
-          </Label>
+          <Label htmlFor="fee-action-confirm">{uiText("I confirm this action and its supporting evidence.")}</Label>
         </div>
         <Button
           disabled={
@@ -539,10 +509,10 @@ export function FeeActionForm({
           onClick={() => void submit()}
         >
           {busy
-            ? 'Recording…'
+            ? uiText("Recording…")
             : action === 'invoice'
-              ? 'Issue audited invoice'
-              : 'Record full fee payment'}
+              ? uiText("Issue audited invoice")
+              : uiText("Record full fee payment")}
         </Button>
       </fieldset>
     </div>

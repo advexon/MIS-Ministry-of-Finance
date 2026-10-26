@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -9,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 const AuthorityReasonContext = createContext<() => Promise<string | null>>(async () => null)
 
 export function AuthorityReasonProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const uiText = useUiTranslation()
+
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const pending = useRef<{ resolve: (reason: string) => void; reject: (error: Error) => void } | null>(null)
@@ -43,9 +47,9 @@ export function AuthorityReasonProvider({ enabled, children }: { enabled: boolea
     {children}
     <Dialog open={open} onOpenChange={(value) => { if (!value) cancel() }}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Use Super Administrator authority</DialogTitle><DialogDescription>This action is performed as you, without impersonation. Explain why you are exercising exceptional authority. The reason is recorded with the action; evidence, amounts and workflow prerequisites still apply.</DialogDescription></DialogHeader>
-        <div className="flex flex-col gap-2"><Label htmlFor="administrator-authority-reason">Authority reason</Label><Textarea id="administrator-authority-reason" autoFocus maxLength={2000} rows={4} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
-        <DialogFooter><Button variant="outline" onClick={cancel}>Cancel action</Button><Button disabled={reason.trim().length < 3} onClick={confirm}>Confirm attributable action</Button></DialogFooter>
+        <DialogHeader><DialogTitle>{uiText("Use Super Administrator authority")}</DialogTitle><DialogDescription>{uiText("This action is performed as you, without impersonation. Explain why you are exercising exceptional authority. The reason is recorded with the action; evidence, amounts and workflow prerequisites still apply.")}</DialogDescription></DialogHeader>
+        <div className="flex flex-col gap-2"><Label htmlFor="administrator-authority-reason">{uiText("Authority reason")}</Label><Textarea id="administrator-authority-reason" autoFocus maxLength={2000} rows={4} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
+        <DialogFooter><Button variant="outline" onClick={cancel}>{uiText("Cancel action")}</Button><Button disabled={reason.trim().length < 3} onClick={confirm}>{uiText("Confirm attributable action")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </AuthorityReasonContext.Provider>

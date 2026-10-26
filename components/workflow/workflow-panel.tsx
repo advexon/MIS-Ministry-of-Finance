@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 /**
  * Action panel for the ФКГ issuance scheme (steps 1-4 implemented here).
  *
@@ -41,6 +43,8 @@ interface Props {
 type DialogKind = 'uko' | 'eligibility' | 'return' | null
 
 export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
+  const uiText = useUiTranslation()
+
   const router = useRouter()
   const { profile } = usePermissions()
   const requestAuthorityReason = useAuthorityReason()
@@ -151,16 +155,13 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
     return (
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Not yet on the ФКГ scheme</CardTitle>
-          <CardDescription className="text-xs">
-            This application was created before the guarantee-issuance scheme was implemented, so it
-            has no recorded УКО registration, FX rate or eligibility screening.
-          </CardDescription>
+          <CardTitle className="text-base">{uiText("Not yet on the ФКГ scheme")}</CardTitle>
+          <CardDescription className="text-xs">{uiText("This application was created before the guarantee-issuance scheme was implemented, so it has no recorded УКО registration, FX rate or eligibility screening.")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {error && (
             <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {error}
+              {uiText(error)}
             </p>
           )}
           {isStaff ? (
@@ -170,13 +171,9 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
               disabled={busy}
               onClick={() => post('uko_registration', undefined, 'Moved onto the ФКГ scheme at step 2')}
             >
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Move onto the scheme at step 2
-            </Button>
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText("Move onto the scheme at step 2")}</Button>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              A УКО officer or PRSF staff member must place this application onto the scheme.
-            </p>
+            <p className="text-xs text-muted-foreground">{uiText("A УКО officer or PRSF staff member must place this application onto the scheme.")}</p>
           )}
         </CardContent>
       </Card>
@@ -184,10 +181,10 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
   }
 
   if (status === 'draft') {
-    return <Card><CardHeader><CardTitle>Bank manager review</CardTitle><CardDescription>The officer prepares the file; the bank manager checks it before submission. MIS then screens stop factors and assigns an operations analyst.</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">{error && <p role="alert" className="text-sm text-destructive">{error}</p>}{['super_admin', 'bank_admin', 'bank_officer'].includes(roleCode ?? '') ? <Button className="self-start" disabled={busy} onClick={() => void post('submitted', undefined, 'Bank reviewed and submitted the application')}>{busy ? 'Submitting…' : roleCode === 'bank_admin' ? 'Approve and submit to MIS' : 'Submit (manager approval required unless enabled by administrator)'}</Button> : <p className="text-sm text-muted-foreground">Awaiting the originating bank manager.</p>}</CardContent></Card>
+    return <Card><CardHeader><CardTitle>{uiText("Bank manager review")}</CardTitle><CardDescription>{uiText("The officer prepares the file; the bank manager checks it before submission. MIS then screens stop factors and assigns an operations analyst.")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">{error && <p role="alert" className="text-sm text-destructive">{uiText(error)}</p>}{['super_admin', 'bank_admin', 'bank_officer'].includes(roleCode ?? '') ? <Button className="self-start" disabled={busy} onClick={() => void post('submitted', undefined, 'Bank reviewed and submitted the application')}>{busy ? uiText("Submitting…") : roleCode === 'bank_admin' ? uiText("Approve and submit to MIS") : uiText("Submit (manager approval required unless enabled by administrator)")}</Button> : <p className="text-sm text-muted-foreground">{uiText("Awaiting the originating bank manager.")}</p>}</CardContent></Card>
   }
   if (!step) {
-    return loan.stop_factor_reason ? <Card><CardHeader><CardTitle>Automatic stop-factor refusal</CardTitle><CardDescription>{loan.stop_factor_reason}</CardDescription></CardHeader></Card> : null
+    return loan.stop_factor_reason ? <Card><CardHeader><CardTitle>{uiText("Automatic stop-factor refusal")}</CardTitle><CardDescription>{loan.stop_factor_reason}</CardDescription></CardHeader></Card> : null
   }
 
   return (
@@ -195,11 +192,10 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-base">
-              Step {step.step} · {step.titleEn}
+            <CardTitle className="text-base">{uiText("Step ")}{step.step} · {step.titleEn}
             </CardTitle>
             <CardDescription className="text-xs">
-              {step.titleRu} · Guideline {step.guidelineRef}
+              {step.titleRu} {uiText("· Guideline")} {step.guidelineRef}
             </CardDescription>
           </div>
           <Badge variant="outline">{statusLabel(status)}</Badge>
@@ -209,70 +205,57 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       <CardContent className="flex flex-col gap-3">
         {/* FX and gate-D state, so the routing decision is never invisible. */}
         <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-md bg-muted/50 px-3 py-2 text-xs">
-          <span>
-            Amount:{' '}
+          <span>{uiText("Amount:")}{' '}
             <span className="font-medium">
-              {amount == null ? '—' : `${amount.toLocaleString('en-US')} TJS`}
+              {amount == null ? '—' : uiText("{0} TJS", amount.toLocaleString('en-US'))}
             </span>
           </span>
-          <span>
-            USD equivalent:{' '}
+          <span>{uiText("USD equivalent:")}{' '}
             <span className="font-medium">
-              {knownUsd == null ? 'not established' : `$${knownUsd.toFixed(2)}`}
+              {knownUsd == null ? uiText("not established") : `$${knownUsd.toFixed(2)}`}
             </span>
           </span>
-          <span>
-            Assessment (step 5):{' '}
+          <span>{uiText("Assessment (step 5):")}{' '}
             <span className="font-medium">
-              {needsAssessment === null ? 'undetermined' : needsAssessment ? 'mandatory' : 'not required'}
+              {needsAssessment === null ? uiText("undetermined") : needsAssessment ? uiText("mandatory") : uiText("not required")}
             </span>
           </span>
         </div>
 
         {knownUsd == null && (
           <p className="flex items-start gap-2 text-xs text-amber-700">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            The TJS/USD rate has not been recorded, so the 10,000 USD routing gate cannot be
-            evaluated yet.
-          </p>
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{uiText("The TJS/USD rate has not been recorded, so the 10,000 USD routing gate cannot be evaluated yet.")}</p>
         )}
 
         {error && (
           <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {error}
+            {uiText(error)}
           </p>
         )}
 
         {!canAct ? (
           <p className="text-xs text-muted-foreground">
-            {!isAssigned ? 'This application belongs to another assigned analyst. ' : ''}This step belongs to {step.actors.join(', ')}. Your role
-            {roleCode ? ` (${roleCode})` : ''} cannot act on it.
-          </p>
+            {!isAssigned ? uiText("This application belongs to another assigned analyst.") : ''}{uiText("This step belongs to")} {step.actors.join(', ')}{uiText(". Your role")}{roleCode ? ` (${roleCode})` : ''}{uiText(" cannot act on it.")}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {status === 'submitted' && (
-              <Button size="sm" onClick={() => void post('uko_registration', undefined, 'Assigned analyst started registration')} disabled={busy}>
-                Register request (step 2) <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              <Button size="sm" onClick={() => void post('uko_registration', undefined, 'Assigned analyst started registration')} disabled={busy}>{uiText("Register request (step 2) ")}<ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
             {status === 'uko_registration' && (
               <>
-                <Button size="sm" onClick={() => setDialog('uko')} disabled={busy}>
-                  Accept and record FX <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                <Button size="sm" onClick={() => setDialog('uko')} disabled={busy}>{uiText("Accept and record FX ")}<ArrowRight className="ml-1 h-3.5 w-3.5" />
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setDialog('return')} disabled={busy}>
-                  <RotateCcw className="mr-1 h-3.5 w-3.5" /> Return to bank (step 3)
-                </Button>
+                  <RotateCcw className="mr-1 h-3.5 w-3.5" />{uiText(" Return to bank (step 3)")}</Button>
               </>
             )}
             {status === 'docs_incomplete' && (
-              <Button size="sm" onClick={() => post(loan.clarification_return_status === 'assessment' ? 'assessment' : 'uko_registration', undefined, 'Bank resubmitted documents and clarification')} disabled={busy}>
-                Package resubmitted — re-register <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              <Button size="sm" onClick={() => post(loan.clarification_return_status === 'assessment' ? 'assessment' : 'uko_registration', undefined, 'Bank resubmitted documents and clarification')} disabled={busy}>{uiText("Package resubmitted — re-register ")}<ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
             {status === 'eligibility_review' && (
-              <Button size="sm" onClick={() => setDialog('eligibility')} disabled={busy}>
-                Record eligibility / ESMS / KYC <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              <Button size="sm" onClick={() => setDialog('eligibility')} disabled={busy}>{uiText("Record eligibility / ESMS / KYC ")}<ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
             {artifactForm && (
@@ -280,21 +263,20 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
                 {artifactForm.title.replace(/ — step \d+$/, '')} <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
-            {status === 'kkg_protocol' && <Button size="sm" disabled={busy} onClick={() => void post('formal_application', undefined, 'Signed protocol released for the formal application')}>Proceed to formal application (step 11)</Button>}
-            {status === 'assessment' && <Button size="sm" variant="outline" disabled={busy} onClick={() => setDialog('return')}>Request documents from bank</Button>}
+            {status === 'kkg_protocol' && <Button size="sm" disabled={busy} onClick={() => void post('formal_application', undefined, 'Signed protocol released for the formal application')}>{uiText("Proceed to formal application (step 11)")}</Button>}
+            {status === 'assessment' && <Button size="sm" variant="outline" disabled={busy} onClick={() => setDialog('return')}>{uiText("Request documents from bank")}</Button>}
             {/* Steps 7, 8 and 10 are a multi-party committee sitting rather than a
                 single officer's form, so they are handled on the ККГ meeting page. */}
             {(status === 'kkg_scheduled' || status === 'kkg_review' || status === 'kkg_protocol') && (
               <Button size="sm" variant="outline" asChild>
-                <a href="/dashboard/committee">Open ККГ meetings (steps 7-10)</a>
+                <a href="/dashboard/committee">{uiText("Open ККГ meetings (steps 7-10)")}</a>
               </Button>
             )}
             {busy && <Loader2 className="h-4 w-4 animate-spin self-center text-muted-foreground" />}
           </div>
         )}
 
-        <p className="text-[11px] text-muted-foreground">
-          Permitted next states: {nextStatuses.length ? nextStatuses.map((s) => statusLabel(s)).join(' · ') : 'none'}
+        <p className="text-[11px] text-muted-foreground">{uiText("Permitted next states: ")}{nextStatuses.length ? nextStatuses.map((s) => statusLabel(s)).join(' · ') : uiText("none")}
         </p>
       </CardContent>
 
@@ -302,37 +284,31 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       <Dialog open={dialog === 'uko'} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Register request — step 2</DialogTitle>
-            <DialogDescription>
-              The Guideline states its thresholds in USD while the loan is booked in TJS. The rate is
-              stored on this application so the decision stays reproducible later.
-            </DialogDescription>
+            <DialogTitle>{uiText("Register request — step 2")}</DialogTitle>
+            <DialogDescription>{uiText("The Guideline states its thresholds in USD while the loan is booked in TJS. The rate is stored on this application so the decision stays reproducible later.")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="uko-ref">УКО reference number</Label>
+              <Label htmlFor="uko-ref">{uiText("УКО reference number")}</Label>
               <Input id="uko-ref" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. УКО-2026-0142" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="uko-rate">TJS per 1 USD</Label>
+              <Label htmlFor="uko-rate">{uiText("TJS per 1 USD")}</Label>
               <Input
                 id="uko-rate" type="number" step="0.0001" min="0"
                 value={rate} onChange={(e) => setRate(e.target.value)} placeholder="e.g. 10.9500"
               />
               <p className="text-xs text-muted-foreground">
                 {previewUsd == null
-                  ? 'Enter a rate to see the USD equivalent.'
-                  : `${amount?.toLocaleString('en-US')} TJS = $${previewUsd.toFixed(2)} — assessment ${
-                      requiresAssessment(previewUsd) ? 'mandatory' : 'not required'
-                    }.`}
+                  ? uiText("Enter a rate to see the USD equivalent.")
+                  : uiText("{0} TJS = ${1} — assessment {2}.", amount?.toLocaleString('en-US'), previewUsd.toFixed(2), requiresAssessment(previewUsd) ? 'mandatory' : 'not required')}
               </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)} disabled={busy}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)} disabled={busy}>{uiText("Cancel")}</Button>
             <Button onClick={submitUko} disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Register
-            </Button>
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText(" Register")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -341,23 +317,20 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       <Dialog open={dialog === 'return'} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Return package to bank — step 3</DialogTitle>
-            <DialogDescription>
-              The application returns to the bank and re-enters at step 2 once completed.
-            </DialogDescription>
+            <DialogTitle>{uiText("Return package to bank — step 3")}</DialogTitle>
+            <DialogDescription>{uiText("The application returns to the bank and re-enters at step 2 once completed.")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="missing">Missing documents</Label>
+            <Label htmlFor="missing">{uiText("Missing documents")}</Label>
             <Textarea
               id="missing" value={missing} onChange={(e) => setMissing(e.target.value)}
-              placeholder="List each missing or deficient document…" rows={4}
+              placeholder={uiText("List each missing or deficient document…")} rows={4}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)} disabled={busy}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)} disabled={busy}>{uiText("Cancel")}</Button>
             <Button onClick={submitReturn} disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Return to bank
-            </Button>
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText(" Return to bank")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -366,11 +339,8 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       <Dialog open={dialog === 'eligibility'} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Eligibility, ESMS and KYC screening</DialogTitle>
-            <DialogDescription>
-              Missing documents return the case to the bank. With a complete package, eligibility,
-              ESMS, KYC and sanctions checks must all pass before analyst assessment.
-            </DialogDescription>
+            <DialogTitle>{uiText("Eligibility, ESMS and KYC screening")}</DialogTitle>
+            <DialogDescription>{uiText("Missing documents return the case to the bank. With a complete package, eligibility, ESMS, KYC and sanctions checks must all pass before analyst assessment.")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             {([
@@ -386,22 +356,19 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
                   checked={elig[key]}
                   onCheckedChange={(v) => setElig((p) => ({ ...p, [key]: v === true }))}
                 />
-                <Label htmlFor={key} className="text-sm font-normal">{label}</Label>
+                <Label htmlFor={key} className="text-sm font-normal">{uiText(label)}</Label>
               </div>
             ))}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="findings">Findings</Label>
+              <Label htmlFor="findings">{uiText("Findings")}</Label>
               <Textarea id="findings" value={findings} onChange={(e) => setFindings(e.target.value)} rows={3} />
             </div>
-            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              Every application proceeds to analyst assessment. Credit Risk review follows for guarantees at or above ${ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')} or elevated/high risk.
-            </p>
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{uiText("Every application proceeds to analyst assessment. Credit Risk review follows for guarantees at or above $")}{ASSESSMENT_THRESHOLD_USD.toLocaleString('en-US')}{uiText(" or elevated/high risk.")}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)} disabled={busy}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialog(null)} disabled={busy}>{uiText("Cancel")}</Button>
             <Button onClick={submitEligibility} disabled={busy}>
-              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Record screening
-            </Button>
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{uiText(" Record screening")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
