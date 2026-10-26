@@ -1158,6 +1158,31 @@ for (const locale of ['en', 'ru', 'tj']) {
   for (const label of ['Pagination', 'Go to previous page', 'Go to next page', 'Previous', 'Next', 'More pages']) {
     assert.ok(html.includes(translateInterface(locale, label)), `${locale}: missing navigation label ${label}`)
   }
+  const { SchemeStepper } = loadSource('components/workflow/scheme-stepper.tsx', overrides)
+  const { SCHEME_STEPS } = loadSource('lib/workflow/fkg-scheme.ts')
+  const stepper = renderToStaticMarkup(React.createElement(SchemeStepper, { status: 'assessment' }))
+  for (const step of SCHEME_STEPS) {
+    const title = translateInterface(locale, 'Step {0} · {1} (Guideline {2})', step.step, translateInterface(locale, step.titleEn), step.guidelineRef)
+    assert.ok(stepper.includes(`title="${title}"`), `${locale}: missing localized step ${step.step}`)
+  }
+  for (const lane of ['Bank', 'Operations', 'Credit Risk', 'Management']) assert.ok(stepper.includes(translateInterface(locale, lane)))
+  for (const step of SCHEME_STEPS.filter(step => step.slaDays != null)) {
+    assert.ok(stepper.includes(translateInterface(locale, '{0}d', step.slaDays)))
+  }
+  const { WorkflowPanel } = loadSource('components/workflow/workflow-panel.tsx', {
+    ...overrides,
+    'next/navigation': { useRouter: () => ({ refresh() {} }) },
+    '@/lib/contexts/permission-context': { usePermissions: () => ({ profile: { id: 'reader', is_active: true } }) },
+    '@/components/admin/authority-reason-provider': { useAuthorityReason: () => async () => null },
+    '@/components/workflow/step-forms': { STEP_FORMS: {}, StepArtifactForm: () => null },
+  })
+  for (const step of SCHEME_STEPS) {
+    const panel = renderToStaticMarkup(React.createElement(WorkflowPanel, {
+      loan: { id: 'locale-fixture', status: step.status, guarantee_amount: 1000, usd_rate: 10 }, roleCode: 'auditor',
+    }))
+    assert.ok(panel.includes(translateInterface(locale, step.titleEn)), `${locale}: missing workflow heading ${step.step}`)
+    assert.ok(panel.includes(translateInterface(locale, 'Guideline')), `${locale}: missing guideline label`)
+  }
   const { Breadcrumb, BreadcrumbEllipsis } = loadSource('components/ui/breadcrumb.tsx', overrides)
   const breadcrumb = renderToStaticMarkup(React.createElement(Breadcrumb, null, React.createElement(BreadcrumbEllipsis)))
   for (const label of ['Breadcrumb', 'More']) assert.ok(breadcrumb.includes(translateInterface(locale, label)))

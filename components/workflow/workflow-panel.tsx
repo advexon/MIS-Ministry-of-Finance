@@ -192,13 +192,13 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-base">{uiText("Step ")}{step.step} · {step.titleEn}
+            <CardTitle className="text-base">{uiText("Step ")}{step.step} · {uiText(step.titleEn)}
             </CardTitle>
             <CardDescription className="text-xs">
-              {step.titleRu} {uiText("· Guideline")} {step.guidelineRef}
+              {uiText("Guideline")} {step.guidelineRef}
             </CardDescription>
           </div>
-          <Badge variant="outline">{statusLabel(status)}</Badge>
+          <Badge variant="outline">{uiText(statusLabel(status))}</Badge>
         </div>
       </CardHeader>
 
@@ -235,7 +235,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
 
         {!canAct ? (
           <p className="text-xs text-muted-foreground">
-            {!isAssigned ? uiText("This application belongs to another assigned analyst.") : ''}{uiText("This step belongs to")} {step.actors.join(', ')}{uiText(". Your role")}{roleCode ? ` (${roleCode})` : ''}{uiText(" cannot act on it.")}</p>
+            {!isAssigned ? uiText("This application belongs to another assigned analyst.") : ''}{uiText("This step belongs to")} {step.actors.map((actor) => uiText(actor)).join(', ')}{uiText(". Your role")}{roleCode ? ` (${roleCode})` : ''}{uiText(" cannot act on it.")}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {status === 'submitted' && (
@@ -276,7 +276,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
           </div>
         )}
 
-        <p className="text-[11px] text-muted-foreground">{uiText("Permitted next states: ")}{nextStatuses.length ? nextStatuses.map((s) => statusLabel(s)).join(' · ') : uiText("none")}
+        <p className="text-[11px] text-muted-foreground">{uiText("Permitted next states: ")}{nextStatuses.length ? nextStatuses.map((s) => uiText(statusLabel(s))).join(' · ') : uiText("none")}
         </p>
       </CardContent>
 
@@ -290,18 +290,18 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="uko-ref">{uiText("УКО reference number")}</Label>
-              <Input id="uko-ref" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. УКО-2026-0142" />
+              <Input id="uko-ref" value={ref} onChange={(e) => setRef(e.target.value)} placeholder={uiText("e.g. УКО-2026-0142")} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="uko-rate">{uiText("TJS per 1 USD")}</Label>
               <Input
                 id="uko-rate" type="number" step="0.0001" min="0"
-                value={rate} onChange={(e) => setRate(e.target.value)} placeholder="e.g. 10.9500"
+                value={rate} onChange={(e) => setRate(e.target.value)} placeholder={uiText("e.g. 10.9500")}
               />
               <p className="text-xs text-muted-foreground">
                 {previewUsd == null
                   ? uiText("Enter a rate to see the USD equivalent.")
-                  : uiText("{0} TJS = ${1} — assessment {2}.", amount?.toLocaleString('en-US'), previewUsd.toFixed(2), requiresAssessment(previewUsd) ? 'mandatory' : 'not required')}
+                  : uiText("{0} TJS = ${1} — assessment {2}.", amount?.toLocaleString('en-US'), previewUsd.toFixed(2), uiText(requiresAssessment(previewUsd) ? 'mandatory' : 'not required'))}
               </p>
             </div>
           </div>

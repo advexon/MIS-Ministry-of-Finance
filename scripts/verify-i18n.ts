@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { translations } from '@/lib/i18n/translations'
 import { interfaceCatalog, translateInterface } from '@/lib/i18n/interface-text'
 import { renderFeeInvoice } from '@/lib/utils/fee-invoice'
+import { SCHEME_STEPS, getNextStatuses, statusLabel } from '@/lib/workflow/fkg-scheme'
 import ts from 'typescript'
 
 const decoder = new TextDecoder('utf-8', { fatal: true })
@@ -65,9 +66,18 @@ for (const [source, entries] of Object.entries(interfaceCatalog)) {
     assert.deepEqual((text.match(/\{\d+\}/g) ?? []).sort(), placeholders, `${source}: interpolation mismatch`)
   }
 }
+for (const step of SCHEME_STEPS) {
+  for (const key of [step.titleEn, ...step.actors, ...getNextStatuses(step.status).map(status => statusLabel(status))]) {
+    assert.ok(interfaceCatalog[key], `Workflow step ${step.step}: missing dynamic translation for ${key}`)
+  }
+  assert.equal(translateInterface('ru', step.titleEn), step.titleRu, `Workflow step ${step.step}: preserve approved Russian title`)
+}
 for (const path of paths.filter(path => /^(app|components)\/.*\.tsx$/.test(path))) {
   const source = ts.createSourceFile(path, readFileSync(new URL(path, root), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   function visit(node: ts.Node) {
+    if (ts.isJsxAttribute(node) && ['placeholder', 'aria-label', 'title'].includes(node.name.getText(source)) && node.initializer && ts.isStringLiteral(node.initializer)) {
+      assert.ok(!/[A-Za-z]{3}/.test(node.initializer.text), `${path}: translate ${node.name.getText(source)}=${node.initializer.text}`)
+    }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'uiText' && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) {
       const key = node.arguments[0].text.replace(/\s+/g, ' ').trim()
       assert.ok(interfaceCatalog[key], `${path}: missing translation for ${key}`)
