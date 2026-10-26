@@ -57,6 +57,121 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
 }
 
 {
+  const filename = 'components/admin/cgf-workflow-controls.tsx'
+  const text = readFileSync(resolve(root, filename), 'utf8')
+  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const handlers = {}
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && ['run', 'refreshLatest'].includes(node.name?.text)) handlers[node.name.text] = node.getText(source)
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(handlers.run && handlers.refreshLatest)
+  const { translateInterface, interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
+  const messages = new Set()
+  const id = '11111111-1111-4111-8111-111111111111'
+  const otherId = '22222222-2222-4222-8222-222222222222'
+  const reason = 'Approved workflow change'
+  const actions = [
+    { kind: 'sector', id, label: 'Fixture sector', expected: false, prohibited: true, reason },
+    { kind: 'grant', delegate: id, label: 'Fixture employee', start: '2026-10-27T09:00', end: '2026-10-28T09:00', reason },
+    { kind: 'revoke', id, label: 'Fixture employee', reason },
+  ]
+  for (const action of actions) for (const scenario of ['success', 'refresh-failure', 'refresh-unconfirmed', 'conflict', 'returned-error', 'network', 'missing-receipt', 'wrong-receipt', 'no-authority', 'unavailable', 'busy', 'short-reason', 'long-reason', 'ineligible', 'bad-date', 'reversed-dates', 'overlong-period']) {
+    const events = []
+    const state = { form: { draft: true }, sectorReason: reason }
+    const pending = { current: scenario === 'busy' }
+    let release
+    const response = new Promise(resolve => { release = resolve })
+    const context = {
+      pending, admin: scenario !== 'no-authority', unavailable: scenario === 'unavailable',
+      data: { members: scenario === 'ineligible' ? [] : [{ id }] },
+      UUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      createClient: () => ({ rpc: async (name, args) => {
+        events.push('rpc')
+        assert.equal(name, action.kind === 'sector' ? 'cgf_set_sector_prohibited' : 'cgf_manage_signature_delegation')
+        assert.equal(args.p_reason, reason)
+        if (action.kind === 'sector') {
+          assert.equal(args.p_sector, id)
+          assert.equal(args.p_expected, false)
+          assert.equal(args.p_prohibited, true)
+        } else if (action.kind === 'grant') {
+          assert.equal(args.p_delegate, id)
+          assert.equal(args.p_start, new Date(action.start).toISOString())
+          assert.equal(args.p_end, new Date(action.end).toISOString())
+        } else assert.equal(args.p_revoke, id)
+        await response
+        if (scenario === 'network') throw new Error('Private network detail')
+        return {
+          data: scenario === 'missing-receipt' ? null : scenario === 'wrong-receipt' ? (action.kind === 'grant' ? 'invalid' : otherId) : id,
+          error: scenario === 'conflict' ? { code: '40001' } : scenario === 'returned-error' ? { message: 'Private database detail' } : null,
+        }
+      } }),
+      loadControls: async () => { events.push('refresh'); if (scenario === 'refresh-failure') throw new Error('Private refresh detail'); return scenario === 'refresh-unconfirmed' ? undefined : { members: [], sectors: [], delegations: [] } },
+      mutate: async (value, options) => { assert.equal(options.revalidate, false); return await value },
+      ...Object.fromEntries(['Busy', 'Error', 'Message', 'RefreshRequired', 'Action', 'Form', 'SectorReason'].map(name => [`set${name}`, value => {
+        state[name[0].toLowerCase() + name.slice(1)] = value
+        if ((name === 'Error' || name === 'Message') && value) messages.add(value)
+      }])),
+    }
+    const run = runInNewContext(ts.transpileModule(`${handlers.run}\nrun`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+    const change = { ...action }
+    if (scenario === 'short-reason') change.reason = ' x '
+    if (scenario === 'long-reason') change.reason = 'x'.repeat(2001)
+    if (scenario === 'bad-date') change.start = 'invalid'
+    if (scenario === 'reversed-dates') change.end = change.start
+    if (scenario === 'overlong-period') change.end = '2027-10-28T09:00'
+    const blocked = ['no-authority', 'unavailable', 'busy', 'short-reason', 'long-reason'].includes(scenario) || (action.kind === 'grant' && ['ineligible', 'bad-date', 'reversed-dates', 'overlong-period'].includes(scenario))
+    const first = run(change)
+    if (!blocked) await run(change)
+    release()
+    await first
+    if (blocked) { assert.deepEqual(events, [], `${action.kind}/${scenario}`); continue }
+    assert.equal(events.filter(event => event === 'rpc').length, 1, 'Synchronous duplicate protection')
+    assert.equal(pending.current, false)
+    assert.equal(state.busy, false)
+    assert.equal(state.action, null)
+    const confirmed = !['conflict', 'returned-error', 'network'].includes(scenario) && (action.kind === 'sector' || !['missing-receipt', 'wrong-receipt'].includes(scenario))
+    assert.equal(Boolean(state.message), confirmed, `${action.kind}/${scenario}: acknowledged outcome`)
+    assert.equal(events.includes('refresh'), confirmed)
+    assert.equal(Boolean(state.refreshRequired), !confirmed || ['refresh-failure', 'refresh-unconfirmed'].includes(scenario))
+    assert.equal(state.sectorReason, confirmed && action.kind === 'sector' ? '' : reason)
+    assert.equal(Boolean(state.form.draft), !(confirmed && action.kind === 'grant'), 'Only confirmed grants retire delegation drafts')
+    if (scenario === 'refresh-failure') assert.match(state.error, /saved and audited/)
+    assert.doesNotMatch(JSON.stringify(state), /Private/)
+  }
+  for (const scenario of ['success', 'failure', 'unconfirmed', 'busy']) {
+    const state = {}
+    const pending = { current: scenario === 'busy' }
+    let calls = 0
+    const refreshLatest = runInNewContext(ts.transpileModule(`${handlers.refreshLatest}\nrefreshLatest`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
+      pending,
+      loadControls: async () => { calls++; if (scenario === 'failure') throw new Error('Private'); return scenario === 'unconfirmed' ? undefined : {} },
+      mutate: async (value, options) => { assert.equal(options.revalidate, false); return await value },
+      ...Object.fromEntries(['Busy', 'Error', 'RefreshRequired'].map(name => [`set${name}`, value => {
+        state[name] = value
+        if (name === 'Error' && value) messages.add(value)
+      }])),
+    })
+    await Promise.all([refreshLatest(), refreshLatest()])
+    assert.equal(calls, scenario === 'busy' ? 0 : 1)
+    if (scenario !== 'busy') {
+      assert.equal(pending.current, false)
+      assert.equal(state.Busy, false)
+      assert.equal(state.RefreshRequired, scenario !== 'success')
+    }
+  }
+  assert.match(text, /disabled=\{!admin \|\| busy \|\| unavailable\}/)
+  assert.match(text, /<AlertDialog open=\{action !== null\}/)
+  assert.match(text, /event\.preventDefault\(\); if \(action\) void run\(action\)/)
+  for (const message of messages) {
+    assert.ok(interfaceCatalog[message], `Workflow feedback must be catalogued: ${message}`)
+    for (const locale of ['ru', 'tj']) assert.notEqual(translateInterface(locale, message), message)
+  }
+  console.log('Workflow administration handlers passed: confirmation snapshots, duplicate locks, authority/history gating, dates/reasons, exact UUID receipts, conflicts, uncertain outcomes, confirmed-save refresh failures, draft preservation and refresh recovery')
+}
+
+{
   const filename = 'components/admin/operational-settings-controls.tsx'
   const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const handlers = {}

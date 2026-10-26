@@ -4,6 +4,14 @@ Reference map of the application. See the root README for repository organizatio
 
 Developed by Siyovush Mirzoev.
 
+## Sector and signature-delegation lifecycle follow-up — 27 October 2026
+
+`CgfWorkflowControls` now snapshots sector/grant/revocation details and reasons in an explicit confirmation dialog. Synchronous locking blocks duplicate requests; unavailable controls or uncertain results block further writes. Grant dates/eligible employees and 3–2000-character reasons are validated; delegation results require a UUID (the exact target UUID for revocation). Confirmed grants alone clear their draft. Confirmed saves remain acknowledged if the subsequent read fails; unconfirmed responses preserve drafts and require refresh/review rather than automatic retry. Feedback translates into Russian/Tajik without exposing raw database errors. Existing authenticated RPCs and sector compare-and-set checks remain authoritative; no migration was applied.
+
+Browser acceptance exposed that bound SWR `mutate()` can resolve cached data after revalidation fails. This control now supplies the actual `loadControls()` promise to mutation with revalidation disabled, so refresh recovery requires a successful database read. Other administration consumers using bare bound revalidation still need a corresponding failure-propagation audit; prior mocked-handler checks alone do not establish that integration behavior.
+
+Full `pnpm verify` passed (TypeScript, zero-warning repository ESLint and all local suites), as did `git diff --check`. `verify:ui-lifecycles` executes all three actual action handlers across success, duplicates, invalid reasons/dates, authority/history gating, conflict/returned/network errors, invalid/mismatched receipts, confirmed-save/refresh failure and failed/unconfirmed manual refresh. Signed-in Super Administrator browser acceptance at 1488×692 light verified the Russian confirmation dialog and cancellation, retained the unsaved reason and original sector, injected a failed delegation-history read and observed translated feedback plus locked editing, then restored real reads and recovered the same draft. The fixture was cleared and fetch restored; mutation monitoring confirmed zero sector/delegation RPC calls. Live grant/revocation success, backend reason enforcement, concurrent database requests and the broader multi-role workflow remain separate acceptance work.
+
 ## Financial policy lifecycle follow-up — 27 October 2026
 
 Financial policy history revalidation failures now retain the same cached editor instead of unmounting it. Synchronous locking prevents duplicate save/refresh requests; stale, unavailable or unconfirmed history blocks saves, and unavailable/unconfirmed history blocks discarding until refresh succeeds. Save receipts must confirm the revision, policy, reason and timestamp before clearing the draft. Confirmed saves remain acknowledged when the subsequent history read fails; reload errors no longer appear beneath a misleading “Policy not saved” heading. Recovery feedback has Russian/Tajik catalog entries, and successful refresh/discard clears obsolete feedback without silently replacing drafts.
@@ -141,7 +149,7 @@ Route lists below are the navigation index; use `app/**/page.tsx` and `app/**/ro
 
 This section is a domain map, not authoritative live metadata. Workflow artifact tables and committee tables have been added since the original inventory; inspect `information_schema` and `pg_policies` through Supabase MCP before changing queries.
 
-**Core:** `loan_applications` (42 cols) · `borrowers` (23) · `banks` · `bank_branches` · `loan_products` · `sectors` · `profiles`
+**Core:** `loan_applications` (42 cols) · `borrowers` (23) · `banks` �� `bank_branches` · `loan_products` · `sectors` · `profiles`
 
 **Workflow:** `loan_application_history` · `loan_documents` · `loan_drafts` · `payment_schedules` · `guarantee_letters`
 
