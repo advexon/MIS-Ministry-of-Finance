@@ -4,6 +4,12 @@ Reference map of the application. See the root README for repository organizatio
 
 Developed by Siyovush Mirzoev.
 
+## Administration refresh failure propagation — 27 October 2026
+
+Operational settings and financial policy now pass their actual read promise to SWR mutation with revalidation disabled. Cached values can no longer satisfy manual recovery or post-save refresh after a failed read. Operational settings also block save/discard while the query is unavailable; any failed manual refresh locks further writes until a successful read. Drafts remain mounted and confirmed saves remain acknowledged. Policy initial-load retry uses the same explicit-read boundary. No RPC, schema, authorization or financial execution rule changed.
+
+Full `pnpm verify` passed (TypeScript, zero-warning repository ESLint and every local suite), as did `git diff --check`. `verify:ui-lifecycles` exercises the parent callbacks against real SWR cache mutation with failed and successful mocked database reads, including cached-data retention, unavailable save/discard gating and fresh-failure locking. Signed-in browser acceptance remains incomplete: the fresh browser redirected to login, and its isolated execution runtime did not have the acceptance credentials available in the app sandbox. No database or account mutation was performed. The full-suite UTF-8 check additionally exposed and prompted repair of corrupted Russian/Tajik translations and an index separator. Other administration consumers and the broader multi-role workflow still require their own acceptance.
+
 ## Sector and signature-delegation lifecycle follow-up — 27 October 2026
 
 `CgfWorkflowControls` now snapshots sector/grant/revocation details and reasons in an explicit confirmation dialog. Synchronous locking blocks duplicate requests; unavailable controls or uncertain results block further writes. Grant dates/eligible employees and 3–2000-character reasons are validated; delegation results require a UUID (the exact target UUID for revocation). Confirmed grants alone clear their draft. Confirmed saves remain acknowledged if the subsequent read fails; unconfirmed responses preserve drafts and require refresh/review rather than automatic retry. Feedback translates into Russian/Tajik without exposing raw database errors. Existing authenticated RPCs and sector compare-and-set checks remain authoritative; no migration was applied.
@@ -149,7 +155,7 @@ Route lists below are the navigation index; use `app/**/page.tsx` and `app/**/ro
 
 This section is a domain map, not authoritative live metadata. Workflow artifact tables and committee tables have been added since the original inventory; inspect `information_schema` and `pg_policies` through Supabase MCP before changing queries.
 
-**Core:** `loan_applications` (42 cols) · `borrowers` (23) · `banks` �� `bank_branches` · `loan_products` · `sectors` · `profiles`
+**Core:** `loan_applications` (42 cols) · `borrowers` (23) · `banks` · `bank_branches` · `loan_products` · `sectors` · `profiles`
 
 **Workflow:** `loan_application_history` · `loan_documents` · `loan_drafts` · `payment_schedules` · `guarantee_letters`
 

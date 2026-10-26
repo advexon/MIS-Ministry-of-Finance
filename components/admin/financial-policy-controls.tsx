@@ -172,16 +172,18 @@ export function FinancialPolicyControls() {
   const { role, user } = usePermissions()
   const admin = ['super_admin', 'prsf_admin'].includes(role?.code ?? '')
   const visible = admin || ['accountant', 'auditor', 'fkg_management', 'deputy_director'].includes(role?.code ?? '')
-  const { data, error, mutate } = usePageQuery<FinancialPolicyVersion[]>(visible ? ['financial-policy-versions'] : null, async () => {
+  async function loadHistory() {
     const { data, error } = await createClient().from('financial_policy_versions').select('id,revision,policy,reason,created_at').order('revision', { ascending: false }).limit(20)
     if (error) throw new Error('Could not load financial policy history')
     return (data ?? []).map((version) => ({ ...version, policy: financialPolicySchema.parse(version.policy) }))
-  })
+  }
+  const { data, error, mutate } = usePageQuery<FinancialPolicyVersion[]>(visible ? ['financial-policy-versions'] : null, loadHistory)
+  const refresh = () => mutate(loadHistory(), { revalidate: false })
   if (!visible) return <Alert><AlertDescription>{uiText("Financial policy configuration requires an authorized Fund role.")}</AlertDescription></Alert>
-  if (error && !data) return <Alert variant="destructive"><AlertTitle>{uiText("Financial policy unavailable")}</AlertTitle><AlertDescription>{uiText("No fallback policy has been loaded.")}</AlertDescription><Button type="button" variant="outline" onClick={() => void mutate().catch(() => undefined)}>{uiText("Retry loading policy")}</Button></Alert>
+  if (error && !data) return <Alert variant="destructive"><AlertTitle>{uiText("Financial policy unavailable")}</AlertTitle><AlertDescription>{uiText("No fallback policy has been loaded.")}</AlertDescription><Button type="button" variant="outline" onClick={() => void refresh().catch(() => undefined)}>{uiText("Retry loading policy")}</Button></Alert>
   if (!data) return <Skeleton className="h-40 w-full" />
   return <div className="flex flex-col gap-4">
     {error && <Alert variant="destructive"><AlertDescription>{uiText("Could not reload the latest policy. Your draft is preserved.")}</AlertDescription></Alert>}
-    <PolicyEditor key={`${user.id}:${role?.id}`} initial={data[0] ?? null} history={data} admin={admin} historyUnavailable={Boolean(error)} refresh={() => mutate()} />
+    <PolicyEditor key={`${user.id}:${role?.id}`} initial={data[0] ?? null} history={data} admin={admin} historyUnavailable={Boolean(error)} refresh={refresh} />
   </div>
 }

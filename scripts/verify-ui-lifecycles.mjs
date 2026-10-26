@@ -6,6 +6,7 @@ import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { mutate as mutateCache } from 'swr'
 
 const require = createRequire(import.meta.url)
 const root = resolve(import.meta.dirname, '..')
@@ -184,14 +185,14 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   const { validateOperationalValue } = loadSource('lib/admin/operational-settings.ts')
   const { translateInterface, interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
   const messages = new Set()
-  for (const scenario of ['success', 'refresh-failure', 'conflict', 'returned-error', 'network', 'invalid', 'stale', 'refresh-required', 'busy', 'no-changes', 'short-reason', 'long-reason']) {
+  for (const scenario of ['success', 'refresh-failure', 'conflict', 'returned-error', 'network', 'invalid', 'stale', 'refresh-required', 'unavailable', 'busy', 'no-changes', 'short-reason', 'long-reason']) {
     const events = []
     const state = { baseline: { assessment_sla_days: '1' }, reason: 'Approved rule change', refreshRequired: scenario === 'refresh-required' }
     const pending = { current: scenario === 'busy' }
     let release
     const response = new Promise(resolve => { release = resolve })
     const context = {
-      pending, stale: scenario === 'stale', refreshRequired: state.refreshRequired,
+      pending, stale: scenario === 'stale', refreshRequired: state.refreshRequired, unavailable: scenario === 'unavailable',
       changed: scenario === 'no-changes' ? [] : [{ key: 'assessment_sla_days' }],
       reason: scenario === 'short-reason' ? ' x ' : scenario === 'long-reason' ? 'x'.repeat(2001) : state.reason,
       draft: { assessment_sla_days: scenario === 'invalid' ? '1.5' : '2' }, baseline: state.baseline,
@@ -218,7 +219,7 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     await save()
     release()
     await first
-    if (['stale', 'refresh-required', 'busy', 'no-changes', 'short-reason', 'long-reason'].includes(scenario)) {
+    if (['stale', 'refresh-required', 'unavailable', 'busy', 'no-changes', 'short-reason', 'long-reason'].includes(scenario)) {
       assert.deepEqual(events, [], scenario)
       continue
     }
@@ -236,9 +237,9 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     if (scenario === 'conflict') assert.match(state.error, /Another administrator/)
     assert.doesNotMatch(JSON.stringify(state), /Private/)
   }
-  for (const fails of [false, true]) {
+  for (const fails of [false, true]) for (const alreadyLocked of [false, true]) {
     const pending = { current: false }
-    const state = { refreshRequired: true, error: 'Previous error' }
+    const state = { refreshRequired: alreadyLocked, error: 'Previous error' }
     let calls = 0
     const refreshLatest = runInNewContext(ts.transpileModule(`${handlers.refreshLatest}\nrefreshLatest`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
       pending,
@@ -254,14 +255,35 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     assert.equal(state.refreshRequired, fails)
     assert.equal(state.error === null, !fails)
   }
-  let swrState = { data: { assessment_sla_days: '1' }, error: new Error('Read failed') }
+  let readFails = true
+  let reads = 0
+  const cacheKey = 'verification-operational-refresh'
+  await mutateCache(cacheKey, { assessment_sla_days: '1' }, { revalidate: false })
+  let swrState = { data: { assessment_sla_days: '1' }, error: new Error('Read failed'), mutate: async (value, options) => {
+    if (value === undefined) return mutateCache(cacheKey)
+    assert.equal(options.revalidate, false)
+    return mutateCache(cacheKey, value, options)
+  } }
   const { OperationalSettingsControls } = loadSource(filename, {
+    '@/lib/supabase/client': { createClient: () => ({ from: () => ({ select: () => ({ in: async () => {
+      reads++
+      return { data: [{ key: 'assessment_sla_days', value: '2' }], error: readFails ? { message: 'Private read failure' } : null }
+    } }) }) }) },
     swr: { __esModule: true, default: () => swrState },
     '@/lib/contexts/permission-context': { usePermissions: () => ({ role: { code: 'super_admin' }, user: { id: 'fixture' } }) },
     '@/lib/i18n/ui-text': { useUiTranslation: () => value => value },
   })
   assert.equal(OperationalSettingsControls().type, 'div', 'A failed revalidation must keep the cached editor mounted')
-  assert.equal(OperationalSettingsControls().props.children[1].type.name, 'Editor')
+  const editor = OperationalSettingsControls().props.children[1]
+  assert.equal(editor.type.name, 'Editor')
+  assert.equal(editor.props.unavailable, true)
+  await assert.rejects(editor.props.refresh(), /Could not load operational configuration/)
+  assert.equal((await mutateCache(cacheKey)).assessment_sla_days, '1')
+  readFails = false
+  assert.equal((await editor.props.refresh()).assessment_sla_days, '2')
+  assert.equal(reads, 2, 'Each recovery attempt must execute a real loader, never return cached data')
+  const renderedEditor = renderToStaticMarkup(React.createElement(editor.type, editor.props))
+  assert.match(renderedEditor, /<button[^>]*disabled=""[^>]*>Discard draft and load latest/)
   swrState = { ...swrState, data: undefined }
   assert.notEqual(OperationalSettingsControls().type, 'div', 'Initial failure must not provide editable defaults')
   for (const text of messages) {
@@ -392,8 +414,20 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     assert.equal(state.Reason, blocked === 'none' ? '' : 'Draft approval')
     assert.equal(state.Message, blocked === 'none' ? null : 'Obsolete saved status')
   }
-  let query = { data: [initial], error: null }
+  let readFails = true
+  let reads = 0
+  const cacheKey = 'verification-policy-refresh'
+  await mutateCache(cacheKey, [initial], { revalidate: false })
+  let query = { data: [initial], error: null, mutate: async (value, options) => {
+    if (value === undefined) return mutateCache(cacheKey)
+    assert.equal(options.revalidate, false)
+    return mutateCache(cacheKey, value, options)
+  } }
   const { FinancialPolicyControls } = loadSource(filename, {
+    '@/lib/supabase/client': { createClient: () => ({ from: () => ({ select: () => ({ order: () => ({ limit: async () => {
+      reads++
+      return { data: [initial], error: readFails ? { message: 'Private read failure' } : null }
+    } }) }) }) }) },
     '@/lib/hooks/use-page-query': { usePageQuery: () => query },
     '@/lib/contexts/permission-context': { usePermissions: () => ({ role: { code: 'super_admin' }, user: { id: 'fixture' } }) },
     '@/lib/i18n/ui-text': { useUiTranslation: () => value => value },
@@ -405,6 +439,11 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   assert.equal(cached.props.children[1].type, loaded.props.children[1].type, 'Revalidation failure must not unmount the editor')
   assert.equal(cached.props.children[1].key, loaded.props.children[1].key)
   assert.equal(cached.props.children[1].props.historyUnavailable, true)
+  await assert.rejects(cached.props.children[1].props.refresh(), /Could not load financial policy history/)
+  assert.equal((await mutateCache(cacheKey))[0].revision, initial.revision)
+  readFails = false
+  assert.equal((await cached.props.children[1].props.refresh())[0].revision, initial.revision)
+  assert.equal(reads, 2, 'Policy recovery must execute the loader even when cached history exists')
   query = { ...query, data: undefined }
   assert.notEqual(FinancialPolicyControls().type, 'div', 'An initial query failure must not create editable fallback policy')
   assert.match(text, /disabled=\{busy \|\| stale \|\| refreshRequired \|\| historyUnavailable/)

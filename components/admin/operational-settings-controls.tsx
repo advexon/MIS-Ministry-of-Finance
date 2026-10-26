@@ -22,7 +22,7 @@ export async function loadOperationalSettings() {
   return Object.fromEntries((data ?? []).map((item) => [item.key, item.value])) as OperationalSettings
 }
 
-function Editor({ current, refresh }: { current: OperationalSettings; refresh: () => Promise<unknown> }) {
+function Editor({ current, unavailable, refresh }: { current: OperationalSettings; unavailable: boolean; refresh: () => Promise<unknown> }) {
   const uiText = useUiTranslation()
 
   const [baseline, setBaseline] = useState(current)
@@ -37,7 +37,7 @@ function Editor({ current, refresh }: { current: OperationalSettings; refresh: (
   const changed = OPERATIONAL_SETTINGS.filter(({ key }) => draft[key] !== effectiveOperationalValues(baseline)[key])
 
   async function save() {
-    if (pending.current || stale || refreshRequired || !changed.length || reason.trim().length < 3 || reason.trim().length > 2000) return
+    if (pending.current || stale || refreshRequired || unavailable || !changed.length || reason.trim().length < 3 || reason.trim().length > 2000) return
     setError(null); setMessage(null)
     if (changed.some(({ key }) => !validateOperationalValue(key, draft[key]))) { setError('Check the numeric ranges and whole-day/member values.'); return }
     pending.current = true
@@ -71,7 +71,7 @@ function Editor({ current, refresh }: { current: OperationalSettings; refresh: (
       await refresh()
       setRefreshRequired(false)
       setError(null)
-    } catch { setError('Could not refresh settings. Your draft is preserved.') }
+    } catch { setRefreshRequired(true); setError('Could not refresh settings. Your draft is preserved.') }
     finally { pending.current = false; setBusy(false) }
   }
 
@@ -85,7 +85,7 @@ function Editor({ current, refresh }: { current: OperationalSettings; refresh: (
         <Field><FieldLabel htmlFor="configuration-reason">{uiText("Change reason / approval reference")}</FieldLabel><Textarea id="configuration-reason" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
       </FieldGroup></fieldset>
     </CardContent>
-    <CardFooter className="flex flex-wrap gap-3"><Button disabled={busy || stale || refreshRequired || !changed.length || reason.trim().length < 3} onClick={() => void save()}>{uiText("Save audited configuration")}</Button><Button variant="outline" disabled={busy || refreshRequired} onClick={() => { setBaseline(current); setDraft(effectiveOperationalValues(current)); setReason(''); setError(null); setMessage(null) }}>{uiText("Discard draft and load latest")}</Button><Button variant="outline" disabled={busy} onClick={() => void refreshLatest()}>{uiText("Refresh")}</Button></CardFooter>
+    <CardFooter className="flex flex-wrap gap-3"><Button disabled={busy || stale || refreshRequired || unavailable || !changed.length || reason.trim().length < 3} onClick={() => void save()}>{uiText("Save audited configuration")}</Button><Button variant="outline" disabled={busy || refreshRequired || unavailable} onClick={() => { if (pending.current || refreshRequired || unavailable) return; setBaseline(current); setDraft(effectiveOperationalValues(current)); setReason(''); setError(null); setMessage(null) }}>{uiText("Discard draft and load latest")}</Button><Button variant="outline" disabled={busy} onClick={() => void refreshLatest()}>{uiText("Refresh")}</Button></CardFooter>
   </Card>
 }
 
@@ -100,6 +100,6 @@ export function OperationalSettingsControls() {
   if (!data) return <Skeleton className="h-40" />
   return <div className="flex flex-col gap-4">
     {error && <Alert variant="destructive"><AlertDescription>{uiText("Could not refresh settings. Your draft is preserved.")}</AlertDescription></Alert>}
-    <Editor current={data} refresh={() => mutate()} />
+    <Editor current={data} unavailable={Boolean(error)} refresh={() => mutate(loadOperationalSettings(), { revalidate: false })} />
   </div>
 }
