@@ -1,4 +1,8 @@
+'use client'
+
 import * as React from 'react'
+import { LocalizedText } from '@/components/localized-text'
+import { useUiTranslation } from '@/lib/i18n/ui-text'
 import { Slot } from '@radix-ui/react-slot'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 
@@ -9,7 +13,10 @@ const Breadcrumb = React.forwardRef<
   React.ComponentPropsWithoutRef<'nav'> & {
     separator?: React.ReactNode
   }
->(({ ...props }, ref) => <nav ref={ref} aria-label="breadcrumb" {...props} />)
+>(({ ...props }, ref) => {
+  const uiText = useUiTranslation()
+  return <nav ref={ref} aria-label={uiText('Breadcrumb')} {...props} />
+})
 Breadcrumb.displayName = 'Breadcrumb'
 
 const BreadcrumbList = React.forwardRef<
@@ -99,7 +106,7 @@ const BreadcrumbEllipsis = ({
     {...props}
   >
     <MoreHorizontal className="h-4 w-4" />
-    <span className="sr-only">More</span>
+    <span className="sr-only"><LocalizedText>More</LocalizedText></span>
   </span>
 )
 BreadcrumbEllipsis.displayName = 'BreadcrumbElipssis'

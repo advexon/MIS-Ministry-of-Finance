@@ -1158,6 +1158,25 @@ for (const locale of ['en', 'ru', 'tj']) {
   for (const label of ['Pagination', 'Go to previous page', 'Go to next page', 'Previous', 'Next', 'More pages']) {
     assert.ok(html.includes(translateInterface(locale, label)), `${locale}: missing navigation label ${label}`)
   }
+  const { Breadcrumb, BreadcrumbEllipsis } = loadSource('components/ui/breadcrumb.tsx', overrides)
+  const breadcrumb = renderToStaticMarkup(React.createElement(Breadcrumb, null, React.createElement(BreadcrumbEllipsis)))
+  for (const label of ['Breadcrumb', 'More']) assert.ok(breadcrumb.includes(translateInterface(locale, label)))
+  const { SidebarProvider, SidebarTrigger, SidebarRail } = loadSource('components/ui/sidebar.tsx', overrides)
+  const sidebar = renderToStaticMarkup(React.createElement(SidebarProvider, null,
+    React.createElement(SidebarTrigger), React.createElement(SidebarRail)))
+  assert.ok(sidebar.includes(`aria-label="${translateInterface(locale, 'Toggle Sidebar')}"`))
+  assert.ok(sidebar.includes(`title="${translateInterface(locale, 'Toggle Sidebar')}"`))
+  const { Carousel, CarouselPrevious, CarouselNext } = loadSource('components/ui/carousel.tsx', overrides)
+  const carousel = renderToStaticMarkup(React.createElement(Carousel, null,
+    React.createElement(CarouselPrevious), React.createElement(CarouselNext)))
+  for (const label of ['Previous slide', 'Next slide']) assert.ok(carousel.includes(translateInterface(locale, label)))
+  const { CommandDialog } = loadSource('components/ui/command.tsx', {
+    ...overrides,
+    '@/components/ui/dialog': { Dialog: 'div', DialogContent: 'div', DialogTitle: 'h2', DialogDescription: 'p' },
+    cmdk: { Command: Object.assign(({ children, ...props }) => React.createElement('div', props, children), require('cmdk').Command) },
+  })
+  const command = renderToStaticMarkup(React.createElement(CommandDialog))
+  for (const label of ['Command Palette', 'Search for commands and actions']) assert.ok(command.includes(translateInterface(locale, label)))
   const custom = renderToStaticMarkup(React.createElement(PaginationNext, { 'aria-label': 'Custom label' }))
   assert.match(custom, /aria-label="Custom label"/)
   const primitives = require('@radix-ui/react-dialog')
