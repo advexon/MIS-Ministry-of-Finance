@@ -964,7 +964,7 @@ export function ApplicationForm({ initialLoan }: { initialLoan?: LoanApplication
                   </div>
                 </div>
                 <Separator />
-                  <h4 className="font-medium text-sm">Address *</h4>
+                  <h4 className="font-medium text-sm">Address </h4>
                 <div className="space-y-2">
                   <Label>Street Address (Legal Address)<RequiredMark show={isRequired("addressStreet")} /></Label>
                   <Input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} placeholder="Street, building" />
