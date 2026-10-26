@@ -1147,6 +1147,32 @@ assert.equal(skeleton(), skeleton())
 assert.match(skeleton(), /--skeleton-width:70%/)
 assert.match(skeleton(), /data-sidebar="menu-skeleton-icon"/)
 
+for (const locale of ['en', 'ru', 'tj']) {
+  const overrides = { '@/lib/i18n/context': { useI18n: () => ({ locale }) } }
+  const { translateInterface } = loadSource('lib/i18n/interface-text.ts')
+  const { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious, PaginationEllipsis } = loadSource('components/ui/pagination.tsx', overrides)
+  const html = renderToStaticMarkup(React.createElement(Pagination, null,
+    React.createElement(PaginationContent, null,
+      ...[PaginationPrevious, PaginationEllipsis, PaginationNext].map((Control, index) =>
+        React.createElement(PaginationItem, { key: index }, React.createElement(Control, { href: '#' }))))))
+  for (const label of ['Pagination', 'Go to previous page', 'Go to next page', 'Previous', 'Next', 'More pages']) {
+    assert.ok(html.includes(translateInterface(locale, label)), `${locale}: missing navigation label ${label}`)
+  }
+  const custom = renderToStaticMarkup(React.createElement(PaginationNext, { 'aria-label': 'Custom label' }))
+  assert.match(custom, /aria-label="Custom label"/)
+  const primitives = require('@radix-ui/react-dialog')
+  const { SheetContent } = loadSource('components/ui/sheet.tsx', {
+    ...overrides,
+    '@radix-ui/react-dialog': {
+      ...primitives,
+      Portal: ({ children }) => children,
+      Overlay: 'div', Content: 'div', Close: 'button',
+    },
+  })
+  const sheet = renderToStaticMarkup(React.createElement(SheetContent, null, 'Drawer content'))
+  assert.ok(sheet.includes(translateInterface(locale, 'Close')), `${locale}: missing translated drawer close label`)
+}
+
 const { ReportChartCard } = loadSource('components/dashboard/report-chart-card.tsx', {
     '@/lib/i18n/context': { useI18n: () => ({ locale: 'en' }) },
   })

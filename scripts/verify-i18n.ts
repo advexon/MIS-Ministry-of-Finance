@@ -72,6 +72,10 @@ for (const path of paths.filter(path => /^(app|components)\/.*\.tsx$/.test(path)
       const key = node.arguments[0].text.replace(/\s+/g, ' ').trim()
       assert.ok(interfaceCatalog[key], `${path}: missing translation for ${key}`)
     }
+    if (ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === 'LocalizedText') {
+      const key = node.children.filter(ts.isJsxText).map(child => child.text).join('').replace(/\s+/g, ' ').trim()
+      if (key) assert.ok(interfaceCatalog[key], `${path}: missing LocalizedText translation for ${key}`)
+    }
     ts.forEachChild(node, visit)
   }
   visit(source)
