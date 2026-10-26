@@ -2,7 +2,7 @@
 
 import { useUiTranslation } from '@/lib/i18n/ui-text'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { usePermissions } from '@/lib/contexts/permission-context'
 import { createClient } from '@/lib/supabase/client'
@@ -33,7 +33,7 @@ function PolicyNumber({ id, label, value, onChange, max = 100, step = 'any' }: {
   return <Field><FieldLabel htmlFor={id}>{uiText(label)}</FieldLabel><Input id={id} type="number" min="0" max={max} step={step} value={displayNumber(value)} onChange={(event) => onChange(numberInput(event.target.value))} /></Field>
 }
 
-function PolicyEditor({ initial, admin, history, refresh }: { initial: FinancialPolicyVersion | null; admin: boolean; history: FinancialPolicyVersion[]; refresh: () => Promise<unknown> }) {
+function PolicyEditor({ initial, admin, history, historyUnavailable, refresh }: { initial: FinancialPolicyVersion | null; admin: boolean; history: FinancialPolicyVersion[]; historyUnavailable: boolean; refresh: () => Promise<FinancialPolicyVersion[] | undefined> }) {
   const uiText = useUiTranslation()
 
   const [baseline, setBaseline] = useState(initial)
@@ -41,6 +41,8 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
   const [reason, setReason] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const pending = useRef(false)
+  const [refreshRequired, setRefreshRequired] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | { key: string; revision: number } | null>(null)
   const [issues, setIssues] = useState<FinancialPolicyIssue[]>([])
@@ -54,6 +56,7 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
   const setFees = (change: Partial<FinancialPolicy['fees']>) => setDraft((value) => ({ ...value, fees: { ...value.fees, ...change } }))
 
   async function save() {
+    if (!admin || pending.current || stale || refreshRequired || historyUnavailable) return
     setError(null); setMessage(null)
     const parsed = financialPolicySchema.safeParse(draft)
     if (!parsed.success) {
@@ -61,33 +64,68 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
       return
     }
     setIssues([])
-    if (!confirmed || reason.trim().length < 3) { setError('Review the policy and enter a change reason before saving.'); return }
+    if (!confirmed || reason.trim().length < 3 || reason.trim().length > 2000) { setError('Review the policy and enter a change reason of 3–2000 characters before saving.'); return }
+    pending.current = true
     setBusy(true)
     try {
       const { data, error } = await createClient().rpc('cgf_save_financial_policy', { p_policy: parsed.data, p_reason: reason.trim(), p_expected_revision: baseline?.revision ?? 0 })
-      if (error) throw new Error(error.code === '40001' ? 'Another administrator saved a new revision. Your draft is preserved; load the latest policy before trying again.' : 'Policy save was not confirmed. Reload the latest policy before retrying; your draft is preserved.')
-      if (!data || typeof data.id !== 'string' || !Number.isSafeInteger(data.revision) || data.revision <= (baseline?.revision ?? 0) || JSON.stringify(financialPolicySchema.parse(data.policy)) !== JSON.stringify(parsed.data)) throw new Error('Policy save was not confirmed. Reload before retrying.')
-      const saved: FinancialPolicyVersion = { id: data.id, revision: data.revision, policy: financialPolicySchema.parse(data.policy), reason: data.reason, created_at: data.created_at }
+      if (error) {
+        setRefreshRequired(true)
+        setError(error.code === '40001' ? 'Another administrator saved a new revision. Your draft is preserved; load the latest policy before trying again.' : 'Policy save was not confirmed. Reload the latest policy before retrying; your draft is preserved.')
+        return
+      }
+      const receipt = financialPolicySchema.safeParse(data?.policy)
+      if (!data || typeof data.id !== 'string' || !data.id || !Number.isSafeInteger(data.revision) || data.revision <= (baseline?.revision ?? 0) || data.reason !== reason.trim() || typeof data.created_at !== 'string' || !Number.isFinite(Date.parse(data.created_at)) || !receipt.success || JSON.stringify(receipt.data) !== JSON.stringify(parsed.data)) {
+        setRefreshRequired(true)
+        setError('Policy save was not confirmed. Reload the latest policy before retrying; your draft is preserved.')
+        return
+      }
+      const saved: FinancialPolicyVersion = { id: data.id, revision: data.revision, policy: receipt.data, reason: data.reason, created_at: data.created_at }
       setBaseline(saved); setDraft(saved.policy); setReason(''); setConfirmed(false)
       setMessage({ key: 'Policy revision {0} saved and audited. New claim payments, recoveries and fee assessments use this revision; historical records are unchanged.', revision: saved.revision })
-      try { await refresh() } catch { setMessage({ key: 'Policy revision {0} saved and audited; revision history could not refresh.', revision: saved.revision }) }
-    } catch (error) { setError(error instanceof Error ? error.message : 'Save not confirmed; reload before retrying.') }
-    finally { setBusy(false) }
+      try {
+        if (!Array.isArray(await refresh())) throw new Error('History unavailable')
+        setRefreshRequired(false)
+      } catch {
+        setRefreshRequired(true)
+        setMessage({ key: 'Policy revision {0} saved and audited; revision history could not refresh.', revision: saved.revision })
+      }
+    } catch {
+      setRefreshRequired(true)
+      setError('Policy save was not confirmed. Reload the latest policy before retrying; your draft is preserved.')
+    }
+    finally { pending.current = false; setBusy(false) }
   }
 
   async function reload() {
+    if (pending.current) return
+    pending.current = true
     setBusy(true)
-    try { await refresh(); setMessage('Latest history refreshed. Use “Discard draft and load latest” to replace your draft.'); setError(null) }
-    catch { setError('Could not reload the latest policy. Your draft is preserved.') }
-    finally { setBusy(false) }
+    try {
+      if (!Array.isArray(await refresh())) throw new Error('History unavailable')
+      setRefreshRequired(false)
+      setError(null)
+      setMessage(null)
+    } catch {
+      setRefreshRequired(true)
+      setError('Could not reload the latest policy. Your draft is preserved.')
+    }
+    finally { pending.current = false; setBusy(false) }
+  }
+
+  function discard() {
+    if (!admin || pending.current || refreshRequired || historyUnavailable) return
+    setBaseline(latest); setDraft(latest?.policy ?? EMPTY_POLICY_DRAFT)
+    setReason(''); setConfirmed(false); setIssues([]); setError(null); setMessage(null)
   }
 
   return <section aria-label={uiText("Financial policy controls")} className="flex flex-col gap-6">
     <Alert><AlertTitle>{uiText("Administrator-owned policy · financial execution connected")}</AlertTitle><AlertDescription>{uiText("Claim payments, recovery allocation and fee assessments enforce saved policy and retain its revision, terms and evidence. Super Administrator has inherent payment authority but cannot bypass evidence, currency checks or financial caps. New fees use signed guarantee amounts or approved month-end principal evidence, configured rates, proration and rounding. Invoices use the fee’s saved due-day rule. FX conversion and legacy reconciliation remain unavailable. Saving never recalculates historical transactions.")}</AlertDescription></Alert>
     {!baseline && <Alert><AlertTitle>{uiText("No financial policy has been saved")}</AlertTitle><AlertDescription>{uiText("The form is an unsaved draft. No legacy 50% recovery share or 0.5% fee rate is assumed to be approved. An empty payment authority list authorizes no ordinary payment role; verified Super Administrator authority remains inherent.")}</AlertDescription></Alert>}
     {message && <p role="status" className="text-sm leading-relaxed">{typeof message === 'string' ? uiText(message) : uiText(message.key, message.revision)}</p>}
-    {(error || issues.length > 0) && <Alert variant="destructive"><AlertTitle>{uiText("Policy not saved")}</AlertTitle><AlertDescription>{uiText(error)}{issues.length > 0 && <ul className="list-disc pl-5">{issues.map((issue, index) => <li key={`${issue.path.join('.')}-${index}`}>{formatFinancialPolicyIssue(issue, uiText)}</li>)}</ul>}</AlertDescription></Alert>}
-    <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{baseline ? uiText("Editing saved revision {0}", baseline.revision) : uiText("Editing an unsaved draft")}{!admin && uiText("· read only")}</p><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => void reload()}>{uiText("Refresh history")}</Button>{admin && <Button type="button" variant="outline" disabled={busy} onClick={() => { setBaseline(latest); setDraft(latest?.policy ?? EMPTY_POLICY_DRAFT); setReason(''); setConfirmed(false); setIssues([]); setError(null); setMessage('Latest policy loaded; unsaved edits discarded.') }}>{uiText("Discard draft and load latest")}</Button>}</div></div>
+    {(error || issues.length > 0) && <Alert variant="destructive"><AlertTitle>{uiText("Financial policy action needs attention")}</AlertTitle><AlertDescription>{uiText(error)}{issues.length > 0 && <ul className="list-disc pl-5">{issues.map((issue, index) => <li key={`${issue.path.join('.')}-${index}`}>{formatFinancialPolicyIssue(issue, uiText)}</li>)}</ul>}</AlertDescription></Alert>}
+    <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{baseline ? uiText("Editing saved revision {0}", baseline.revision) : uiText("Editing an unsaved draft")}{!admin && uiText("· read only")}</p><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => void reload()}>{uiText("Refresh history")}</Button>{admin && <Button type="button" variant="outline" disabled={busy || refreshRequired || historyUnavailable} onClick={discard}>{uiText("Discard draft and load latest")}</Button>}</div></div>
+    {(refreshRequired || historyUnavailable) && <Alert><AlertDescription>{uiText("Refresh history before saving or discarding this draft.")}</AlertDescription></Alert>}
     {stale && <Alert><AlertTitle>{uiText("A newer saved revision is available")}</AlertTitle><AlertDescription>{uiText("Your unsaved edits have not been overwritten. Load the latest policy before saving.")}</AlertDescription></Alert>}
     <fieldset disabled={!admin || busy} className="flex min-w-0 flex-col gap-6">
       <legend className="sr-only">{uiText("Approved financial rules")}</legend>
@@ -122,7 +160,7 @@ function PolicyEditor({ initial, admin, history, refresh }: { initial: Financial
         <FieldDescription>{uiText("Prorated periods include the start date and exclude the end date. Quarterly rates are annualized by multiplying by four for day-count proration. Actual/Actual splits periods at year boundaries. Upfront fees are charged once without day-count proration.")}</FieldDescription>
         <div className="grid gap-4 sm:grid-cols-2"><PolicyNumber id="policy-decimals" label="Rounding decimal places (half up)" value={fees.decimal_places} max={4} step="1" onChange={(decimal_places) => setFees({ decimal_places })} /><PolicyNumber id="policy-due-days" label="Payment due after invoice (calendar days)" value={fees.due_days} max={365} step="1" onChange={(due_days) => setFees({ due_days })} /></div>
       </FieldGroup></CardContent><CardFooter><p className="text-sm leading-relaxed text-muted-foreground">{uiText("Financial execution must snapshot the exact revision, base, period, currency, FX evidence and rounded result when each transaction is created.")}</p></CardFooter></Card>
-      {admin && <Card><CardHeader><CardTitle>{uiText("Save approved policy")}</CardTitle><CardDescription>{uiText("Each save creates an immutable revision and an audit entry. Existing revisions are never edited or deleted.")}</CardDescription></CardHeader><CardContent><FieldGroup><Field><FieldLabel htmlFor="financial-policy-reason">{uiText("Reason / approval reference")}</FieldLabel><Textarea id="financial-policy-reason" required minLength={3} maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={uiText("Reference the approved financial rules and explain this change")} /></Field><div className="flex items-center gap-3"><Checkbox id="financial-policy-confirm" checked={confirmed} onCheckedChange={(checked) => setConfirmed(checked === true)} /><Label htmlFor="financial-policy-confirm">{uiText("I have reviewed these values against the approved policy, including any zero fee rates.")}</Label></div></FieldGroup></CardContent><CardFooter><Button type="button" disabled={busy || stale || !confirmed || reason.trim().length < 3} onClick={() => void save()}>{busy ? uiText("Saving policy…") : uiText("Save policy revision")}</Button></CardFooter></Card>}
+      {admin && <Card><CardHeader><CardTitle>{uiText("Save approved policy")}</CardTitle><CardDescription>{uiText("Each save creates an immutable revision and an audit entry. Existing revisions are never edited or deleted.")}</CardDescription></CardHeader><CardContent><FieldGroup><Field><FieldLabel htmlFor="financial-policy-reason">{uiText("Reason / approval reference")}</FieldLabel><Textarea id="financial-policy-reason" required minLength={3} maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={uiText("Reference the approved financial rules and explain this change")} /></Field><div className="flex items-center gap-3"><Checkbox id="financial-policy-confirm" checked={confirmed} onCheckedChange={(checked) => setConfirmed(checked === true)} /><Label htmlFor="financial-policy-confirm">{uiText("I have reviewed these values against the approved policy, including any zero fee rates.")}</Label></div></FieldGroup></CardContent><CardFooter><Button type="button" disabled={busy || stale || refreshRequired || historyUnavailable || !confirmed || reason.trim().length < 3 || reason.trim().length > 2000} onClick={() => void save()}>{busy ? uiText("Saving policy…") : uiText("Save policy revision")}</Button></CardFooter></Card>}
     </fieldset>
     <Card><CardHeader><CardTitle>{uiText("Saved policy history")}</CardTitle><CardDescription>{uiText("Latest 20 immutable revisions. This is configuration history, not a payment ledger.")}</CardDescription></CardHeader><CardContent><ul className="flex flex-col gap-3">{history.map((version) => <li key={version.id}><details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{uiText("Revision")} {version.revision} · {new Date(version.created_at).toLocaleString()} · {version.reason}</summary><pre className="mt-3 overflow-auto rounded-md bg-muted p-3 text-sm text-foreground">{JSON.stringify(version.policy, null, 2)}</pre></details></li>)}</ul>{history.length === 0 && <p className="text-sm text-muted-foreground">{uiText("No saved policy revisions.")}</p>}</CardContent></Card>
   </section>
@@ -140,7 +178,10 @@ export function FinancialPolicyControls() {
     return (data ?? []).map((version) => ({ ...version, policy: financialPolicySchema.parse(version.policy) }))
   })
   if (!visible) return <Alert><AlertDescription>{uiText("Financial policy configuration requires an authorized Fund role.")}</AlertDescription></Alert>
-  if (error) return <Alert variant="destructive"><AlertTitle>{uiText("Financial policy unavailable")}</AlertTitle><AlertDescription>{uiText("No fallback policy has been loaded.")}</AlertDescription><Button type="button" variant="outline" onClick={() => void mutate()}>{uiText("Retry loading policy")}</Button></Alert>
+  if (error && !data) return <Alert variant="destructive"><AlertTitle>{uiText("Financial policy unavailable")}</AlertTitle><AlertDescription>{uiText("No fallback policy has been loaded.")}</AlertDescription><Button type="button" variant="outline" onClick={() => void mutate().catch(() => undefined)}>{uiText("Retry loading policy")}</Button></Alert>
   if (!data) return <Skeleton className="h-40 w-full" />
-  return <PolicyEditor key={`${user.id}:${role?.id}`} initial={data[0] ?? null} history={data} admin={admin} refresh={() => mutate()} />
+  return <div className="flex flex-col gap-4">
+    {error && <Alert variant="destructive"><AlertDescription>{uiText("Could not reload the latest policy. Your draft is preserved.")}</AlertDescription></Alert>}
+    <PolicyEditor key={`${user.id}:${role?.id}`} initial={data[0] ?? null} history={data} admin={admin} historyUnavailable={Boolean(error)} refresh={() => mutate()} />
+  </div>
 }

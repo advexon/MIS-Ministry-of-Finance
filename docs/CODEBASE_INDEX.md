@@ -4,6 +4,12 @@ Reference map of the application. See the root README for repository organizatio
 
 Developed by Siyovush Mirzoev.
 
+## Financial policy lifecycle follow-up — 27 October 2026
+
+Financial policy history revalidation failures now retain the same cached editor instead of unmounting it. Synchronous locking prevents duplicate save/refresh requests; stale, unavailable or unconfirmed history blocks saves, and unavailable/unconfirmed history blocks discarding until refresh succeeds. Save receipts must confirm the revision, policy, reason and timestamp before clearing the draft. Confirmed saves remain acknowledged when the subsequent history read fails; reload errors no longer appear beneath a misleading “Policy not saved” heading. Recovery feedback has Russian/Tajik catalog entries, and successful refresh/discard clears obsolete feedback without silently replacing drafts.
+
+`verify:ui-lifecycles` executes the actual financial save, reload and discard handlers for success/initial revision, duplicates, invalid drafts/reasons, read-only/stale/unavailable states, conflicts, returned/network errors, malformed/mismatched receipts and saved-but-refresh-failed outcomes. Full `pnpm verify` passed (TypeScript, zero-warning ESLint and all local suites), as did `git diff --check`. Signed-in Super Administrator browser acceptance at 1488×692 light injected a history-read failure: values, reason and confirmation survived; save/discard were disabled. Restoring the real history read re-enabled both actions without replacing the draft, and explicit discard reset the unsaved fixture. Recovery messages were observed in Tajik and Russian. No policy save RPC, migration or financial/account mutation was performed. Successful-save/refresh-failure remains handler-tested, not a live policy mutation; this slice does not certify the broader multi-role workflow.
+
 ## Operational settings lifecycle follow-up — 27 October 2026
 
 Operational settings now distinguish an acknowledged audited save from a failed subsequent refresh. Cached SWR data keeps the same editor mounted on revalidation errors; drafts/reasons survive failed or unconfirmed saves. A synchronous request lock prevents duplicate save/refresh calls, and stale or unconfirmed outcomes require a successful refresh before another save. Discarding a draft clears obsolete success feedback. Known conflicts and generic recovery messages render through Russian/Tajik catalog entries rather than exposing raw database/network details.

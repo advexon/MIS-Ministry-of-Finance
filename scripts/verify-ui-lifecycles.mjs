@@ -157,6 +157,150 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
 }
 
 {
+  const filename = 'components/admin/financial-policy-controls.tsx'
+  const text = readFileSync(resolve(root, filename), 'utf8')
+  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const handlers = {}
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && ['save', 'reload', 'discard'].includes(node.name?.text)) handlers[node.name.text] = node.getText(source)
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(handlers.save && handlers.reload && handlers.discard)
+  const { financialPolicySchema, EMPTY_POLICY_DRAFT } = loadSource('lib/admin/financial-policy.ts')
+  const { translateInterface, interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
+  const policy = { ...EMPTY_POLICY_DRAFT, recoveries: { ...EMPTY_POLICY_DRAFT.recoveries, fund_share_percent: 30 } }
+  const initial = { id: 'baseline', revision: 4, policy, reason: 'Previous approval', created_at: '2026-10-01T00:00:00Z' }
+  const messages = new Set(['Refresh history before saving or discarding this draft.', 'Financial policy action needs attention'])
+  const contextFor = (state, extra = {}) => ({
+    admin: true, pending: { current: false }, stale: false, refreshRequired: false, historyUnavailable: false,
+    financialPolicySchema, EMPTY_POLICY_DRAFT, baseline: initial, draft: policy, latest: initial, confirmed: true, reason: ' Approved policy change ',
+    ...Object.fromEntries(['Busy', 'Baseline', 'Draft', 'Reason', 'Confirmed', 'Issues', 'Error', 'Message', 'RefreshRequired'].map(name => [`set${name}`, value => {
+      state[name] = value
+      if (name === 'Error' && value) messages.add(value)
+      if (name === 'Message' && value) messages.add(typeof value === 'string' ? value : value.key)
+    }])),
+    ...extra,
+  })
+  const handler = (name, context) => runInNewContext(ts.transpileModule(`${handlers[name]}\n${name}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+  for (const scenario of ['success', 'first-policy', 'refresh-failure', 'empty-refresh', 'conflict', 'returned-error', 'network', 'empty-receipt', 'malformed-policy', 'mismatched-policy', 'mismatched-reason', 'bad-timestamp', 'bad-id', 'bad-revision', 'invalid', 'read-only', 'stale', 'refresh-required', 'history-unavailable', 'busy', 'unconfirmed', 'short-reason', 'long-reason']) {
+    const state = { Baseline: initial, Draft: policy, Reason: ' Approved policy change ', Confirmed: true }
+    const events = []
+    let release
+    const response = new Promise(resolve => { release = resolve })
+    const receipt = { ...initial, id: 'saved', revision: 5, reason: 'Approved policy change' }
+    if (scenario === 'first-policy') receipt.revision = 1
+    if (scenario === 'malformed-policy') receipt.policy = {}
+    if (scenario === 'mismatched-policy') receipt.policy = { ...policy, currencies: ['TJS', 'USD'] }
+    if (scenario === 'mismatched-reason') receipt.reason = 'Different approval'
+    if (scenario === 'bad-timestamp') receipt.created_at = 'not-a-date'
+    if (scenario === 'bad-id') receipt.id = ''
+    if (scenario === 'bad-revision') receipt.revision = 4
+    const context = contextFor(state, {
+      baseline: scenario === 'first-policy' ? null : initial,
+      admin: scenario !== 'read-only', stale: scenario === 'stale', refreshRequired: scenario === 'refresh-required', historyUnavailable: scenario === 'history-unavailable',
+      pending: { current: scenario === 'busy' }, confirmed: scenario !== 'unconfirmed',
+      draft: scenario === 'invalid' ? { ...policy, fees: { ...policy.fees, due_days: 1.5 } } : policy,
+      reason: scenario === 'short-reason' ? ' x ' : scenario === 'long-reason' ? 'x'.repeat(2001) : state.Reason,
+      createClient: () => ({ rpc: async (name, args) => {
+        events.push('rpc')
+        assert.equal(name, 'cgf_save_financial_policy')
+        assert.equal(args.p_expected_revision, scenario === 'first-policy' ? 0 : 4)
+        assert.equal(args.p_reason, 'Approved policy change')
+        assert.equal(JSON.stringify(args.p_policy), JSON.stringify(policy))
+        await response
+        if (scenario === 'network') throw new Error('Private network detail')
+        return { data: scenario === 'empty-receipt' ? null : receipt, error: scenario === 'conflict' ? { code: '40001' } : scenario === 'returned-error' ? { message: 'Private database detail' } : null }
+      } }),
+      refresh: async () => {
+        events.push('refresh')
+        if (scenario === 'refresh-failure') throw new Error('Private refresh detail')
+        return scenario === 'empty-refresh' ? undefined : [receipt]
+      },
+    })
+    const save = handler('save', context)
+    const first = save()
+    await save()
+    release()
+    await first
+    if (['read-only', 'stale', 'refresh-required', 'history-unavailable', 'busy', 'unconfirmed', 'short-reason', 'long-reason'].includes(scenario)) {
+      assert.deepEqual(events, [], scenario)
+      assert.equal(state.Reason, ' Approved policy change ')
+      if (['unconfirmed', 'short-reason', 'long-reason'].includes(scenario)) assert.match(state.Error, /3–2000/)
+      continue
+    }
+    if (scenario === 'invalid') {
+      assert.deepEqual(events, [])
+      assert.ok(state.Issues.some(issue => issue.path.includes('due_days')))
+      continue
+    }
+    assert.equal(events.filter(value => value === 'rpc').length, 1, `${scenario}: synchronous lock prevents duplicate saves`)
+    assert.equal(context.pending.current, false)
+    assert.equal(state.Busy, false)
+    const acknowledged = ['success', 'first-policy', 'refresh-failure', 'empty-refresh'].includes(scenario)
+    assert.equal(state.Baseline.revision, acknowledged ? receipt.revision : 4, scenario)
+    assert.equal(state.Draft, acknowledged ? state.Baseline.policy : policy)
+    assert.equal(state.Reason, acknowledged ? '' : ' Approved policy change ')
+    assert.equal(state.Confirmed, !acknowledged)
+    assert.equal(events.includes('refresh'), acknowledged)
+    assert.equal(Boolean(state.Message), acknowledged)
+    assert.equal(state.RefreshRequired, !['success', 'first-policy'].includes(scenario))
+    if (['refresh-failure', 'empty-refresh'].includes(scenario)) {
+      assert.match(state.Message.key, /saved and audited; revision history/)
+      assert.equal(state.Error, null, 'A failed refresh must not relabel an acknowledged save as unsaved')
+    }
+    if (scenario === 'conflict') assert.match(state.Error, /Another administrator/)
+    assert.doesNotMatch(JSON.stringify(state), /Private/)
+  }
+  for (const outcome of ['success', 'failure', 'empty']) {
+    const state = { Draft: policy, Reason: 'Preserve me', Confirmed: true, Message: 'Old feedback', Error: 'Previous error' }
+    let calls = 0
+    const context = contextFor(state, {
+      refreshRequired: true,
+      refresh: async () => { calls++; if (outcome === 'failure') throw new Error('Private error'); return outcome === 'empty' ? undefined : [initial] },
+    })
+    const reload = handler('reload', context)
+    await Promise.all([reload(), reload()])
+    assert.equal(calls, 1)
+    assert.equal(context.pending.current, false)
+    assert.equal(state.Busy, false)
+    assert.equal(state.RefreshRequired, outcome !== 'success')
+    assert.equal(state.Error === null, outcome === 'success')
+    assert.equal(state.Draft, policy)
+    assert.equal(state.Reason, 'Preserve me')
+    assert.equal(state.Confirmed, true)
+    if (outcome === 'success') assert.equal(state.Message, null)
+  }
+  for (const blocked of ['none', 'read-only', 'busy', 'refresh-required', 'history-unavailable']) {
+    const state = { Message: 'Obsolete saved status', Reason: 'Draft approval' }
+    handler('discard', contextFor(state, { admin: blocked !== 'read-only', pending: { current: blocked === 'busy' }, refreshRequired: blocked === 'refresh-required', historyUnavailable: blocked === 'history-unavailable' }))()
+    assert.equal(state.Reason, blocked === 'none' ? '' : 'Draft approval')
+    assert.equal(state.Message, blocked === 'none' ? null : 'Obsolete saved status')
+  }
+  let query = { data: [initial], error: null }
+  const { FinancialPolicyControls } = loadSource(filename, {
+    '@/lib/hooks/use-page-query': { usePageQuery: () => query },
+    '@/lib/contexts/permission-context': { usePermissions: () => ({ role: { code: 'super_admin' }, user: { id: 'fixture' } }) },
+    '@/lib/i18n/ui-text': { useUiTranslation: () => value => value },
+  })
+  const loaded = FinancialPolicyControls()
+  query = { ...query, error: new Error('Private fetch detail') }
+  const cached = FinancialPolicyControls()
+  assert.equal(cached.type, loaded.type)
+  assert.equal(cached.props.children[1].type, loaded.props.children[1].type, 'Revalidation failure must not unmount the editor')
+  assert.equal(cached.props.children[1].key, loaded.props.children[1].key)
+  assert.equal(cached.props.children[1].props.historyUnavailable, true)
+  query = { ...query, data: undefined }
+  assert.notEqual(FinancialPolicyControls().type, 'div', 'An initial query failure must not create editable fallback policy')
+  assert.match(text, /disabled=\{busy \|\| stale \|\| refreshRequired \|\| historyUnavailable/)
+  for (const key of messages) {
+    assert.ok(interfaceCatalog[key], `Financial lifecycle feedback must be catalogued: ${key}`)
+    for (const locale of ['ru', 'tj']) assert.notEqual(translateInterface(locale, key), key)
+  }
+  console.log('Financial policy lifecycle checks passed: exact revision RPC, duplicate guard, receipt validation, role/stale/uncertainty guards, preserved drafts, acknowledged-save refresh failure, reload/discard recovery and multilingual feedback')
+}
+
+{
   const { canViewBorrowerCreditHistory: allowed } = loadSource('lib/utils/borrower-credit-history.ts')
   const fundRoles = ['super_admin', 'prsf_admin', 'prsf_analyst', 'auditor', 'credit_risk_officer', 'compliance_officer', 'fkg_management', 'deputy_director', 'accountant', 'reporting_officer', 'business_development']
   for (const code of fundRoles) {
