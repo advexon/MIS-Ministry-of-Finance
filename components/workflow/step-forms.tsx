@@ -459,8 +459,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
     const priorActor = (data as Record<string, string | null> | null)?.[sod.actorColumn] ?? null
     if (priorActor && priorActor === uid) {
       setSodBlock(
-        `Segregation of duties (Guideline 7.2.1.1): you ${sod.describe}, so you cannot also ` +
-          `perform step ${config.step} for it. Another officer must complete this step.`,
+        uiText('Segregation of duties (Guideline 7.2.1.1): you {0}, so you cannot also perform step {1} for it. Another officer must complete this step.', uiText(sod.describe), config.step),
       )
     }
     setCheckedSod(true)
@@ -476,7 +475,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
     for (const f of config.fields) {
       if (!fieldRequired(f)) continue
       const v = values[f.name]
-      if (v == null || (typeof v === 'string' && v.trim() === '') || v === false) return `"${f.label}" is required.`
+      if (v == null || (typeof v === 'string' && v.trim() === '') || v === false) return uiText('"{0}" is required.', uiText(f.label))
     }
     return null
   }
@@ -499,7 +498,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       const row = { ...config.buildRow({ loan, userId, values }), ...(authorityReason ? { authority_reason: authorityReason } : {}) }
       const { error: insertError } = await supabase.from(config.table).insert(row)
       if (insertError) {
-        setError(`Could not save the record: ${insertError.message}`)
+        setError(uiText('Could not save the record: {0}', insertError.message))
         return
       }
 
@@ -522,7 +521,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       const json = await res.json()
       if (!res.ok) {
         setError(
-          `${json.error ?? 'The transition was refused.'} The record was saved, so it can be retried.`,
+          uiText('{0} The record was saved, so it can be retried.', uiText(json.error ?? 'The transition was refused.')),
         )
         return
       }
@@ -554,7 +553,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
         {sodBlock ? (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{sodBlock}</span>
+            <span>{uiText(sodBlock)}</span>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -583,7 +582,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                         rows={f.rows ?? 3}
                         value={String(values[f.name] ?? '')}
                         onChange={(e) => set(f.name, e.target.value)}
-                        placeholder={f.placeholder}
+                        placeholder={f.placeholder ? uiText(f.placeholder) : undefined}
                       />
                     ) : f.type === 'select' ? (
                       <Select
@@ -608,7 +607,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                         step={f.type === 'number' ? 'any' : undefined}
                         value={String(values[f.name] ?? '')}
                         onChange={(e) => set(f.name, e.target.value)}
-                        placeholder={f.placeholder}
+                        placeholder={f.placeholder ? uiText(f.placeholder) : undefined}
                       />
                     )}
                   </>

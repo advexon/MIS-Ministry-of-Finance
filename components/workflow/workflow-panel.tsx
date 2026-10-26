@@ -260,7 +260,7 @@ export function WorkflowPanel({ loan, roleCode, onDone }: Props) {
             )}
             {artifactForm && (
               <Button size="sm" onClick={() => setArtifactOpen(true)} disabled={busy}>
-                {artifactForm.title.replace(/ — step \d+$/, '')} <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                {uiText(artifactForm.title)} <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             )}
             {status === 'kkg_protocol' && <Button size="sm" disabled={busy} onClick={() => void post('formal_application', undefined, 'Signed protocol released for the formal application')}>{uiText("Proceed to formal application (step 11)")}</Button>}

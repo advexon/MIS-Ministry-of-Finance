@@ -223,7 +223,7 @@ export function NotificationsBell() {
                       size="icon"
                       className="h-6 w-6 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                       onClick={() => markAsRead(n.id)}
-                      aria-label={`Mark ${n.title} as read`}
+                      aria-label={uiText('Mark {0} as read', uiText(n.title))}
                     >
                       <X className="h-3 w-3" />
                     </Button>

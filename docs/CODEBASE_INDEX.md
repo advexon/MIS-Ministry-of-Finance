@@ -4,6 +4,10 @@ Reference map of the application. See the root README for repository organizatio
 
 Developed by Siyovush Mirzoev.
 
+## Workflow localization follow-up — 26 October 2026
+
+Workflow artifact actions now translate their full configured titles, including the step number. Required-field errors translate the field name inside a catalog template; save/retry and separation-of-duties messages translate their interface text while preserving server-provided details. Artifact placeholders and the notification mark-read accessible label use the selected language. Added missing УКО/ККГ/ФКГ form entries. `verify:ui-lifecycles` inventories every artifact title, description, field, option, placeholder, transition and separation-of-duties description, renders all seven action titles, and executes required-field validation in English, Russian and Tajik. Full `pnpm verify` passed (TypeScript, zero-warning repository ESLint and all local suites). Browser inspection at 1488×692 light redirected to login; authenticated acceptance of these changed controls remains unverified. No database, account or financial records were changed. This slice does not certify complete localization of generated backend messages or every administration module.
+
 ## Loan application implementation follow-up — 25 October 2026
 
 Applied `061`–`064` through Supabase MCP. These changes supersede the corresponding source defects in the historical audit below; they do not certify the entire multi-role loan-to-signature journey.

@@ -1169,12 +1169,20 @@ for (const locale of ['en', 'ru', 'tj']) {
   for (const step of SCHEME_STEPS.filter(step => step.slaDays != null)) {
     assert.ok(stepper.includes(translateInterface(locale, '{0}d', step.slaDays)))
   }
+  const { STEP_FORMS } = loadSource('components/workflow/step-forms.tsx', overrides)
+  const { interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
+  const missingArtifactTranslations = Object.values(STEP_FORMS).flatMap(config => {
+    const keys = [config.title, config.description, ...config.transitions.map(item => item.label),
+      ...config.fields.flatMap(field => [field.label, field.placeholder, ...(field.options ?? []).map(option => option.label)]), config.sodAgainstStep?.describe]
+    return keys.filter(key => key && !interfaceCatalog[key]).map(key => `Step ${config.step}: ${key}`)
+  })
+  assert.deepEqual(missingArtifactTranslations, [], 'All workflow artifact text needs Russian and Tajik translations')
   const { WorkflowPanel } = loadSource('components/workflow/workflow-panel.tsx', {
     ...overrides,
     'next/navigation': { useRouter: () => ({ refresh() {} }) },
     '@/lib/contexts/permission-context': { usePermissions: () => ({ profile: { id: 'reader', is_active: true } }) },
     '@/components/admin/authority-reason-provider': { useAuthorityReason: () => async () => null },
-    '@/components/workflow/step-forms': { STEP_FORMS: {}, StepArtifactForm: () => null },
+    '@/components/workflow/step-forms': { STEP_FORMS, StepArtifactForm: () => null },
   })
   for (const step of SCHEME_STEPS) {
     const panel = renderToStaticMarkup(React.createElement(WorkflowPanel, {
@@ -1182,6 +1190,39 @@ for (const locale of ['en', 'ru', 'tj']) {
     }))
     assert.ok(panel.includes(translateInterface(locale, step.titleEn)), `${locale}: missing workflow heading ${step.step}`)
     assert.ok(panel.includes(translateInterface(locale, 'Guideline')), `${locale}: missing guideline label`)
+  }
+  for (const [status, config] of Object.entries(STEP_FORMS)) {
+    const panel = renderToStaticMarkup(React.createElement(WorkflowPanel, {
+      loan: { id: 'locale-fixture', status, guarantee_amount: 1000, usd_rate: 10 }, roleCode: 'super_admin',
+    }))
+    assert.ok(panel.includes(translateInterface(locale, config.title)), `${locale}: untranslated artifact action at ${status}`)
+    let stateIndex = 0
+    let validationError
+    const { StepArtifactForm } = loadSource('components/workflow/step-forms.tsx', {
+      ...overrides,
+      react: { ...React, useMemo: fn => fn(), useState: initial => {
+        const index = stateIndex++
+        return [initial, value => { if (index === 2) validationError = value }]
+      } },
+      swr: { __esModule: true, default: () => ({ data: {} }) },
+      'next/navigation': { useRouter: () => ({ refresh() { throw new Error('Validation cannot navigate') } }) },
+      '@/lib/contexts/permission-context': { usePermissions: () => ({ role: { code: 'super_admin' } }) },
+      '@/components/admin/authority-reason-provider': { useAuthorityReason: () => async () => { throw new Error('Validation cannot request authority') } },
+      '@/lib/supabase/client': { createClient: () => ({}) },
+      '@/lib/hooks/use-field-requirements': { useFieldRequirements: () => ({ isRequired: () => true }) },
+      '@/lib/i18n/ui-text': { useUiTranslation: () => (key, ...params) => translateInterface(locale, key, ...params) },
+    })
+    const form = StepArtifactForm({ loan: { id: 'locale-fixture' }, config, open: true, onOpenChange() {} })
+    const findSubmit = element => {
+      if (!React.isValidElement(element)) return null
+      if (element.props.onClick && element.props.variant !== 'outline') return element
+      return React.Children.toArray(element.props.children).map(findSubmit).find(Boolean)
+    }
+    const submit = findSubmit(form)
+    assert.ok(submit, `${status}: missing artifact submit button`)
+    await submit.props.onClick()
+    const field = config.fields.find(item => item.type !== 'checkbox' || item.required)
+    assert.equal(validationError, translateInterface(locale, '"{0}" is required.', translateInterface(locale, field.label)))
   }
   const { Breadcrumb, BreadcrumbEllipsis } = loadSource('components/ui/breadcrumb.tsx', overrides)
   const breadcrumb = renderToStaticMarkup(React.createElement(Breadcrumb, null, React.createElement(BreadcrumbEllipsis)))
