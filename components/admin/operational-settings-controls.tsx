@@ -2,7 +2,7 @@
 
 import { useUiTranslation } from '@/lib/i18n/ui-text'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { usePermissions } from '@/lib/contexts/permission-context'
@@ -29,24 +29,50 @@ function Editor({ current, refresh }: { current: OperationalSettings; refresh: (
   const [draft, setDraft] = useState(effectiveOperationalValues(current))
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const pending = useRef(false)
+  const [refreshRequired, setRefreshRequired] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const stale = OPERATIONAL_SETTINGS.some(({ key }) => current[key] !== baseline[key])
+  const stale = !refreshRequired && OPERATIONAL_SETTINGS.some(({ key }) => current[key] !== baseline[key])
   const changed = OPERATIONAL_SETTINGS.filter(({ key }) => draft[key] !== effectiveOperationalValues(baseline)[key])
 
   async function save() {
+    if (pending.current || stale || refreshRequired || !changed.length || reason.trim().length < 3 || reason.trim().length > 2000) return
     setError(null); setMessage(null)
-    if (!changed.length || reason.trim().length < 3) return
     if (changed.some(({ key }) => !validateOperationalValue(key, draft[key]))) { setError('Check the numeric ranges and whole-day/member values.'); return }
+    pending.current = true
     setBusy(true)
     try {
       const { error } = await createClient().rpc('cgf_save_settings', { p_reason: reason.trim(), p_changes: changed.map(({ key }) => ({ key, value: draft[key], expected_value: baseline[key] ?? null })) })
-      if (error) throw new Error(error.code === '40001' ? 'Another administrator changed these values. Your draft is preserved; reload before retrying.' : error.message)
+      if (error) {
+        setError(error.code === '40001' ? 'Another administrator changed these values. Your draft is preserved; reload before retrying.' : 'Save could not be confirmed; reload before retrying.')
+        setRefreshRequired(true)
+        return
+      }
       const next = { ...baseline, ...Object.fromEntries(changed.map(({ key }) => [key, draft[key]])) }
       setBaseline(next); setReason(''); setMessage('Settings saved and audited. Future actions use the new values; historical evidence is unchanged.')
+      try { await refresh() }
+      catch {
+        setRefreshRequired(true)
+        setError('Settings were saved and audited, but the latest configuration could not load. Refresh before making another change.')
+      }
+    } catch {
+      setRefreshRequired(true)
+      setError('Save could not be confirmed; reload before retrying.')
+    }
+    finally { pending.current = false; setBusy(false) }
+  }
+
+  async function refreshLatest() {
+    if (pending.current) return
+    pending.current = true
+    setBusy(true)
+    try {
       await refresh()
-    } catch (error) { setError(error instanceof Error ? error.message : 'Save could not be confirmed; reload before retrying.') }
-    finally { setBusy(false) }
+      setRefreshRequired(false)
+      setError(null)
+    } catch { setError('Could not refresh settings. Your draft is preserved.') }
+    finally { pending.current = false; setBusy(false) }
   }
 
   return <Card><CardHeader><CardTitle>{uiText("Operational rules")}</CardTitle><CardDescription>{uiText("Only controls with an implemented runtime consumer are editable. Saves validate and commit every changed value with a reason and before/after audit records, or roll back entirely.")}</CardDescription></CardHeader>
@@ -59,7 +85,7 @@ function Editor({ current, refresh }: { current: OperationalSettings; refresh: (
         <Field><FieldLabel htmlFor="configuration-reason">{uiText("Change reason / approval reference")}</FieldLabel><Textarea id="configuration-reason" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
       </FieldGroup></fieldset>
     </CardContent>
-    <CardFooter className="flex flex-wrap gap-3"><Button disabled={busy || stale || !changed.length || reason.trim().length < 3} onClick={() => void save()}>{uiText("Save audited configuration")}</Button><Button variant="outline" disabled={busy} onClick={() => { setBaseline(current); setDraft(effectiveOperationalValues(current)); setReason(''); setError(null) }}>{uiText("Discard draft and load latest")}</Button><Button variant="outline" disabled={busy} onClick={() => void refresh().catch(() => setError('Could not refresh settings'))}>{uiText("Refresh")}</Button></CardFooter>
+    <CardFooter className="flex flex-wrap gap-3"><Button disabled={busy || stale || refreshRequired || !changed.length || reason.trim().length < 3} onClick={() => void save()}>{uiText("Save audited configuration")}</Button><Button variant="outline" disabled={busy || refreshRequired} onClick={() => { setBaseline(current); setDraft(effectiveOperationalValues(current)); setReason(''); setError(null); setMessage(null) }}>{uiText("Discard draft and load latest")}</Button><Button variant="outline" disabled={busy} onClick={() => void refreshLatest()}>{uiText("Refresh")}</Button></CardFooter>
   </Card>
 }
 
@@ -70,7 +96,10 @@ export function OperationalSettingsControls() {
   const admin = ['super_admin', 'prsf_admin'].includes(role?.code ?? '')
   const { data, error, mutate } = useSWR(admin ? ['operational-settings', user.id] : null, loadOperationalSettings)
   if (!admin) return <Alert><AlertDescription>{uiText("Active administrator access is required.")}</AlertDescription></Alert>
-  if (error) return <Alert variant="destructive"><AlertDescription>{uiText("Could not load the configuration. No editable fallback is shown.")}</AlertDescription></Alert>
+  if (error && !data) return <Alert variant="destructive"><AlertDescription>{uiText("Could not load the configuration. No editable fallback is shown.")}</AlertDescription></Alert>
   if (!data) return <Skeleton className="h-40" />
-  return <Editor current={data} refresh={() => mutate()} />
+  return <div className="flex flex-col gap-4">
+    {error && <Alert variant="destructive"><AlertDescription>{uiText("Could not refresh settings. Your draft is preserved.")}</AlertDescription></Alert>}
+    <Editor current={data} refresh={() => mutate()} />
+  </div>
 }
