@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useI18n } from '@/lib/i18n/context'
+import type { Locale } from '@/lib/i18n/translations'
+import { DOCUMENT_LANGUAGES, DOCUMENT_LOCALES, documentText, localizeDocumentTemplate } from '@/lib/i18n/document-translations'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -151,6 +154,10 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
 
 export default function DocumentsPage() {
   const { toast } = useToast()
+  const { locale: interfaceLocale } = useI18n()
+  const [downloadLanguage, setDownloadLanguage] = useState<Locale | null>(null)
+  const locale = downloadLanguage ?? interfaceLocale
+  const text = (key: string) => documentText(key, locale)
   const supabase = useMemo(() => createClient(), [])
 
   // Template state — start from built-in
@@ -160,7 +167,8 @@ export default function DocumentsPage() {
     updatedAt: new Date().toISOString(),
   }
 
-  const [template, setTemplate] = useState<DocumentTemplate>(initialTemplate)
+  const [templateState, setTemplate] = useState<DocumentTemplate>(initialTemplate)
+  const template = useMemo(() => localizeDocumentTemplate(templateState, locale), [templateState, locale])
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('pdf')
   const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState('')
@@ -182,7 +190,7 @@ export default function DocumentsPage() {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   const patch = (changes: Partial<DocumentTemplate>) =>
-    setTemplate(prev => ({ ...prev, ...changes, updatedAt: new Date().toISOString() }))
+    setTemplate(prev => ({ ...localizeDocumentTemplate(prev, locale), ...changes, updatedAt: new Date().toISOString() }))
 
   const loadTemplate = (tmpl: Omit<DocumentTemplate, 'createdAt' | 'updatedAt'>) => {
     setTemplate({ ...tmpl, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
@@ -200,7 +208,7 @@ export default function DocumentsPage() {
     if (exportDisabled) return
     setExporting(true)
     try {
-      await runExport(template, selectedFormat, rawRows, search)
+      await runExport(template, selectedFormat, rawRows, search, locale)
       toast({ title: selectedFormat === 'pdf' ? 'Print dialog opened' : `Exported as ${FORMAT_META[selectedFormat].label}`,
         description: selectedFormat === 'pdf' ? `${previewRows.length} records prepared. Choose Save as PDF in the print dialog.` : `${previewRows.length} records exported` })
     } catch (e) {
@@ -246,12 +254,26 @@ export default function DocumentsPage() {
       <div className="flex-shrink-0 border-b bg-card px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-bold text-foreground">Document Center</h1>
+            <h1 className="text-lg font-bold text-foreground">{documentText('Document Center', interfaceLocale)}</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Generate, configure and export reports in PDF, Excel, Word and CSV formats
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-xs font-medium" htmlFor="document-language">
+              {documentText('Download language', interfaceLocale)}
+              <select
+                id="document-language"
+                value={locale}
+                onChange={event => setDownloadLanguage(event.target.value as Locale)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                title={documentText('Follows your selected interface language. Custom text and source records are preserved.', interfaceLocale)}
+              >
+                {(['en', 'ru', 'tj'] as const).map(language => (
+                  <option key={language} value={language}>{DOCUMENT_LANGUAGES[language]}</option>
+                ))}
+              </select>
+            </label>
             <Button
               variant="outline"
               size="sm"
@@ -274,7 +296,7 @@ export default function DocumentsPage() {
                 {BUILT_IN_TEMPLATES.map(t => (
                   <DropdownMenuItem key={t.id} className="text-xs" onClick={() => loadTemplate(t)}>
                     <FileText className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                    {t.name}
+                    {text(t.name)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -340,8 +362,8 @@ export default function DocumentsPage() {
                       : 'hover:bg-secondary/60 text-foreground'
                   )}
                 >
-                  <span className={cn('text-xs font-semibold', template.id === t.id ? 'text-primary-foreground' : 'text-foreground')}>{t.name}</span>
-                  <span className={cn('mt-0.5 text-[10px] leading-relaxed', template.id === t.id ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{t.description}</span>
+                  <span className={cn('text-xs font-semibold', template.id === t.id ? 'text-primary-foreground' : 'text-foreground')}>{text(t.name)}</span>
+                  <span className={cn('mt-0.5 text-[10px] leading-relaxed', template.id === t.id ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{text(t.description)}</span>
                 </button>
               ))}
             </div>
@@ -686,7 +708,7 @@ export default function DocumentsPage() {
                   {template.includeTitle && <h2 className="mt-1 text-xl font-bold text-foreground">{template.headerFooter.headerCenter || template.name}</h2>}
                   {template.includeSummary && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {template.dataSource.replace(/_/g, ' ')} · {previewRows.length} records
+                      {text(template.dataSource)} · {previewRows.length} {text('Records')}
                       · {template.pageSize} {template.orientation}
                     </p>
                   )}
@@ -695,7 +717,7 @@ export default function DocumentsPage() {
                   <p className="text-xs text-muted-foreground">{template.headerFooter.headerRight}</p>
                   {template.headerFooter.showDate && (
                     <p className="text-xs text-muted-foreground">
-                      {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      {new Date().toLocaleDateString(DOCUMENT_LOCALES[locale], { day: '2-digit', month: 'long', year: 'numeric' })}
                     </p>
                   )}
                   <div className="mt-1 flex items-center justify-end gap-1.5">
@@ -710,15 +732,15 @@ export default function DocumentsPage() {
               {template.includeSummary && (
                 <div className="grid grid-cols-3 gap-3 border-b bg-secondary/20 px-6 py-4">
                   <div className="rounded-lg border bg-card p-3 text-center">
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase">Records</p>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">{text('Records')}</p>
                     <p className="mt-1 text-2xl font-bold text-foreground">{previewRows.length}</p>
                   </div>
                   <div className="rounded-lg border bg-card p-3 text-center">
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase">Columns</p>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">{text('Columns')}</p>
                     <p className="mt-1 text-2xl font-bold text-foreground">{visibleCols.length}</p>
                   </div>
                   <div className="rounded-lg border bg-card p-3 text-center">
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase">Filters</p>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">{text('Filters')}</p>
                     <p className="mt-1 text-2xl font-bold text-foreground">{template.filters.filter(f => f.enabled).length}</p>
                   </div>
                 </div>
@@ -757,7 +779,7 @@ export default function DocumentsPage() {
                         <tr key={i} className={rowClass}>
                           {visibleCols.map(col => {
                             const raw = row[col.key]
-                            const formatted = formatCellValue(raw, col.type, row.currency)
+                            const formatted = formatCellValue(raw, col.type, row.currency, locale)
                             const isRight = col.align === 'right' || col.type === 'currency' || col.type === 'number' || col.type === 'percent'
                             const cellClass = cn(
                               'px-4 py-2.5',
@@ -795,12 +817,12 @@ export default function DocumentsPage() {
                       <tr className="bg-primary/10 font-semibold">
                         {visibleCols.map((col, idx) => {
                           const isNumeric = col.type === 'currency' || col.type === 'number'
-                          const total = isNumeric ? documentTotal(previewRows, col) : null
+                          const total = isNumeric ? documentTotal(previewRows, col, locale) : null
                           return (
                             <td key={col.key} className={cn('border-t-2 border-primary/20 px-4 py-3 text-xs', col.type === 'currency' || col.type === 'number' ? 'text-right' : '')}>
                               {isNumeric && total !== null
                                 ? <span className="font-bold text-foreground">{total}</span>
-                                : idx === 0 ? <span className="font-bold text-foreground">TOTAL</span> : null
+                                : idx === 0 ? <span className="font-bold text-foreground">{text('TOTAL')}</span> : null
                               }
                             </td>
                           )

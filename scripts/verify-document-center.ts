@@ -6,6 +6,7 @@ import {
   buildExcelWorkbook, documentTotal, formatCellValue, runExport, selectDocumentRows,
   type DocumentTemplate,
 } from '@/lib/utils/document-engine'
+import { DOCUMENT_TRANSLATIONS, documentText, localizeDocumentTemplate } from '@/lib/i18n/document-translations'
 import { attachDocumentSnapshot, collectDocumentPages, latestApprovedSnapshots, loadDocumentRows } from '@/lib/utils/document-data'
 
 async function main() {
@@ -28,6 +29,62 @@ async function main() {
   assert.deepEqual(selectDocumentRows(rows, template, '  same  ').map(row => row.loan_number), ['LOAN-3', 'LOAN-2'])
   const activeTemplate = { ...template, filters: [{ id: 'active', column: 'status', operator: 'eq' as const, value: 'active', enabled: true }] }
   assert.deepEqual(selectDocumentRows(rows, activeTemplate, 'same').map(row => row.loan_number), ['LOAN-2'])
+
+  for (const locale of ['en', 'ru', 'tj'] as const) {
+    for (const builtin of BUILT_IN_TEMPLATES) {
+      const localized = localizeDocumentTemplate({ ...builtin, createdAt: '', updatedAt: '' }, locale)
+      assert.equal(localized.name, documentText(builtin.name, locale))
+      for (const column of builtin.columns) {
+        assert.ok(Object.hasOwn(DOCUMENT_TRANSLATIONS, column.label), `Missing column translation: ${column.label}`)
+        assert.equal(localized.columns.find(item => item.key === column.key)?.label, documentText(column.label, locale))
+      }
+      const csv = buildDocumentCSV(localized, rows)
+      const pdf = buildDocumentPDFHTML(localized, rows)
+      const word = buildDocumentWordHTML(localized, rows)
+      const workbook = await buildExcelWorkbook(localized, rows)
+      assert.ok(csv.includes(localized.columns[0].label))
+      for (const html of [pdf, word]) {
+        assert.ok(html.includes(localized.headerFooter.headerCenter))
+        assert.ok(html.includes(documentText('Generated', locale)))
+        assert.ok(html.includes(documentText('TOTAL', locale)))
+        assert.ok(html.includes(`lang="${locale === 'tj' ? 'tg' : locale}"`))
+        assert.doesNotMatch(html, /\{page\}|\{total\}/)
+      }
+      assert.equal(workbook.SheetNames[0], documentText('Data', locale))
+      assert.equal(workbook.Sheets[workbook.SheetNames[0]].A1.v, localized.columns[0].label)
+      assert.deepEqual(localized.filters, builtin.filters)
+      assert.deepEqual(localized.conditionalRules, builtin.conditionalRules)
+    }
+    const localized = { ...template, locale }
+    assert.ok(buildDocumentCSV(localized, rows).includes('ООО Заёмщик'))
+    assert.ok(buildDocumentPDFHTML(localized, rows).includes('ООО Заёмщик'))
+    assert.ok(buildDocumentWordHTML(localized, rows).includes('ООО Заёмщик'))
+    const badgeTemplate = { ...localized, includeTotals: false, columns: [{ key: 'status', label: 'Status', type: 'badge' as const, visible: true }] }
+    const badgeRows = [{ status: 'active' }, { status: 'uko_registration' }, { status: 'invoiced' }]
+    for (const status of badgeRows.map(row => row.status)) {
+      assert.equal(formatCellValue(status, 'badge', undefined, locale), documentText(status, locale))
+      assert.ok(buildDocumentCSV(badgeTemplate, badgeRows).includes(documentText(status, locale)))
+      assert.ok(buildDocumentPDFHTML(badgeTemplate, badgeRows).includes(documentText(status, locale)))
+      assert.ok(buildDocumentWordHTML(badgeTemplate, badgeRows).includes(documentText(status, locale)))
+    }
+    const badgeWorkbook = await buildExcelWorkbook(badgeTemplate, badgeRows)
+    assert.equal(badgeWorkbook.Sheets[documentText('Data', locale)].A2.v, documentText('active', locale))
+    assert.equal(formatCellValue('Unknown bank', 'text', undefined, locale), 'Unknown bank')
+    assert.equal(documentTotal([{ approved_amount: 1 }], amountColumn, locale), documentText('Unavailable', locale))
+    const localizedWorkbook = await buildExcelWorkbook(localized, rows)
+    const sheet = localizedWorkbook.Sheets[documentText('Data', locale)]
+    assert.equal(sheet.E2.t, 'n')
+    assert.equal(sheet.E2.v, 500)
+    assert.equal(sheet.J2.v ?? '', '')
+    const roundtrip = XLSX.read(XLSX.write(localizedWorkbook, { type: 'buffer', bookType: 'xlsx' }), { type: 'buffer' })
+    assert.equal(roundtrip.Sheets[documentText('Data', locale)].B2.v, 'ООО Заёмщик')
+    const customized = { ...template, name: 'Custom name Ҳуҷҷат', headerFooter: { ...template.headerFooter, headerLeft: 'My organization', footerRight: 'Custom {page}/{total}' } }
+    const translated = localizeDocumentTemplate(customized, locale)
+    assert.equal(translated.name, customized.name)
+    assert.equal(translated.headerFooter.headerLeft, 'My organization')
+    assert.equal(translated.headerFooter.footerRight, 'Custom {page}/{total}')
+    assert.equal(localizeDocumentTemplate(localizeDocumentTemplate(template, locale), 'en').name, template.name)
+  }
 
   const malicious = '</title><img src=x onerror=alert(1)><script>alert(2)</script>&"\''
   const unsafe = structuredClone(template)
