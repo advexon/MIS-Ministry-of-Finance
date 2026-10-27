@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import React, { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -96,6 +98,8 @@ const languages: { code: Locale; label: string; flag: string }[] = [
 ]
 
 export function DashboardShell({ children, user }: DashboardShellProps) {
+  const uiText = useUiTranslation()
+
   const pathname = usePathname()
   const router = useRouter()
   const { t, locale, setLocale } = useI18n()
@@ -132,25 +136,21 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
         <Image
           src="/logo.png"
-          alt="PRSF Emblem"
+          alt={uiText("PRSF Emblem")}
           width={36}
           height={36}
           className="flex-shrink-0"
           style={{ width: '36px', height: '36px' }}
         />
         <div className="flex flex-col min-w-0">
-          <span className="text-xs font-bold text-white truncate">Credit Guarantee Fund</span>
-          <span className="text-[9px] leading-tight text-white/50 truncate">
-            Management Information System
-          </span>
+          <span className="text-xs font-bold text-white truncate">{uiText("Credit Guarantee Fund")}</span>
+          <span className="text-[9px] leading-tight text-white/50 truncate">{uiText("Management Information System")}</span>
         </div>
       </div>
 
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-4">
-        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/40">
-          Navigation
-        </p>
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-white/40">{uiText("Navigation")}</p>
         <nav className="flex flex-col gap-0.5">
           {filteredNavItems.map((item) => {
             const Icon = item.icon
@@ -200,7 +200,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-60 flex-shrink-0 bg-sidebar lg:block" aria-label="Main navigation">
+      <aside className="hidden w-60 flex-shrink-0 bg-sidebar lg:block" aria-label={uiText("Main navigation")}>
         {navContent}
       </aside>
 
@@ -222,7 +222,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
               size="icon"
               className="h-8 w-8 lg:hidden"
               onClick={() => setSidebarOpen(true)}
-              aria-label="Open navigation menu"
+              aria-label={uiText("Open navigation menu")}
             >
               <Menu className="h-4 w-4" />
             </Button>
@@ -231,10 +231,10 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
             <div
               className="hidden items-center gap-2 rounded-lg border bg-background px-3 py-1.5 md:flex"
               role="search"
-              aria-label="Search"
+              aria-label={uiText("Search")}
             >
               <Search className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Search...</span>
+              <span className="text-xs text-muted-foreground">{uiText("Search...")}</span>
               <kbd className="ml-8 rounded border bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {'/'}
               </kbd>
@@ -250,7 +250,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                   <span className="hidden font-medium sm:inline">
                     {languages.find((l) => l.code === locale)?.flag}
                   </span>
-                  <span className="sr-only">Select language</span>
+                  <span className="sr-only">{uiText("Select language")}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -261,7 +261,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                     className={cn('text-xs', locale === lang.code && 'bg-accent/10 text-accent')}
                   >
                     <span className="mr-2 font-semibold">{lang.flag}</span>
-                    {lang.label}
+                    {uiText(lang.label)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -289,7 +289,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                     </span>
                   </div>
                   <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                  <span className="sr-only">User menu</span>
+                  <span className="sr-only">{uiText("User menu")}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">

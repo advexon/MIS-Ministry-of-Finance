@@ -57,6 +57,36 @@ export const financialPolicySchema = z.strictObject({
   if (policy.fees.recurring_rate_basis === 'annual' && policy.fees.proration === 'none') context.addIssue({ code: 'custom', path: ['fees', 'proration'], message: 'Annual recurring rates require a day-count proration method.' })
 })
 
+export type FinancialPolicyIssue = z.core.$ZodIssue
+
+export const FINANCIAL_POLICY_FIELD_LABELS: Readonly<Record<string, string>> = {
+  schema_version: 'Policy schema version', currencies: 'Enabled transaction currencies',
+  settlement_currency: 'Settlement currency', fx_date: 'Exchange-rate valuation date (when conversion is required)',
+  claims: 'Claim-payment authority and limits', allow_partial_payments: 'Allow partial payments of an approved claim',
+  separate_payment_actor: 'Payment recorder must differ from the claim approver', authorities: 'Authority rule',
+  role_code: 'Payment role', currency: 'Limit currency', per_payment_limit: 'Maximum single payment',
+  per_claim_limit: 'Maximum cumulative paid per claim', recoveries: 'Recovery allocation',
+  allocation: 'Allocation method', fund_share_percent: 'Fund share (%)', costs: 'Recovery costs',
+  cap_at_paid_amount: 'Cap recovery at the paid claim amount', fees: 'Fee calculation and proration',
+  base: 'Fee calculation base', upfront_rate_percent: 'Upfront fee (%)', recurring_rate_percent: 'Recurring fee (%)',
+  recurring_rate_basis: 'Recurring rate basis', proration: 'Day-count proration', rounding: 'Rounding method',
+  decimal_places: 'Rounding decimal places (half up)', due_days: 'Payment due after invoice (calendar days)',
+}
+
+export function formatFinancialPolicyIssue(issue: FinancialPolicyIssue, text: (key: string, ...parameters: unknown[]) => string): string {
+  const path = issue.path.map(part => typeof part === 'number' ? String(part + 1) : text(FINANCIAL_POLICY_FIELD_LABELS[String(part)] ?? 'Financial policy')).join(' → ')
+  let message: string
+  switch (issue.code) {
+    case 'custom': message = text(issue.message); break
+    case 'too_small': message = text(issue.inclusive ? 'Minimum: {0}.' : 'Must be greater than {0}.', issue.minimum); break
+    case 'too_big': message = text(issue.inclusive ? 'Maximum: {0}.' : 'Must be less than {0}.', issue.maximum); break
+    case 'invalid_value': message = text('Choose a supported option.'); break
+    case 'invalid_type': message = text(issue.expected === 'int' ? 'Enter a whole number.' : 'Enter a valid value.'); break
+    default: message = text('Check this policy value.'); break
+  }
+  return path ? `${path}: ${message}` : message
+}
+
 export type FinancialPolicy = z.infer<typeof financialPolicySchema>
 export interface FinancialPolicyVersion {
   id: string

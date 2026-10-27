@@ -72,6 +72,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return () => { requests.current++ }
   }, [])
 
+  useEffect(() => {
+    document.documentElement.lang = locale === 'tj' ? 'tg' : locale
+  }, [locale])
+
   const setLocale = useCallback((newLocale: Locale) => {
     try {
       localStorage.setItem('cgf-locale', newLocale)

@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState, useMemo } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
@@ -29,6 +31,8 @@ const fmt = (v: number) =>
 const fmtK = (v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : String(v)
 
 export default function ReportsPage() {
+  const uiText = useUiTranslation()
+
   const { t } = useI18n()
   const supabase = useMemo(() => createClient(), [])
 
@@ -76,13 +80,12 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.reports.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Portfolio analytics and performance reports</p>
+          <h1 className="text-2xl font-bold text-foreground">{uiText(t.reports.title)}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{uiText("Portfolio analytics and performance reports")}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={fetchReports}>
-            <RefreshCw className="h-3.5 w-3.5" />Refresh
-          </Button>
+            <RefreshCw className="h-3.5 w-3.5" />{uiText("Refresh")}</Button>
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={() => exportCSV(bankData, 'bank-report.csv')}>
             <FileSpreadsheet className="h-3.5 w-3.5" />{t.reports.exportExcel}
           </Button>
@@ -98,7 +101,7 @@ export default function ReportsPage() {
               <Select value={bankFilter} onValueChange={setBankFilter}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t.common.all} Banks</SelectItem>
+                  <SelectItem value="all">{t.common.all} {uiText("Banks")}</SelectItem>
                   {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -131,7 +134,7 @@ export default function ReportsPage() {
         ].map(stat => (
           <Card key={stat.label} className="shadow-sm">
             <CardContent className="pt-5">
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <p className="text-xs text-muted-foreground">{uiText(stat.label)}</p>
               <p className="mt-1 text-xl font-bold">{stat.value}</p>
               <p className="text-xs text-muted-foreground">{stat.sub}</p>
             </CardContent>
@@ -141,18 +144,18 @@ export default function ReportsPage() {
 
       <Tabs defaultValue="charts" className="space-y-4">
         <TabsList className="h-9">
-          <TabsTrigger value="charts" className="text-xs">Charts</TabsTrigger>
-          <TabsTrigger value="by-bank" className="text-xs">By Bank</TabsTrigger>
-          <TabsTrigger value="by-sector" className="text-xs">By Sector</TabsTrigger>
-          <TabsTrigger value="trend" className="text-xs">Monthly Trend</TabsTrigger>
+          <TabsTrigger value="charts" className="text-xs">{uiText("Charts")}</TabsTrigger>
+          <TabsTrigger value="by-bank" className="text-xs">{uiText("By Bank")}</TabsTrigger>
+          <TabsTrigger value="by-sector" className="text-xs">{uiText("By Sector")}</TabsTrigger>
+          <TabsTrigger value="trend" className="text-xs">{uiText("Monthly Trend")}</TabsTrigger>
         </TabsList>
 
         {/* Charts overview */}
         <TabsContent value="charts" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
-            <ChartCard title="Portfolio by Bank" description="Outstanding balance per partner bank" onExport={() => exportCSV(bankData, 'portfolio-by-bank.csv')}>
+            <ChartCard title={uiText("Portfolio by Bank")} description="Outstanding balance per partner bank" onExport={() => exportCSV(bankData, 'portfolio-by-bank.csv')}>
               {loading ? <Skeleton className="h-56" /> : bankData.length === 0 ? (
-                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No data for selected period</div>
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">{uiText("No data for selected period")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={bankData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -167,9 +170,9 @@ export default function ReportsPage() {
               )}
             </ChartCard>
 
-            <ChartCard title="Loan Status Distribution" description="Current status of all loans in portfolio">
+            <ChartCard title={uiText("Loan Status Distribution")} description="Current status of all loans in portfolio">
               {loading ? <Skeleton className="h-56" /> : statusData.length === 0 ? (
-                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No data for selected period</div>
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">{uiText("No data for selected period")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
@@ -183,9 +186,9 @@ export default function ReportsPage() {
               )}
             </ChartCard>
 
-            <ChartCard title="Disbursements by Sector" description="Loan amounts distributed across economic sectors" onExport={() => exportCSV(sectorData, 'sector-report.csv')}>
+            <ChartCard title={uiText("Disbursements by Sector")} description="Loan amounts distributed across economic sectors" onExport={() => exportCSV(sectorData, 'sector-report.csv')}>
               {loading ? <Skeleton className="h-56" /> : sectorData.length === 0 ? (
-                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No data for selected period</div>
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">{uiText("No data for selected period")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={sectorData.slice(0, 8)} layout="vertical" margin={{ top: 0, right: 20, left: 60, bottom: 0 }}>
@@ -199,9 +202,9 @@ export default function ReportsPage() {
               )}
             </ChartCard>
 
-            <ChartCard title="Monthly Disbursement Trend" description="Number of loans and amounts disbursed each month" onExport={() => exportCSV(monthlyData, 'monthly-trend.csv')}>
+            <ChartCard title={uiText("Monthly Disbursement Trend")} description="Number of loans and amounts disbursed each month" onExport={() => exportCSV(monthlyData, 'monthly-trend.csv')}>
               {loading ? <Skeleton className="h-56" /> : monthlyData.length === 0 ? (
-                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">No disbursement data for selected period</div>
+                <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">{uiText("No disbursement data for selected period")}</div>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={monthlyData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -230,18 +233,18 @@ export default function ReportsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Bank</TableHead>
-                    <TableHead className="text-right font-semibold">Loans</TableHead>
-                    <TableHead className="text-right font-semibold">Approved</TableHead>
-                    <TableHead className="text-right font-semibold">Outstanding</TableHead>
-                    <TableHead className="text-right font-semibold">Coverage %</TableHead>
+                    <TableHead className="font-semibold">{uiText("Bank")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Loans")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Approved")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Outstanding")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Coverage %")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4" /></TableCell>)}</TableRow>
                   )) : bankData.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">No data for selected filters</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">{uiText("No data for selected filters")}</TableCell></TableRow>
                   ) : bankData.map(bank => {
                     const coverage = bank.amount > 0 ? (bank.outstanding / bank.amount * 100).toFixed(1) : '0.0'
                     return (
@@ -276,17 +279,17 @@ export default function ReportsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Sector</TableHead>
-                    <TableHead className="text-right font-semibold">Loans</TableHead>
-                    <TableHead className="text-right font-semibold">Amount</TableHead>
-                    <TableHead className="font-semibold">Share</TableHead>
+                    <TableHead className="font-semibold">{uiText("Sector")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Loans")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Amount")}</TableHead>
+                    <TableHead className="font-semibold">{uiText("Share")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>{Array.from({ length: 4 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4" /></TableCell>)}</TableRow>
                   )) : sectorData.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">No data for selected filters</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">{uiText("No data for selected filters")}</TableCell></TableRow>
                   ) : (() => {
                     const totalAmt = sectorData.reduce((s, r) => s + r.amount, 0)
                     return sectorData.map(row => {
@@ -321,16 +324,16 @@ export default function ReportsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Month</TableHead>
-                    <TableHead className="text-right font-semibold">Loans Disbursed</TableHead>
-                    <TableHead className="text-right font-semibold">Amount</TableHead>
+                    <TableHead className="font-semibold">{uiText("Month")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Loans Disbursed")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Amount")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={i}>{Array.from({ length: 3 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4" /></TableCell>)}</TableRow>
                   )) : monthlyData.length === 0 ? (
-                    <TableRow><TableCell colSpan={3} className="py-10 text-center text-muted-foreground">No disbursement data for selected period</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={3} className="py-10 text-center text-muted-foreground">{uiText("No disbursement data for selected period")}</TableCell></TableRow>
                   ) : (
                     <>
                       {monthlyData.map(row => (
@@ -341,7 +344,7 @@ export default function ReportsPage() {
                         </TableRow>
                       ))}
                       <TableRow className="bg-muted/30 font-bold">
-                        <TableCell>Total</TableCell>
+                        <TableCell>{uiText("Total")}</TableCell>
                         <TableCell className="text-right">{monthlyData.reduce((s, r) => s + r.count, 0)}</TableCell>
                         <TableCell className="text-right">{fmt(monthlyData.reduce((s, r) => s + r.amount, 0))}</TableCell>
                       </TableRow>

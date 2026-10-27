@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import Link from "next/link"
@@ -44,6 +46,8 @@ import { CreditHistoryDialog } from "@/components/borrowers/credit-history-dialo
 const PAGE_SIZE = 20
 
 export default function BorrowersPage() {
+  const uiText = useUiTranslation()
+
   const { t } = useI18n()
   const supabase = createClient()
 
@@ -111,10 +115,8 @@ export default function BorrowersPage() {
     <div className="p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.borrowers.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage borrower profiles and their loan history
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">{uiText(t.borrowers.title)}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{uiText("Manage borrower profiles and their loan history")}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchBorrowers} disabled={loading}>
@@ -140,7 +142,7 @@ export default function BorrowersPage() {
               <Users className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Borrowers</p>
+              <p className="text-sm text-muted-foreground">{uiText("Total Borrowers")}</p>
               <p className="text-2xl font-bold">{totalCount}</p>
             </div>
           </CardContent>
@@ -151,7 +153,7 @@ export default function BorrowersPage() {
               <UserCheck className="h-5 w-5 text-emerald-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Not Blacklisted</p>
+              <p className="text-sm text-muted-foreground">{uiText("Not Blacklisted")}</p>
               <p className="text-2xl font-bold">{activeCount}</p>
             </div>
           </CardContent>
@@ -162,7 +164,7 @@ export default function BorrowersPage() {
               <Building2 className="h-5 w-5 text-blue-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Legal Entities</p>
+              <p className="text-sm text-muted-foreground">{uiText("Legal Entities")}</p>
               <p className="text-2xl font-bold">{entityCount}</p>
             </div>
           </CardContent>
@@ -175,7 +177,7 @@ export default function BorrowersPage() {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name or TIN number..."
+              placeholder={uiText("Search by name or TIN number...")}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
@@ -194,12 +196,12 @@ export default function BorrowersPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">Name</TableHead>
+                  <TableHead className="font-semibold">{uiText("Name")}</TableHead>
                   <TableHead className="font-semibold">{t.borrowers.tinNumber}</TableHead>
                   <TableHead className="font-semibold">{t.borrowers.legalType}</TableHead>
                   <TableHead className="font-semibold">{t.borrowers.sector}</TableHead>
                   <TableHead className="font-semibold">{t.borrowers.city}</TableHead>
-                  <TableHead className="font-semibold">{t.common.status}</TableHead>
+                  <TableHead className="font-semibold">{uiText(t.common.status)}</TableHead>
                   <TableHead className="text-right font-semibold">{t.common.actions}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -218,7 +220,7 @@ export default function BorrowersPage() {
                   <TableRow>
                     <TableCell colSpan={7} className="py-12 text-center">
                       <Users className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                      <p className="text-muted-foreground">No borrowers found</p>
+                      <p className="text-muted-foreground">{uiText("No borrowers found")}</p>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -228,8 +230,7 @@ export default function BorrowersPage() {
                         <div>
                           <p className="font-medium text-sm">{getBorrowerName(b)}</p>
                           {b.registration_number && (
-                            <p className="text-xs text-muted-foreground">
-                              Reg: {b.registration_number}
+                            <p className="text-xs text-muted-foreground">{uiText("Reg: ")}{b.registration_number}
                             </p>
                           )}
                         </div>
@@ -241,9 +242,7 @@ export default function BorrowersPage() {
                       </TableCell>
                         <TableCell className="text-sm">{b.address_city || "—"}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                          Active
-                        </Badge>
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">{uiText("Active")}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -296,27 +295,21 @@ export default function BorrowersPage() {
 
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-        <p>
-          Showing {total === 0 ? 0 : page * PAGE_SIZE + 1}–
-          {Math.min((page + 1) * PAGE_SIZE, total)} of {total} borrowers
-        </p>
+        <p>{uiText("Showing ")}{total === 0 ? 0 : page * PAGE_SIZE + 1}–
+          {Math.min((page + 1) * PAGE_SIZE, total)} {uiText("of")} {total}{uiText(" borrowers")}</p>
         <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
             disabled={page === 0 || loading}
             onClick={() => setPage((p) => p - 1)}
-          >
-            Previous
-          </Button>
+          >{uiText("Previous")}</Button>
           <Button
             variant="outline"
             size="sm"
             disabled={page >= totalPages - 1 || loading}
             onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
+          >{uiText("Next")}</Button>
         </div>
       </div>
     </div>

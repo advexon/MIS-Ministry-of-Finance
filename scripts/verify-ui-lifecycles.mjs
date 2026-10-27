@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { mutate as mutateCache } from 'swr'
 
 const require = createRequire(import.meta.url)
 const root = resolve(import.meta.dirname, '..')
@@ -25,9 +26,12 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   }).outputText
   const localRequire = specifier => {
     if (Object.hasOwn(overrides, specifier)) return overrides[specifier]
-    if (specifier.startsWith('@/')) {
+    if (specifier.startsWith('.') && specifier.endsWith('.json')) {
+      return JSON.parse(readFileSync(resolve(dirname(filename), specifier), 'utf8'))
+    }
+    if (specifier.startsWith('@/') || specifier.startsWith('.')) {
       for (const extension of ['.ts', '.tsx']) {
-        const path = specifier.slice(2) + extension
+        const path = specifier.startsWith('@/') ? specifier.slice(2) + extension : resolve(dirname(filename), specifier + extension)
         try {
           readFileSync(resolve(root, path))
         } catch (error) {
@@ -45,11 +49,409 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
     module: loadedModule,
     require: localRequire,
     window: overrides.window,
+    document: overrides.document ?? { documentElement: { lang: 'en' } },
     localStorage: overrides.localStorage,
     Date: overrides.Date ?? Date,
     console,
   }, { filename })
   return loadedModule.exports
+}
+
+{
+  const filename = 'components/admin/cgf-workflow-controls.tsx'
+  const text = readFileSync(resolve(root, filename), 'utf8')
+  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const handlers = {}
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && ['run', 'refreshLatest'].includes(node.name?.text)) handlers[node.name.text] = node.getText(source)
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(handlers.run && handlers.refreshLatest)
+  const { translateInterface, interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
+  const messages = new Set()
+  const id = '11111111-1111-4111-8111-111111111111'
+  const otherId = '22222222-2222-4222-8222-222222222222'
+  const reason = 'Approved workflow change'
+  const actions = [
+    { kind: 'sector', id, label: 'Fixture sector', expected: false, prohibited: true, reason },
+    { kind: 'grant', delegate: id, label: 'Fixture employee', start: '2026-10-27T09:00', end: '2026-10-28T09:00', reason },
+    { kind: 'revoke', id, label: 'Fixture employee', reason },
+  ]
+  for (const action of actions) for (const scenario of ['success', 'refresh-failure', 'refresh-unconfirmed', 'conflict', 'returned-error', 'network', 'missing-receipt', 'wrong-receipt', 'no-authority', 'unavailable', 'busy', 'short-reason', 'long-reason', 'ineligible', 'bad-date', 'reversed-dates', 'overlong-period']) {
+    const events = []
+    const state = { form: { draft: true }, sectorReason: reason }
+    const pending = { current: scenario === 'busy' }
+    let release
+    const response = new Promise(resolve => { release = resolve })
+    const context = {
+      pending, admin: scenario !== 'no-authority', unavailable: scenario === 'unavailable',
+      data: { members: scenario === 'ineligible' ? [] : [{ id }] },
+      UUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      createClient: () => ({ rpc: async (name, args) => {
+        events.push('rpc')
+        assert.equal(name, action.kind === 'sector' ? 'cgf_set_sector_prohibited' : 'cgf_manage_signature_delegation')
+        assert.equal(args.p_reason, reason)
+        if (action.kind === 'sector') {
+          assert.equal(args.p_sector, id)
+          assert.equal(args.p_expected, false)
+          assert.equal(args.p_prohibited, true)
+        } else if (action.kind === 'grant') {
+          assert.equal(args.p_delegate, id)
+          assert.equal(args.p_start, new Date(action.start).toISOString())
+          assert.equal(args.p_end, new Date(action.end).toISOString())
+        } else assert.equal(args.p_revoke, id)
+        await response
+        if (scenario === 'network') throw new Error('Private network detail')
+        return {
+          data: scenario === 'missing-receipt' ? null : scenario === 'wrong-receipt' ? (action.kind === 'grant' ? 'invalid' : otherId) : id,
+          error: scenario === 'conflict' ? { code: '40001' } : scenario === 'returned-error' ? { message: 'Private database detail' } : null,
+        }
+      } }),
+      loadControls: async () => { events.push('refresh'); if (scenario === 'refresh-failure') throw new Error('Private refresh detail'); return scenario === 'refresh-unconfirmed' ? undefined : { members: [], sectors: [], delegations: [] } },
+      mutate: async (value, options) => { assert.equal(options.revalidate, false); return await value },
+      ...Object.fromEntries(['Busy', 'Error', 'Message', 'RefreshRequired', 'Action', 'Form', 'SectorReason'].map(name => [`set${name}`, value => {
+        state[name[0].toLowerCase() + name.slice(1)] = value
+        if ((name === 'Error' || name === 'Message') && value) messages.add(value)
+      }])),
+    }
+    const run = runInNewContext(ts.transpileModule(`${handlers.run}\nrun`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+    const change = { ...action }
+    if (scenario === 'short-reason') change.reason = ' x '
+    if (scenario === 'long-reason') change.reason = 'x'.repeat(2001)
+    if (scenario === 'bad-date') change.start = 'invalid'
+    if (scenario === 'reversed-dates') change.end = change.start
+    if (scenario === 'overlong-period') change.end = '2027-10-28T09:00'
+    const blocked = ['no-authority', 'unavailable', 'busy', 'short-reason', 'long-reason'].includes(scenario) || (action.kind === 'grant' && ['ineligible', 'bad-date', 'reversed-dates', 'overlong-period'].includes(scenario))
+    const first = run(change)
+    if (!blocked) await run(change)
+    release()
+    await first
+    if (blocked) { assert.deepEqual(events, [], `${action.kind}/${scenario}`); continue }
+    assert.equal(events.filter(event => event === 'rpc').length, 1, 'Synchronous duplicate protection')
+    assert.equal(pending.current, false)
+    assert.equal(state.busy, false)
+    assert.equal(state.action, null)
+    const confirmed = !['conflict', 'returned-error', 'network'].includes(scenario) && (action.kind === 'sector' || !['missing-receipt', 'wrong-receipt'].includes(scenario))
+    assert.equal(Boolean(state.message), confirmed, `${action.kind}/${scenario}: acknowledged outcome`)
+    assert.equal(events.includes('refresh'), confirmed)
+    assert.equal(Boolean(state.refreshRequired), !confirmed || ['refresh-failure', 'refresh-unconfirmed'].includes(scenario))
+    assert.equal(state.sectorReason, confirmed && action.kind === 'sector' ? '' : reason)
+    assert.equal(Boolean(state.form.draft), !(confirmed && action.kind === 'grant'), 'Only confirmed grants retire delegation drafts')
+    if (scenario === 'refresh-failure') assert.match(state.error, /saved and audited/)
+    assert.doesNotMatch(JSON.stringify(state), /Private/)
+  }
+  for (const scenario of ['success', 'failure', 'unconfirmed', 'busy']) {
+    const state = {}
+    const pending = { current: scenario === 'busy' }
+    let calls = 0
+    const refreshLatest = runInNewContext(ts.transpileModule(`${handlers.refreshLatest}\nrefreshLatest`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
+      pending,
+      loadControls: async () => { calls++; if (scenario === 'failure') throw new Error('Private'); return scenario === 'unconfirmed' ? undefined : {} },
+      mutate: async (value, options) => { assert.equal(options.revalidate, false); return await value },
+      ...Object.fromEntries(['Busy', 'Error', 'RefreshRequired'].map(name => [`set${name}`, value => {
+        state[name] = value
+        if (name === 'Error' && value) messages.add(value)
+      }])),
+    })
+    await Promise.all([refreshLatest(), refreshLatest()])
+    assert.equal(calls, scenario === 'busy' ? 0 : 1)
+    if (scenario !== 'busy') {
+      assert.equal(pending.current, false)
+      assert.equal(state.Busy, false)
+      assert.equal(state.RefreshRequired, scenario !== 'success')
+    }
+  }
+  assert.match(text, /disabled=\{!admin \|\| busy \|\| unavailable\}/)
+  assert.match(text, /<AlertDialog open=\{action !== null\}/)
+  assert.match(text, /event\.preventDefault\(\); if \(action\) void run\(action\)/)
+  for (const message of messages) {
+    assert.ok(interfaceCatalog[message], `Workflow feedback must be catalogued: ${message}`)
+    for (const locale of ['ru', 'tj']) assert.notEqual(translateInterface(locale, message), message)
+  }
+  console.log('Workflow administration handlers passed: confirmation snapshots, duplicate locks, authority/history gating, dates/reasons, exact UUID receipts, conflicts, uncertain outcomes, confirmed-save refresh failures, draft preservation and refresh recovery')
+}
+
+{
+  const filename = 'components/admin/operational-settings-controls.tsx'
+  const source = ts.createSourceFile(filename, readFileSync(resolve(root, filename), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const handlers = {}
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && ['save', 'refreshLatest'].includes(node.name?.text)) handlers[node.name.text] = node.getText(source)
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(handlers.save && handlers.refreshLatest)
+  const { validateOperationalValue } = loadSource('lib/admin/operational-settings.ts')
+  const { translateInterface, interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
+  const messages = new Set()
+  for (const scenario of ['success', 'refresh-failure', 'conflict', 'returned-error', 'network', 'invalid', 'stale', 'refresh-required', 'unavailable', 'busy', 'no-changes', 'short-reason', 'long-reason']) {
+    const events = []
+    const state = { baseline: { assessment_sla_days: '1' }, reason: 'Approved rule change', refreshRequired: scenario === 'refresh-required' }
+    const pending = { current: scenario === 'busy' }
+    let release
+    const response = new Promise(resolve => { release = resolve })
+    const context = {
+      pending, stale: scenario === 'stale', refreshRequired: state.refreshRequired, unavailable: scenario === 'unavailable',
+      changed: scenario === 'no-changes' ? [] : [{ key: 'assessment_sla_days' }],
+      reason: scenario === 'short-reason' ? ' x ' : scenario === 'long-reason' ? 'x'.repeat(2001) : state.reason,
+      draft: { assessment_sla_days: scenario === 'invalid' ? '1.5' : '2' }, baseline: state.baseline,
+      validateOperationalValue,
+      createClient: () => ({ rpc: async (name, args) => {
+        events.push('rpc')
+        assert.equal(name, 'cgf_save_settings')
+        assert.equal(args.p_reason, 'Approved rule change')
+        assert.equal(JSON.stringify(args.p_changes), JSON.stringify([{ key: 'assessment_sla_days', value: '2', expected_value: '1' }]))
+        await response
+        if (scenario === 'network') throw new Error('Private network detail')
+        return { error: scenario === 'conflict' ? { code: '40001' } : scenario === 'returned-error' ? { message: 'Private database detail' } : null }
+      } }),
+      refresh: async () => { events.push('refresh'); if (scenario === 'refresh-failure') throw new Error('Private refresh detail') },
+      setBusy: value => { state.busy = value },
+      setBaseline: value => { state.baseline = value },
+      setReason: value => { state.reason = value },
+      setRefreshRequired: value => { state.refreshRequired = value },
+      setError: value => { state.error = value; if (value) messages.add(value) },
+      setMessage: value => { state.message = value; if (value) messages.add(value) },
+    }
+    const save = runInNewContext(ts.transpileModule(`${handlers.save}\nsave`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+    const first = save()
+    await save()
+    release()
+    await first
+    if (['stale', 'refresh-required', 'unavailable', 'busy', 'no-changes', 'short-reason', 'long-reason'].includes(scenario)) {
+      assert.deepEqual(events, [], scenario)
+      continue
+    }
+    assert.equal(events.filter(event => event === 'rpc').length, scenario === 'invalid' ? 0 : 1, `${scenario}: prevent concurrent duplicate saves`)
+    assert.equal(pending.current, false)
+    if (scenario === 'invalid') { assert.match(state.error, /numeric ranges/); continue }
+    assert.equal(state.busy, false)
+    const confirmed = ['success', 'refresh-failure'].includes(scenario)
+    assert.equal(state.baseline.assessment_sla_days, confirmed ? '2' : '1')
+    assert.equal(state.reason, confirmed ? '' : 'Approved rule change')
+    assert.equal(Boolean(state.message), confirmed)
+    assert.equal(events.includes('refresh'), confirmed)
+    assert.equal(Boolean(state.refreshRequired), scenario !== 'success')
+    if (scenario === 'refresh-failure') assert.match(state.error, /were saved and audited/)
+    if (scenario === 'conflict') assert.match(state.error, /Another administrator/)
+    assert.doesNotMatch(JSON.stringify(state), /Private/)
+  }
+  for (const fails of [false, true]) for (const alreadyLocked of [false, true]) {
+    const pending = { current: false }
+    const state = { refreshRequired: alreadyLocked, error: 'Previous error' }
+    let calls = 0
+    const refreshLatest = runInNewContext(ts.transpileModule(`${handlers.refreshLatest}\nrefreshLatest`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, {
+      pending,
+      refresh: async () => { calls++; if (fails) throw new Error('Private detail') },
+      setBusy: value => { state.busy = value },
+      setRefreshRequired: value => { state.refreshRequired = value },
+      setError: value => { state.error = value; if (value) messages.add(value) },
+    })
+    await Promise.all([refreshLatest(), refreshLatest()])
+    assert.equal(calls, 1)
+    assert.equal(pending.current, false)
+    assert.equal(state.busy, false)
+    assert.equal(state.refreshRequired, fails)
+    assert.equal(state.error === null, !fails)
+  }
+  let readFails = true
+  let reads = 0
+  const cacheKey = 'verification-operational-refresh'
+  await mutateCache(cacheKey, { assessment_sla_days: '1' }, { revalidate: false })
+  let swrState = { data: { assessment_sla_days: '1' }, error: new Error('Read failed'), mutate: async (value, options) => {
+    if (value === undefined) return mutateCache(cacheKey)
+    assert.equal(options.revalidate, false)
+    return mutateCache(cacheKey, value, options)
+  } }
+  const { OperationalSettingsControls } = loadSource(filename, {
+    '@/lib/supabase/client': { createClient: () => ({ from: () => ({ select: () => ({ in: async () => {
+      reads++
+      return { data: [{ key: 'assessment_sla_days', value: '2' }], error: readFails ? { message: 'Private read failure' } : null }
+    } }) }) }) },
+    swr: { __esModule: true, default: () => swrState },
+    '@/lib/contexts/permission-context': { usePermissions: () => ({ role: { code: 'super_admin' }, user: { id: 'fixture' } }) },
+    '@/lib/i18n/ui-text': { useUiTranslation: () => value => value },
+  })
+  assert.equal(OperationalSettingsControls().type, 'div', 'A failed revalidation must keep the cached editor mounted')
+  const editor = OperationalSettingsControls().props.children[1]
+  assert.equal(editor.type.name, 'Editor')
+  assert.equal(editor.props.unavailable, true)
+  await assert.rejects(editor.props.refresh(), /Could not load operational configuration/)
+  assert.equal((await mutateCache(cacheKey)).assessment_sla_days, '1')
+  readFails = false
+  assert.equal((await editor.props.refresh()).assessment_sla_days, '2')
+  assert.equal(reads, 2, 'Each recovery attempt must execute a real loader, never return cached data')
+  const renderedEditor = renderToStaticMarkup(React.createElement(editor.type, editor.props))
+  assert.match(renderedEditor, /<button[^>]*disabled=""[^>]*>Discard draft and load latest/)
+  swrState = { ...swrState, data: undefined }
+  assert.notEqual(OperationalSettingsControls().type, 'div', 'Initial failure must not provide editable defaults')
+  for (const text of messages) {
+    assert.ok(interfaceCatalog[text], `Settings feedback must be catalogued: ${text}`)
+    for (const locale of ['ru', 'tj']) assert.notEqual(translateInterface(locale, text), text)
+  }
+  console.log('Operational settings checks passed: exact RPC payload, synchronous duplicate guard, validation, stale/uncertain guards, confirmed-save refresh failure, draft retention, refresh recovery and multilingual feedback')
+}
+
+{
+  const filename = 'components/admin/financial-policy-controls.tsx'
+  const text = readFileSync(resolve(root, filename), 'utf8')
+  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const handlers = {}
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && ['save', 'reload', 'discard'].includes(node.name?.text)) handlers[node.name.text] = node.getText(source)
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.ok(handlers.save && handlers.reload && handlers.discard)
+  const { financialPolicySchema, EMPTY_POLICY_DRAFT } = loadSource('lib/admin/financial-policy.ts')
+  const { translateInterface, interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
+  const policy = { ...EMPTY_POLICY_DRAFT, recoveries: { ...EMPTY_POLICY_DRAFT.recoveries, fund_share_percent: 30 } }
+  const initial = { id: 'baseline', revision: 4, policy, reason: 'Previous approval', created_at: '2026-10-01T00:00:00Z' }
+  const messages = new Set(['Refresh history before saving or discarding this draft.', 'Financial policy action needs attention'])
+  const contextFor = (state, extra = {}) => ({
+    admin: true, pending: { current: false }, stale: false, refreshRequired: false, historyUnavailable: false,
+    financialPolicySchema, EMPTY_POLICY_DRAFT, baseline: initial, draft: policy, latest: initial, confirmed: true, reason: ' Approved policy change ',
+    ...Object.fromEntries(['Busy', 'Baseline', 'Draft', 'Reason', 'Confirmed', 'Issues', 'Error', 'Message', 'RefreshRequired'].map(name => [`set${name}`, value => {
+      state[name] = value
+      if (name === 'Error' && value) messages.add(value)
+      if (name === 'Message' && value) messages.add(typeof value === 'string' ? value : value.key)
+    }])),
+    ...extra,
+  })
+  const handler = (name, context) => runInNewContext(ts.transpileModule(`${handlers[name]}\n${name}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+  for (const scenario of ['success', 'first-policy', 'refresh-failure', 'empty-refresh', 'conflict', 'returned-error', 'network', 'empty-receipt', 'malformed-policy', 'mismatched-policy', 'mismatched-reason', 'bad-timestamp', 'bad-id', 'bad-revision', 'invalid', 'read-only', 'stale', 'refresh-required', 'history-unavailable', 'busy', 'unconfirmed', 'short-reason', 'long-reason']) {
+    const state = { Baseline: initial, Draft: policy, Reason: ' Approved policy change ', Confirmed: true }
+    const events = []
+    let release
+    const response = new Promise(resolve => { release = resolve })
+    const receipt = { ...initial, id: 'saved', revision: 5, reason: 'Approved policy change' }
+    if (scenario === 'first-policy') receipt.revision = 1
+    if (scenario === 'malformed-policy') receipt.policy = {}
+    if (scenario === 'mismatched-policy') receipt.policy = { ...policy, currencies: ['TJS', 'USD'] }
+    if (scenario === 'mismatched-reason') receipt.reason = 'Different approval'
+    if (scenario === 'bad-timestamp') receipt.created_at = 'not-a-date'
+    if (scenario === 'bad-id') receipt.id = ''
+    if (scenario === 'bad-revision') receipt.revision = 4
+    const context = contextFor(state, {
+      baseline: scenario === 'first-policy' ? null : initial,
+      admin: scenario !== 'read-only', stale: scenario === 'stale', refreshRequired: scenario === 'refresh-required', historyUnavailable: scenario === 'history-unavailable',
+      pending: { current: scenario === 'busy' }, confirmed: scenario !== 'unconfirmed',
+      draft: scenario === 'invalid' ? { ...policy, fees: { ...policy.fees, due_days: 1.5 } } : policy,
+      reason: scenario === 'short-reason' ? ' x ' : scenario === 'long-reason' ? 'x'.repeat(2001) : state.Reason,
+      createClient: () => ({ rpc: async (name, args) => {
+        events.push('rpc')
+        assert.equal(name, 'cgf_save_financial_policy')
+        assert.equal(args.p_expected_revision, scenario === 'first-policy' ? 0 : 4)
+        assert.equal(args.p_reason, 'Approved policy change')
+        assert.equal(JSON.stringify(args.p_policy), JSON.stringify(policy))
+        await response
+        if (scenario === 'network') throw new Error('Private network detail')
+        return { data: scenario === 'empty-receipt' ? null : receipt, error: scenario === 'conflict' ? { code: '40001' } : scenario === 'returned-error' ? { message: 'Private database detail' } : null }
+      } }),
+      refresh: async () => {
+        events.push('refresh')
+        if (scenario === 'refresh-failure') throw new Error('Private refresh detail')
+        return scenario === 'empty-refresh' ? undefined : [receipt]
+      },
+    })
+    const save = handler('save', context)
+    const first = save()
+    await save()
+    release()
+    await first
+    if (['read-only', 'stale', 'refresh-required', 'history-unavailable', 'busy', 'unconfirmed', 'short-reason', 'long-reason'].includes(scenario)) {
+      assert.deepEqual(events, [], scenario)
+      assert.equal(state.Reason, ' Approved policy change ')
+      if (['unconfirmed', 'short-reason', 'long-reason'].includes(scenario)) assert.match(state.Error, /3–2000/)
+      continue
+    }
+    if (scenario === 'invalid') {
+      assert.deepEqual(events, [])
+      assert.ok(state.Issues.some(issue => issue.path.includes('due_days')))
+      continue
+    }
+    assert.equal(events.filter(value => value === 'rpc').length, 1, `${scenario}: synchronous lock prevents duplicate saves`)
+    assert.equal(context.pending.current, false)
+    assert.equal(state.Busy, false)
+    const acknowledged = ['success', 'first-policy', 'refresh-failure', 'empty-refresh'].includes(scenario)
+    assert.equal(state.Baseline.revision, acknowledged ? receipt.revision : 4, scenario)
+    assert.equal(state.Draft, acknowledged ? state.Baseline.policy : policy)
+    assert.equal(state.Reason, acknowledged ? '' : ' Approved policy change ')
+    assert.equal(state.Confirmed, !acknowledged)
+    assert.equal(events.includes('refresh'), acknowledged)
+    assert.equal(Boolean(state.Message), acknowledged)
+    assert.equal(state.RefreshRequired, !['success', 'first-policy'].includes(scenario))
+    if (['refresh-failure', 'empty-refresh'].includes(scenario)) {
+      assert.match(state.Message.key, /saved and audited; revision history/)
+      assert.equal(state.Error, null, 'A failed refresh must not relabel an acknowledged save as unsaved')
+    }
+    if (scenario === 'conflict') assert.match(state.Error, /Another administrator/)
+    assert.doesNotMatch(JSON.stringify(state), /Private/)
+  }
+  for (const outcome of ['success', 'failure', 'empty']) {
+    const state = { Draft: policy, Reason: 'Preserve me', Confirmed: true, Message: 'Old feedback', Error: 'Previous error' }
+    let calls = 0
+    const context = contextFor(state, {
+      refreshRequired: true,
+      refresh: async () => { calls++; if (outcome === 'failure') throw new Error('Private error'); return outcome === 'empty' ? undefined : [initial] },
+    })
+    const reload = handler('reload', context)
+    await Promise.all([reload(), reload()])
+    assert.equal(calls, 1)
+    assert.equal(context.pending.current, false)
+    assert.equal(state.Busy, false)
+    assert.equal(state.RefreshRequired, outcome !== 'success')
+    assert.equal(state.Error === null, outcome === 'success')
+    assert.equal(state.Draft, policy)
+    assert.equal(state.Reason, 'Preserve me')
+    assert.equal(state.Confirmed, true)
+    if (outcome === 'success') assert.equal(state.Message, null)
+  }
+  for (const blocked of ['none', 'read-only', 'busy', 'refresh-required', 'history-unavailable']) {
+    const state = { Message: 'Obsolete saved status', Reason: 'Draft approval' }
+    handler('discard', contextFor(state, { admin: blocked !== 'read-only', pending: { current: blocked === 'busy' }, refreshRequired: blocked === 'refresh-required', historyUnavailable: blocked === 'history-unavailable' }))()
+    assert.equal(state.Reason, blocked === 'none' ? '' : 'Draft approval')
+    assert.equal(state.Message, blocked === 'none' ? null : 'Obsolete saved status')
+  }
+  let readFails = true
+  let reads = 0
+  const cacheKey = 'verification-policy-refresh'
+  await mutateCache(cacheKey, [initial], { revalidate: false })
+  let query = { data: [initial], error: null, mutate: async (value, options) => {
+    if (value === undefined) return mutateCache(cacheKey)
+    assert.equal(options.revalidate, false)
+    return mutateCache(cacheKey, value, options)
+  } }
+  const { FinancialPolicyControls } = loadSource(filename, {
+    '@/lib/supabase/client': { createClient: () => ({ from: () => ({ select: () => ({ order: () => ({ limit: async () => {
+      reads++
+      return { data: [initial], error: readFails ? { message: 'Private read failure' } : null }
+    } }) }) }) }) },
+    '@/lib/hooks/use-page-query': { usePageQuery: () => query },
+    '@/lib/contexts/permission-context': { usePermissions: () => ({ role: { code: 'super_admin' }, user: { id: 'fixture' } }) },
+    '@/lib/i18n/ui-text': { useUiTranslation: () => value => value },
+  })
+  const loaded = FinancialPolicyControls()
+  query = { ...query, error: new Error('Private fetch detail') }
+  const cached = FinancialPolicyControls()
+  assert.equal(cached.type, loaded.type)
+  assert.equal(cached.props.children[1].type, loaded.props.children[1].type, 'Revalidation failure must not unmount the editor')
+  assert.equal(cached.props.children[1].key, loaded.props.children[1].key)
+  assert.equal(cached.props.children[1].props.historyUnavailable, true)
+  await assert.rejects(cached.props.children[1].props.refresh(), /Could not load financial policy history/)
+  assert.equal((await mutateCache(cacheKey))[0].revision, initial.revision)
+  readFails = false
+  assert.equal((await cached.props.children[1].props.refresh())[0].revision, initial.revision)
+  assert.equal(reads, 2, 'Policy recovery must execute the loader even when cached history exists')
+  query = { ...query, data: undefined }
+  assert.notEqual(FinancialPolicyControls().type, 'div', 'An initial query failure must not create editable fallback policy')
+  assert.match(text, /disabled=\{busy \|\| stale \|\| refreshRequired \|\| historyUnavailable/)
+  for (const key of messages) {
+    assert.ok(interfaceCatalog[key], `Financial lifecycle feedback must be catalogued: ${key}`)
+    for (const locale of ['ru', 'tj']) assert.notEqual(translateInterface(locale, key), key)
+  }
+  console.log('Financial policy lifecycle checks passed: exact revision RPC, duplicate guard, receipt validation, role/stale/uncertainty guards, preserved drafts, acknowledged-save refresh failure, reload/discard recovery and multilingual feedback')
 }
 
 {
@@ -73,7 +475,7 @@ function loadSource(relativePath, overrides = {}, cache = new Map()) {
   let queryState = { isLoading: false, isValidating: false, data: { total: 21, items: [{ id: 'loan-1', loan_request_id: 'HISTORY-ONLY', approved_amount: 0, currency: 'TJS', created_at: null }] } }
   const wrapper = ({ children }) => React.createElement('div', null, children)
   const { CreditHistoryDialog } = loadSource('components/borrowers/credit-history-dialog.tsx', {
-    react: { ...React, useState: () => [page, value => { nextPage = value }] },
+    react: { ...React, useCallback: callback => callback, useState: () => [page, value => { nextPage = value }] },
     'next/link': { default: ({ children, href }) => React.createElement('a', { href }, children), __esModule: true },
     '@/lib/contexts/permission-context': { usePermissions: () => identity },
     '@/lib/i18n/context': { useI18n: () => ({ t: translations.en, locale: 'en' }) },
@@ -772,7 +1174,7 @@ function queryFixture(data, error = null) {
   let hideColumns = false, search = '', exports = 0
   let interfaceLocale = 'en', downloadLocale = null, exportedLocale, exportedTemplate
   const DocumentsPage = loadSource('app/dashboard/documents/page.tsx', {
-    react: { ...React, useMemo: factory => factory(), useState: initial => [
+    react: { ...React, useCallback: callback => callback, useMemo: factory => factory(), useState: initial => [
       typeof initial === 'object' && initial?.columns && hideColumns ? { ...initial, columns: initial.columns.map(column => ({ ...column, visible: false })) }
         : initial === '' ? search : initial === null ? downloadLocale : initial,
       value => { if (initial === null) downloadLocale = value },
@@ -850,7 +1252,7 @@ function LanguageProbe() {
 assert.equal(renderToStaticMarkup(React.createElement(serverI18n.I18nProvider, null, React.createElement(LanguageProbe))), '<span>en:English</span>')
 
 function localeHarness(saved, { storageFails = false, loadFails = false } = {}) {
-  let effect
+  const effects = []
   let state
   const updates = []
   const writes = []
@@ -878,11 +1280,11 @@ function localeHarness(saved, { storageFails = false, loadFails = false } = {}) 
       },
       useRef: current => ({ current }),
       useCallback: callback => callback,
-      useEffect(callback) { effect = callback },
+      useEffect(callback) { effects.push(callback) },
     },
   })
   const provider = i18n.I18nProvider({ children: null })
-  return { restore: () => effect(), setLocale: provider.props.value.setLocale, updates, writes, get state() { return state } }
+  return { restore: () => { const cleanups = effects.map(effect => effect()); return () => { for (const cleanup of cleanups) if (typeof cleanup === 'function') cleanup() } }, setLocale: provider.props.value.setLocale, updates, writes, get state() { return state } }
 }
 async function settleLocales() {
   for (let turn = 0; turn < 12; turn++) await Promise.resolve()
@@ -1143,14 +1545,129 @@ assert.equal(skeleton(), skeleton())
 assert.match(skeleton(), /--skeleton-width:70%/)
 assert.match(skeleton(), /data-sidebar="menu-skeleton-icon"/)
 
-const { ReportChartCard } = loadSource('components/dashboard/report-chart-card.tsx')
+for (const locale of ['en', 'ru', 'tj']) {
+  const overrides = { '@/lib/i18n/context': { useI18n: () => ({ locale }) } }
+  const { translateInterface } = loadSource('lib/i18n/interface-text.ts')
+  const { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious, PaginationEllipsis } = loadSource('components/ui/pagination.tsx', overrides)
+  const html = renderToStaticMarkup(React.createElement(Pagination, null,
+    React.createElement(PaginationContent, null,
+      ...[PaginationPrevious, PaginationEllipsis, PaginationNext].map((Control, index) =>
+        React.createElement(PaginationItem, { key: index }, React.createElement(Control, { href: '#' }))))))
+  for (const label of ['Pagination', 'Go to previous page', 'Go to next page', 'Previous', 'Next', 'More pages']) {
+    assert.ok(html.includes(translateInterface(locale, label)), `${locale}: missing navigation label ${label}`)
+  }
+  const { SchemeStepper } = loadSource('components/workflow/scheme-stepper.tsx', overrides)
+  const { SCHEME_STEPS } = loadSource('lib/workflow/fkg-scheme.ts')
+  const stepper = renderToStaticMarkup(React.createElement(SchemeStepper, { status: 'assessment' }))
+  for (const step of SCHEME_STEPS) {
+    const title = translateInterface(locale, 'Step {0} · {1} (Guideline {2})', step.step, translateInterface(locale, step.titleEn), step.guidelineRef)
+    assert.ok(stepper.includes(`title="${title}"`), `${locale}: missing localized step ${step.step}`)
+  }
+  for (const lane of ['Bank', 'Operations', 'Credit Risk', 'Management']) assert.ok(stepper.includes(translateInterface(locale, lane)))
+  for (const step of SCHEME_STEPS.filter(step => step.slaDays != null)) {
+    assert.ok(stepper.includes(translateInterface(locale, '{0}d', step.slaDays)))
+  }
+  const { STEP_FORMS } = loadSource('components/workflow/step-forms.tsx', overrides)
+  const { interfaceCatalog } = loadSource('lib/i18n/interface-text.ts')
+  const missingArtifactTranslations = Object.values(STEP_FORMS).flatMap(config => {
+    const keys = [config.title, config.description, ...config.transitions.map(item => item.label),
+      ...config.fields.flatMap(field => [field.label, field.placeholder, ...(field.options ?? []).map(option => option.label)]), config.sodAgainstStep?.describe]
+    return keys.filter(key => key && !interfaceCatalog[key]).map(key => `Step ${config.step}: ${key}`)
+  })
+  assert.deepEqual(missingArtifactTranslations, [], 'All workflow artifact text needs Russian and Tajik translations')
+  const { WorkflowPanel } = loadSource('components/workflow/workflow-panel.tsx', {
+    ...overrides,
+    'next/navigation': { useRouter: () => ({ refresh() {} }) },
+    '@/lib/contexts/permission-context': { usePermissions: () => ({ profile: { id: 'reader', is_active: true } }) },
+    '@/components/admin/authority-reason-provider': { useAuthorityReason: () => async () => null },
+    '@/components/workflow/step-forms': { STEP_FORMS, StepArtifactForm: () => null },
+  })
+  for (const step of SCHEME_STEPS) {
+    const panel = renderToStaticMarkup(React.createElement(WorkflowPanel, {
+      loan: { id: 'locale-fixture', status: step.status, guarantee_amount: 1000, usd_rate: 10 }, roleCode: 'auditor',
+    }))
+    assert.ok(panel.includes(translateInterface(locale, step.titleEn)), `${locale}: missing workflow heading ${step.step}`)
+    assert.ok(panel.includes(translateInterface(locale, 'Guideline')), `${locale}: missing guideline label`)
+  }
+  for (const [status, config] of Object.entries(STEP_FORMS)) {
+    const panel = renderToStaticMarkup(React.createElement(WorkflowPanel, {
+      loan: { id: 'locale-fixture', status, guarantee_amount: 1000, usd_rate: 10 }, roleCode: 'super_admin',
+    }))
+    assert.ok(panel.includes(translateInterface(locale, config.title)), `${locale}: untranslated artifact action at ${status}`)
+    let stateIndex = 0
+    let validationError
+    const { StepArtifactForm } = loadSource('components/workflow/step-forms.tsx', {
+      ...overrides,
+      react: { ...React, useMemo: fn => fn(), useState: initial => {
+        const index = stateIndex++
+        return [initial, value => { if (index === 2) validationError = value }]
+      } },
+      swr: { __esModule: true, default: () => ({ data: {} }) },
+      'next/navigation': { useRouter: () => ({ refresh() { throw new Error('Validation cannot navigate') } }) },
+      '@/lib/contexts/permission-context': { usePermissions: () => ({ role: { code: 'super_admin' } }) },
+      '@/components/admin/authority-reason-provider': { useAuthorityReason: () => async () => { throw new Error('Validation cannot request authority') } },
+      '@/lib/supabase/client': { createClient: () => ({}) },
+      '@/lib/hooks/use-field-requirements': { useFieldRequirements: () => ({ isRequired: () => true }) },
+      '@/lib/i18n/ui-text': { useUiTranslation: () => (key, ...params) => translateInterface(locale, key, ...params) },
+    })
+    const form = StepArtifactForm({ loan: { id: 'locale-fixture' }, config, open: true, onOpenChange() {} })
+    const findSubmit = element => {
+      if (!React.isValidElement(element)) return null
+      if (element.props.onClick && element.props.variant !== 'outline') return element
+      return React.Children.toArray(element.props.children).map(findSubmit).find(Boolean)
+    }
+    const submit = findSubmit(form)
+    assert.ok(submit, `${status}: missing artifact submit button`)
+    await submit.props.onClick()
+    const field = config.fields.find(item => item.type !== 'checkbox' || item.required)
+    assert.equal(validationError, translateInterface(locale, '"{0}" is required.', translateInterface(locale, field.label)))
+  }
+  const { Breadcrumb, BreadcrumbEllipsis } = loadSource('components/ui/breadcrumb.tsx', overrides)
+  const breadcrumb = renderToStaticMarkup(React.createElement(Breadcrumb, null, React.createElement(BreadcrumbEllipsis)))
+  for (const label of ['Breadcrumb', 'More']) assert.ok(breadcrumb.includes(translateInterface(locale, label)))
+  const { SidebarProvider, SidebarTrigger, SidebarRail } = loadSource('components/ui/sidebar.tsx', overrides)
+  const sidebar = renderToStaticMarkup(React.createElement(SidebarProvider, null,
+    React.createElement(SidebarTrigger), React.createElement(SidebarRail)))
+  assert.ok(sidebar.includes(`aria-label="${translateInterface(locale, 'Toggle Sidebar')}"`))
+  assert.ok(sidebar.includes(`title="${translateInterface(locale, 'Toggle Sidebar')}"`))
+  const { Carousel, CarouselPrevious, CarouselNext } = loadSource('components/ui/carousel.tsx', overrides)
+  const carousel = renderToStaticMarkup(React.createElement(Carousel, null,
+    React.createElement(CarouselPrevious), React.createElement(CarouselNext)))
+  for (const label of ['Previous slide', 'Next slide']) assert.ok(carousel.includes(translateInterface(locale, label)))
+  const { CommandDialog } = loadSource('components/ui/command.tsx', {
+    ...overrides,
+    '@/components/ui/dialog': { Dialog: 'div', DialogContent: 'div', DialogTitle: 'h2', DialogDescription: 'p' },
+    cmdk: { Command: Object.assign(({ children, ...props }) => React.createElement('div', props, children), require('cmdk').Command) },
+  })
+  const command = renderToStaticMarkup(React.createElement(CommandDialog))
+  for (const label of ['Command Palette', 'Search for commands and actions']) assert.ok(command.includes(translateInterface(locale, label)))
+  const custom = renderToStaticMarkup(React.createElement(PaginationNext, { 'aria-label': 'Custom label' }))
+  assert.match(custom, /aria-label="Custom label"/)
+  const primitives = require('@radix-ui/react-dialog')
+  const { SheetContent } = loadSource('components/ui/sheet.tsx', {
+    ...overrides,
+    '@radix-ui/react-dialog': {
+      ...primitives,
+      Portal: ({ children }) => children,
+      Overlay: 'div', Content: 'div', Close: 'button',
+    },
+  })
+  const sheet = renderToStaticMarkup(React.createElement(SheetContent, null, 'Drawer content'))
+  assert.ok(sheet.includes(translateInterface(locale, 'Close')), `${locale}: missing translated drawer close label`)
+}
+
+const { ReportChartCard } = loadSource('components/dashboard/report-chart-card.tsx', {
+    '@/lib/i18n/context': { useI18n: () => ({ locale: 'en' }) },
+  })
 const card = props => renderToStaticMarkup(React.createElement(ReportChartCard, {
   title: 'Portfolio by Bank', ...props,
 }, React.createElement('span', null, 'Chart content')))
 assert.match(card({ onExport() {} }), /aria-label="Export Portfolio by Bank"/)
 assert.match(card({}), /Chart content/)
 assert.doesNotMatch(card({}), /<button/)
-const { StepValidationPanel } = loadSource('components/forms/step-validation-panel.tsx')
+const { StepValidationPanel } = loadSource('components/forms/step-validation-panel.tsx', {
+  '@/lib/i18n/context': { useI18n: () => ({ locale: 'en' }) },
+})
 const validationError = { field: 'clientName', label: 'Borrower Name', error: 'Borrower name is required' }
 const borrowerStatus = {
   step: 'borrower', label: 'Borrower', isComplete: false, isValid: false,

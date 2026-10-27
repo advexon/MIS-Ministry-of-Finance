@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useId, useState, type FormEvent } from 'react'
 import { KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
@@ -9,6 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
 export function AdminPasswordReset({ userId, name }: { userId: string; name: string }) {
+  const uiText = useUiTranslation()
+
   const id = useId()
   const [open, setOpen] = useState(false)
   const [password, setPassword] = useState('')
@@ -54,25 +58,25 @@ export function AdminPasswordReset({ userId, name }: { userId: string; name: str
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline"><KeyRound data-icon="inline-start" />Reset password</Button>
+        <Button variant="outline"><KeyRound data-icon="inline-start" />{uiText("Reset password")}</Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Reset user password</DialogTitle>
-          <DialogDescription>Set a new password for {name}. Verify their identity and share it through an approved secure channel, not email.</DialogDescription>
+          <DialogTitle>{uiText("Reset user password")}</DialogTitle>
+          <DialogDescription>{uiText("Set a new password for")} {name}{uiText(". Verify their identity and share it through an approved secure channel, not email.")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={resetPassword} className="flex flex-col gap-4">
           <fieldset disabled={saving} className="flex flex-col gap-3">
-            <legend className="sr-only">New account password</legend>
-            <Label htmlFor={`${id}-password`}>New password</Label>
+            <legend className="sr-only">{uiText("New account password")}</legend>
+            <Label htmlFor={`${id}-password`}>{uiText("New password")}</Label>
             <Input id={`${id}-password`} type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} />
-            <Label htmlFor={`${id}-confirm`}>Confirm password</Label>
+            <Label htmlFor={`${id}-confirm`}>{uiText("Confirm password")}</Label>
             <Input id={`${id}-confirm`} type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} />
           </fieldset>
-          {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
+          {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{uiText(error)}</p>}
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={saving} onClick={() => changeOpen(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? 'Resetting…' : 'Set new password'}</Button>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => changeOpen(false)}>{uiText("Cancel")}</Button>
+            <Button type="submit" disabled={saving}>{saving ? uiText("Resetting…") : uiText("Set new password")}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

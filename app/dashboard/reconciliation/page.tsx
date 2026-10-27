@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
@@ -44,6 +46,8 @@ const STATUS_CONFIG = {
 }
 
 export default function ReconciliationPage() {
+  const uiText = useUiTranslation()
+
   const supabase = createClient()
 
   const [bankFilter, setBankFilter] = useState('all')
@@ -147,17 +151,15 @@ export default function ReconciliationPage() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary/10 p-2"><GitCompare className="h-5 w-5 text-primary" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Reconciliation</h1>
-            <p className="text-sm text-muted-foreground">Compare PRSF records against bank-reported figures</p>
+            <h1 className="text-2xl font-bold text-foreground">{uiText("Reconciliation")}</h1>
+            <p className="text-sm text-muted-foreground">{uiText("Compare PRSF records against bank-reported figures")}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={runReconciliation}>
-            <RefreshCw className="h-3.5 w-3.5" />Run Again
-          </Button>
+            <RefreshCw className="h-3.5 w-3.5" />{uiText("Run Again")}</Button>
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={exportCSV}>
-            <Download className="h-3.5 w-3.5" />Export CSV
-          </Button>
+            <Download className="h-3.5 w-3.5" />{uiText("Export CSV")}</Button>
         </div>
       </div>
 
@@ -166,28 +168,28 @@ export default function ReconciliationPage() {
         <CardContent className="pt-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Period (Month)</Label>
+              <Label className="text-xs">{uiText("Period (Month)")}</Label>
               <Input type="month" className="h-9 text-sm" value={period} onChange={e => setPeriod(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Bank</Label>
+              <Label className="text-xs">{uiText("Bank")}</Label>
               <Select value={bankFilter} onValueChange={setBankFilter}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Banks</SelectItem>
+                  <SelectItem value="all">{uiText("All Banks")}</SelectItem>
                   {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Status</Label>
+              <Label className="text-xs">{uiText("Status")}</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="matched">Matched</SelectItem>
-                  <SelectItem value="discrepancy">Discrepancy</SelectItem>
-                  <SelectItem value="missing">Missing Data</SelectItem>
+                  <SelectItem value="all">{uiText("All Statuses")}</SelectItem>
+                  <SelectItem value="matched">{uiText("Matched")}</SelectItem>
+                  <SelectItem value="discrepancy">{uiText("Discrepancy")}</SelectItem>
+                  <SelectItem value="missing">{uiText("Missing Data")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -201,9 +203,9 @@ export default function ReconciliationPage() {
           <CardContent className="flex items-center gap-4 pt-5">
             <CheckCircle2 className="h-8 w-8 text-emerald-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Matched</p>
+              <p className="text-xs text-muted-foreground">{uiText("Matched")}</p>
               <p className="text-2xl font-bold text-emerald-700">{matched}</p>
-              <p className="text-xs text-muted-foreground">banks reconciled</p>
+              <p className="text-xs text-muted-foreground">{uiText("banks reconciled")}</p>
             </div>
           </CardContent>
         </Card>
@@ -211,9 +213,9 @@ export default function ReconciliationPage() {
           <CardContent className="flex items-center gap-4 pt-5">
             <AlertTriangle className="h-8 w-8 text-amber-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Discrepancies</p>
+              <p className="text-xs text-muted-foreground">{uiText("Discrepancies")}</p>
               <p className="text-2xl font-bold text-amber-700">{discrepancies}</p>
-              <p className="text-xs text-muted-foreground">need review</p>
+              <p className="text-xs text-muted-foreground">{uiText("need review")}</p>
             </div>
           </CardContent>
         </Card>
@@ -221,9 +223,9 @@ export default function ReconciliationPage() {
           <CardContent className="flex items-center gap-4 pt-5">
             <XCircle className="h-8 w-8 text-red-500" />
             <div>
-              <p className="text-xs text-muted-foreground">Missing Data</p>
+              <p className="text-xs text-muted-foreground">{uiText("Missing Data")}</p>
               <p className="text-2xl font-bold text-red-700">{missing}</p>
-              <p className="text-xs text-muted-foreground">no report submitted</p>
+              <p className="text-xs text-muted-foreground">{uiText("no report submitted")}</p>
             </div>
           </CardContent>
         </Card>
@@ -232,8 +234,8 @@ export default function ReconciliationPage() {
       {/* Reconciliation Table */}
       <Tabs defaultValue="summary">
         <TabsList className="mb-4 h-9">
-          <TabsTrigger value="summary" className="text-xs">Summary</TabsTrigger>
-          <TabsTrigger value="detail" className="text-xs">Detailed Comparison</TabsTrigger>
+          <TabsTrigger value="summary" className="text-xs">{uiText("Summary")}</TabsTrigger>
+          <TabsTrigger value="detail" className="text-xs">{uiText("Detailed Comparison")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary">
@@ -243,18 +245,18 @@ export default function ReconciliationPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableHead className="font-semibold">Bank</TableHead>
-                      <TableHead className="text-center font-semibold">Loans</TableHead>
-                      <TableHead className="text-center font-semibold">Outstanding</TableHead>
-                      <TableHead className="text-center font-semibold">Fees</TableHead>
-                      <TableHead className="text-center font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">{uiText("Bank")}</TableHead>
+                      <TableHead className="text-center font-semibold">{uiText("Loans")}</TableHead>
+                      <TableHead className="text-center font-semibold">{uiText("Outstanding")}</TableHead>
+                      <TableHead className="text-center font-semibold">{uiText("Fees")}</TableHead>
+                      <TableHead className="text-center font-semibold">{uiText("Status")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}>{Array.from({ length: 5 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4" /></TableCell>)}</TableRow>
                     )) : filtered.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">No data for selected period</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">{uiText("No data for selected period")}</TableCell></TableRow>
                     ) : filtered.map(row => {
                       const cfg = STATUS_CONFIG[row.status]
                       const Icon = cfg.icon
@@ -268,22 +270,22 @@ export default function ReconciliationPage() {
                           </TableCell>
                           <TableCell className="text-center">
                             {row.loan_discrepancy > 0 ? (
-                              <span className="font-medium text-amber-600">Diff: {row.loan_discrepancy}</span>
-                            ) : <span className="text-emerald-600 text-xs">OK</span>}
+                              <span className="font-medium text-amber-600">{uiText("Diff:")} {row.loan_discrepancy}</span>
+                            ) : <span className="text-emerald-600 text-xs">{uiText("OK")}</span>}
                           </TableCell>
                           <TableCell className="text-center">
                             {row.outstanding_discrepancy > 1000 ? (
                               <span className="font-medium text-amber-600">{fmt(row.outstanding_discrepancy)}</span>
-                            ) : <span className="text-emerald-600 text-xs">OK</span>}
+                            ) : <span className="text-emerald-600 text-xs">{uiText("OK")}</span>}
                           </TableCell>
                           <TableCell className="text-center">
                             {row.fee_discrepancy > 100 ? (
                               <span className="font-medium text-amber-600">{fmt(row.fee_discrepancy)}</span>
-                            ) : <span className="text-emerald-600 text-xs">OK</span>}
+                            ) : <span className="text-emerald-600 text-xs">{uiText("OK")}</span>}
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge className={`gap-1 text-xs ${cfg.classes}`}>
-                              <Icon className="h-3 w-3" />{cfg.label}
+                              <Icon className="h-3 w-3" />{uiText(cfg.label)}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -299,26 +301,26 @@ export default function ReconciliationPage() {
         <TabsContent value="detail">
           <Card className="shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">PRSF vs Bank Reported Figures</CardTitle>
-              <CardDescription className="text-xs">Side-by-side comparison of PRSF system data and bank-submitted guarantee reports</CardDescription>
+              <CardTitle className="text-sm">{uiText("PRSF vs Bank Reported Figures")}</CardTitle>
+              <CardDescription className="text-xs">{uiText("Side-by-side comparison of PRSF system data and bank-submitted guarantee reports")}</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableHead className="font-semibold" rowSpan={2}>Bank</TableHead>
-                      <TableHead className="text-center font-semibold border-l" colSpan={3}>Loans</TableHead>
-                      <TableHead className="text-center font-semibold border-l" colSpan={3}>Outstanding (TJS)</TableHead>
-                      <TableHead className="font-semibold border-l">Status</TableHead>
+                      <TableHead className="font-semibold" rowSpan={2}>{uiText("Bank")}</TableHead>
+                      <TableHead className="text-center font-semibold border-l" colSpan={3}>{uiText("Loans")}</TableHead>
+                      <TableHead className="text-center font-semibold border-l" colSpan={3}>{uiText("Outstanding (TJS)")}</TableHead>
+                      <TableHead className="font-semibold border-l">{uiText("Status")}</TableHead>
                     </TableRow>
                     <TableRow className="bg-muted/30 hover:bg-muted/30 text-xs">
-                      <TableHead className="text-right border-l font-normal text-muted-foreground">PRSF</TableHead>
-                      <TableHead className="text-right font-normal text-muted-foreground">Bank</TableHead>
-                      <TableHead className="text-right font-normal text-muted-foreground">Diff</TableHead>
-                      <TableHead className="text-right border-l font-normal text-muted-foreground">PRSF</TableHead>
-                      <TableHead className="text-right font-normal text-muted-foreground">Bank</TableHead>
-                      <TableHead className="text-right font-normal text-muted-foreground">Diff</TableHead>
+                      <TableHead className="text-right border-l font-normal text-muted-foreground">{uiText("PRSF")}</TableHead>
+                      <TableHead className="text-right font-normal text-muted-foreground">{uiText("Bank")}</TableHead>
+                      <TableHead className="text-right font-normal text-muted-foreground">{uiText("Diff")}</TableHead>
+                      <TableHead className="text-right border-l font-normal text-muted-foreground">{uiText("PRSF")}</TableHead>
+                      <TableHead className="text-right font-normal text-muted-foreground">{uiText("Bank")}</TableHead>
+                      <TableHead className="text-right font-normal text-muted-foreground">{uiText("Diff")}</TableHead>
                       <TableHead className="border-l"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -346,7 +348,7 @@ export default function ReconciliationPage() {
                             {row.outstanding_discrepancy > 1000 ? fmt(row.outstanding_discrepancy) : '—'}
                           </TableCell>
                           <TableCell className="border-l">
-                            <Badge className={`text-xs ${cfg.classes}`}>{cfg.label}</Badge>
+                            <Badge className={`text-xs ${cfg.classes}`}>{uiText(cfg.label)}</Badge>
                           </TableCell>
                         </TableRow>
                       )

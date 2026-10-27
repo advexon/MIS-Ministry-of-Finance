@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState, useMemo } from 'react'
 import { useI18n } from '@/lib/i18n/context'
 import type { Locale } from '@/lib/i18n/translations'
@@ -112,6 +114,8 @@ const badgeVariantMap: Record<string, string> = {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function FormatButton({ format, selected, onClick }: { format: ExportFormat; selected: boolean; onClick: () => void }) {
+  const uiText = useUiTranslation()
+
   const meta = FORMAT_META[format]
   const Icon = meta.icon
   return (
@@ -125,7 +129,7 @@ function FormatButton({ format, selected, onClick }: { format: ExportFormat; sel
       )}
     >
       <Icon className={cn('h-7 w-7', selected && meta.color)} strokeWidth={1.5} />
-      <span className={cn('text-xs font-semibold', selected && meta.color)}>{meta.label}</span>
+      <span className={cn('text-xs font-semibold', selected && meta.color)}>{uiText(meta.label)}</span>
     </button>
   )
 }
@@ -134,6 +138,8 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
   label: string; value: string | number; sub?: string
   icon: React.ElementType; accent: string
 }) {
+  const uiText = useUiTranslation()
+
   return (
     <Card className="shadow-sm">
       <CardContent className="flex items-center gap-4 p-5">
@@ -141,7 +147,7 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
           <Icon className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="truncate text-xs font-medium text-muted-foreground">{uiText(label)}</p>
           <p className="mt-0.5 text-xl font-bold text-foreground">{value}</p>
           {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
         </div>
@@ -153,6 +159,8 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function DocumentsPage() {
+  const uiText = useUiTranslation()
+
   const { toast } = useToast()
   const { locale: interfaceLocale } = useI18n()
   const [downloadLanguage, setDownloadLanguage] = useState<Locale | null>(null)
@@ -255,9 +263,7 @@ export default function DocumentsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-bold text-foreground">{documentText('Document Center', interfaceLocale)}</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Generate, configure and export reports in PDF, Excel, Word and CSV formats
-            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{uiText("Generate, configure and export reports in PDF, Excel, Word and CSV formats")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs font-medium" htmlFor="document-language">
@@ -282,14 +288,12 @@ export default function DocumentsPage() {
               disabled={dataLoading}
             >
               <RefreshCw className={cn("h-3.5 w-3.5", dataLoading && "animate-spin")} />
-              {dataLoading ? 'Loading...' : 'Refresh Data'}
+              {dataLoading ? uiText("Loading...") : uiText("Refresh Data")}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5 bg-transparent text-xs">
-                  <Layers className="h-3.5 w-3.5" />
-                  Load Template
-                  <ChevronDown className="h-3 w-3" />
+                  <Layers className="h-3.5 w-3.5" />{uiText("Load Template")}<ChevronDown className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -309,8 +313,7 @@ export default function DocumentsPage() {
             >
               {exporting
                 ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                : <Download className="h-3.5 w-3.5" />}
-              Export {FORMAT_META[selectedFormat].label}
+                : <Download className="h-3.5 w-3.5" />}{uiText("Export ")}{uiText(FORMAT_META[selectedFormat].label)}
             </Button>
           </div>
         </div>
@@ -320,14 +323,13 @@ export default function DocumentsPage() {
       <div className="flex-shrink-0 border-b bg-secondary/20 px-6 py-3">
         {dataError && (
           <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-            <AlertCircle className="mr-1.5 inline h-3.5 w-3.5" />
-            Unable to load live data: {dataError}
+            <AlertCircle className="mr-1.5 inline h-3.5 w-3.5" />{uiText("Unable to load live data: ")}{dataError}
           </div>
         )}
         <p className="mb-3 text-xs text-muted-foreground" role="status">
-          {dataError ? 'Data could not be loaded. Exports are disabled until a successful refresh.' : dataLoading ? 'Loading all authorized records. Export is unavailable until loading completes.' : 'All records visible to your account are loaded. Search applies to both preview and export.'}
-          {template.dataSource === 'loan_applications' && ` Balances and delinquency use each loan’s latest approved report, not disbursed amounts. ${missingSnapshots} loan(s) have no matching approved balance snapshot; unknown values are shown as — and excluded from delinquency results.`}
-          {' Amounts retain their source currency. Unknown currencies are marked explicitly; totals never combine currencies.'}
+          {dataError ? uiText("Data could not be loaded. Exports are disabled until a successful refresh.") : dataLoading ? uiText("Loading all authorized records. Export is unavailable until loading completes.") : uiText("All records visible to your account are loaded. Search applies to both preview and export.")}
+          {template.dataSource === 'loan_applications' && uiText("Balances and delinquency use each loan’s latest approved report, not disbursed amounts. {0} loan(s) have no matching approved balance snapshot; unknown values are shown as — and excluded from delinquency results.", missingSnapshots)}
+          {uiText("Amounts retain their source currency. Unknown currencies are marked explicitly; totals never combine currencies.")}
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard 
@@ -349,7 +351,7 @@ export default function DocumentsPage() {
         {/* LEFT: Template library */}
         <aside className="hidden w-56 flex-shrink-0 flex-col overflow-y-auto border-r bg-secondary/10 lg:flex">
           <div className="p-3">
-            <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Built-in Templates</p>
+            <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{uiText("Built-in Templates")}</p>
             <div className="space-y-0.5">
               {BUILT_IN_TEMPLATES.map(t => (
                 <button
@@ -369,7 +371,7 @@ export default function DocumentsPage() {
             </div>
 
             <Separator className="my-3" />
-            <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Export Format</p>
+            <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{uiText("Export Format")}</p>
             <div className="grid grid-cols-2 gap-1.5">
               {(['pdf', 'excel', 'word', 'csv'] as ExportFormat[]).map(f => (
                 <FormatButton key={f} format={f} selected={selectedFormat === f} onClick={() => setSelectedFormat(f)} />
@@ -382,7 +384,7 @@ export default function DocumentsPage() {
         <div className="flex w-80 flex-shrink-0 flex-col overflow-y-auto border-r bg-card">
           {/* Template name */}
           <div className="border-b px-4 py-3">
-            <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Template Name</Label>
+            <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Template Name")}</Label>
             <Input
               value={template.name}
               onChange={e => patch({ name: e.target.value })}
@@ -413,7 +415,7 @@ export default function DocumentsPage() {
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  {tab.label}
+                  {uiText(tab.label)}
                 </button>
               )
             })}
@@ -434,7 +436,7 @@ export default function DocumentsPage() {
                       id={`col-${col.key}`}
                     />
                     <label htmlFor={`col-${col.key}`} className="flex-1 cursor-pointer">
-                      <p className="text-xs font-medium">{col.label}</p>
+                      <p className="text-xs font-medium">{uiText(col.label)}</p>
                       <p className="text-[10px] text-muted-foreground">{col.key} · {col.type}</p>
                     </label>
                     <Badge variant="outline" className="text-[9px]">{col.type}</Badge>
@@ -447,7 +449,7 @@ export default function DocumentsPage() {
             {activeConfig === 'filters' && (
               <div className="space-y-3">
                 {template.filters.length === 0 && (
-                  <p className="py-4 text-center text-xs text-muted-foreground">No filters defined. Add one below.</p>
+                  <p className="py-4 text-center text-xs text-muted-foreground">{uiText("No filters defined. Add one below.")}</p>
                 )}
                 {template.filters.map(f => (
                   <div key={f.id} className="space-y-2 rounded-lg border bg-secondary/20 p-3">
@@ -460,21 +462,20 @@ export default function DocumentsPage() {
                     <Select value={f.column} onValueChange={v => updateFilter(f.id, { column: v })}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {template.columns.map(c => <SelectItem key={c.key} value={c.key} className="text-xs">{c.label}</SelectItem>)}
+                        {template.columns.map(c => <SelectItem key={c.key} value={c.key} className="text-xs">{uiText(c.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <Select value={f.operator} onValueChange={v => updateFilter(f.id, { operator: v as DocumentFilter['operator'] })}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {OPERATORS.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+                        {OPERATORS.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{uiText(o.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input className="h-7 text-xs" placeholder="Value..." value={f.value} onChange={e => updateFilter(f.id, { value: e.target.value })} />
+                    <Input className="h-7 text-xs" placeholder={uiText("Value...")} value={f.value} onChange={e => updateFilter(f.id, { value: e.target.value })} />
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="w-full gap-2 bg-transparent text-xs" onClick={addFilter}>
-                  <Plus className="h-3.5 w-3.5" />Add Filter
-                </Button>
+                  <Plus className="h-3.5 w-3.5" />{uiText("Add Filter")}</Button>
               </div>
             )}
 
@@ -482,7 +483,7 @@ export default function DocumentsPage() {
             {activeConfig === 'sort' && (
               <div className="space-y-3">
                 {template.sortRules.length === 0 && (
-                  <p className="py-4 text-center text-xs text-muted-foreground">No sort rules defined.</p>
+                  <p className="py-4 text-center text-xs text-muted-foreground">{uiText("No sort rules defined.")}</p>
                 )}
                 {template.sortRules.map((s, idx) => (
                   <div key={idx} className="flex items-center gap-2 rounded-lg border bg-secondary/20 p-3">
@@ -490,14 +491,14 @@ export default function DocumentsPage() {
                       <Select value={s.column} onValueChange={v => updateSort(idx, { column: v })}>
                         <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {template.columns.map(c => <SelectItem key={c.key} value={c.key} className="text-xs">{c.label}</SelectItem>)}
+                          {template.columns.map(c => <SelectItem key={c.key} value={c.key} className="text-xs">{uiText(c.label)}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       <Select value={s.direction} onValueChange={v => updateSort(idx, { direction: v as SortRule['direction'] })}>
                         <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="asc" className="text-xs">Ascending</SelectItem>
-                          <SelectItem value="desc" className="text-xs">Descending</SelectItem>
+                          <SelectItem value="asc" className="text-xs">{uiText("Ascending")}</SelectItem>
+                          <SelectItem value="desc" className="text-xs">{uiText("Descending")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -507,8 +508,7 @@ export default function DocumentsPage() {
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="w-full gap-2 bg-transparent text-xs" onClick={addSort}>
-                  <Plus className="h-3.5 w-3.5" />Add Sort Rule
-                </Button>
+                  <Plus className="h-3.5 w-3.5" />{uiText("Add Sort Rule")}</Button>
               </div>
             )}
 
@@ -516,12 +516,12 @@ export default function DocumentsPage() {
             {activeConfig === 'conditional' && (
               <div className="space-y-3">
                 {template.conditionalRules.length === 0 && (
-                  <p className="py-4 text-center text-xs text-muted-foreground">No formatting rules defined.</p>
+                  <p className="py-4 text-center text-xs text-muted-foreground">{uiText("No formatting rules defined.")}</p>
                 )}
                 {template.conditionalRules.map(r => (
                   <div key={r.id} className="space-y-2 rounded-lg border bg-secondary/20 p-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rule</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Rule")}</span>
                       <div className="flex items-center gap-1.5">
                         <Switch checked={r.enabled} onCheckedChange={v => updateCond(r.id, { enabled: v })} />
                         <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeCond(r.id)}>
@@ -529,32 +529,31 @@ export default function DocumentsPage() {
                         </Button>
                       </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">When column...</p>
+                    <p className="text-[10px] text-muted-foreground">{uiText("When column...")}</p>
                     <Select value={r.column} onValueChange={v => updateCond(r.id, { column: v })}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {template.columns.map(c => <SelectItem key={c.key} value={c.key} className="text-xs">{c.label}</SelectItem>)}
+                        {template.columns.map(c => <SelectItem key={c.key} value={c.key} className="text-xs">{uiText(c.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <Select value={r.operator} onValueChange={v => updateCond(r.id, { operator: v as ConditionalRule['operator'] })}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {OPERATORS.slice(0, 6).map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
+                        {OPERATORS.slice(0, 6).map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{uiText(o.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input className="h-7 text-xs" placeholder="Value..." value={r.value} onChange={e => updateCond(r.id, { value: e.target.value })} />
-                    <p className="text-[10px] text-muted-foreground">Apply style...</p>
+                    <Input className="h-7 text-xs" placeholder={uiText("Value...")} value={r.value} onChange={e => updateCond(r.id, { value: e.target.value })} />
+                    <p className="text-[10px] text-muted-foreground">{uiText("Apply style...")}</p>
                     <Select value={r.style} onValueChange={v => updateCond(r.id, { style: v as ConditionalRule['style'] })}>
                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {COND_STYLES.map(s => <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>)}
+                        {COND_STYLES.map(s => <SelectItem key={s.value} value={s.value} className="text-xs">{uiText(s.label)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                 ))}
                 <Button variant="outline" size="sm" className="w-full gap-2 bg-transparent text-xs" onClick={addCond}>
-                  <Plus className="h-3.5 w-3.5" />Add Rule
-                </Button>
+                  <Plus className="h-3.5 w-3.5" />{uiText("Add Rule")}</Button>
               </div>
             )}
 
@@ -562,11 +561,11 @@ export default function DocumentsPage() {
             {activeConfig === 'headerfooter' && (
               <div className="space-y-4">
                 <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Header</p>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Header")}</p>
                   <div className="space-y-2">
                     {(['headerLeft', 'headerCenter', 'headerRight'] as const).map(k => (
                       <div key={k} className="flex flex-col gap-1">
-                        <Label className="text-[10px]">{k.replace('header', '')} side</Label>
+                        <Label className="text-[10px]">{k.replace('header', '')} {uiText("side")}</Label>
                         <Input className="h-7 text-xs" value={template.headerFooter[k]} onChange={e => patch({ headerFooter: { ...template.headerFooter, [k]: e.target.value } })} />
                       </div>
                     ))}
@@ -574,11 +573,11 @@ export default function DocumentsPage() {
                 </div>
                 <Separator />
                 <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Footer</p>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Footer")}</p>
                   <div className="space-y-2">
                     {(['footerLeft', 'footerCenter', 'footerRight'] as const).map(k => (
                       <div key={k} className="flex flex-col gap-1">
-                        <Label className="text-[10px]">{k.replace('footer', '')} side</Label>
+                        <Label className="text-[10px]">{k.replace('footer', '')} {uiText("side")}</Label>
                         <Input className="h-7 text-xs" value={template.headerFooter[k]} onChange={e => patch({ headerFooter: { ...template.headerFooter, [k]: e.target.value } })} />
                       </div>
                     ))}
@@ -592,7 +591,7 @@ export default function DocumentsPage() {
                     { key: 'showLogo', label: 'Show organisation logo' },
                   ].map(({ key, label }) => (
                     <div key={key} className="flex items-center justify-between">
-                      <Label className="text-xs">{label}</Label>
+                      <Label className="text-xs">{uiText(label)}</Label>
                       <Switch
                         checked={template.headerFooter[key as keyof typeof template.headerFooter] as boolean}
                         onCheckedChange={v => patch({ headerFooter: { ...template.headerFooter, [key]: v } })}
@@ -607,7 +606,7 @@ export default function DocumentsPage() {
             {activeConfig === 'page' && (
               <div className="space-y-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs">Page Size</Label>
+                  <Label className="text-xs">{uiText("Page Size")}</Label>
                   <Select value={template.pageSize} onValueChange={v => patch({ pageSize: v as DocumentTemplate['pageSize'] })}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -616,12 +615,12 @@ export default function DocumentsPage() {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs">Orientation</Label>
+                  <Label className="text-xs">{uiText("Orientation")}</Label>
                   <Select value={template.orientation} onValueChange={v => patch({ orientation: v as DocumentTemplate['orientation'] })}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="portrait" className="text-xs">Portrait</SelectItem>
-                      <SelectItem value="landscape" className="text-xs">Landscape</SelectItem>
+                      <SelectItem value="portrait" className="text-xs">{uiText("Portrait")}</SelectItem>
+                      <SelectItem value="landscape" className="text-xs">{uiText("Landscape")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -632,7 +631,7 @@ export default function DocumentsPage() {
                   { key: 'includeTotals', label: 'Include column totals row' },
                 ].map(({ key, label }) => (
                   <div key={key} className="flex items-center justify-between">
-                    <Label className="text-xs">{label}</Label>
+                    <Label className="text-xs">{uiText(label)}</Label>
                     <Switch
                       checked={template[key as keyof DocumentTemplate] as boolean}
                       onCheckedChange={v => patch({ [key]: v })}
@@ -641,17 +640,17 @@ export default function DocumentsPage() {
                 ))}
                 <Separator />
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs">Data Source</Label>
+                  <Label className="text-xs">{uiText("Data Source")}</Label>
                   <Select value={template.dataSource} onValueChange={value => {
                     const sourceTemplate = BUILT_IN_TEMPLATES.find(item => item.dataSource === value)
                     if (sourceTemplate) loadTemplate(sourceTemplate)
                   }}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="loan_applications" className="text-xs">Loan Applications</SelectItem>
-                      <SelectItem value="guarantee_reports" className="text-xs">Guarantee Reports</SelectItem>
-                      <SelectItem value="claims" className="text-xs">Claims</SelectItem>
-                      <SelectItem value="fees" className="text-xs">Fees</SelectItem>
+                      <SelectItem value="loan_applications" className="text-xs">{uiText("Loan Applications")}</SelectItem>
+                      <SelectItem value="guarantee_reports" className="text-xs">{uiText("Guarantee Reports")}</SelectItem>
+                      <SelectItem value="claims" className="text-xs">{uiText("Claims")}</SelectItem>
+                      <SelectItem value="fees" className="text-xs">{uiText("Fees")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -666,8 +665,8 @@ export default function DocumentsPage() {
           <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b bg-card px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold text-foreground">Live Preview</span>
-              <Badge variant="outline" className="text-[10px]">{previewRows.length} rows</Badge>
+              <span className="text-xs font-semibold text-foreground">{uiText("Live Preview")}</span>
+              <Badge variant="outline" className="text-[10px]">{previewRows.length} {uiText("rows")}</Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1.5">
@@ -675,8 +674,8 @@ export default function DocumentsPage() {
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search and export..."
-                  aria-label="Search report rows"
+                  placeholder={uiText("Search and export...")}
+                  aria-label={uiText("Search report rows")}
                   className="w-32 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
                 />
               </div>
@@ -687,13 +686,13 @@ export default function DocumentsPage() {
                   return (
                     <button key={f} onClick={() => setSelectedFormat(f)}
                       className={cn('rounded px-2 py-1 text-[10px] font-semibold', selectedFormat === f ? `${m.color}` : 'text-muted-foreground')}
-                    >{m.label}</button>
+                    >{uiText(m.label)}</button>
                   )
                 })}
               </div>
               <Button size="sm" className="gap-1.5 text-xs" onClick={handleExport} disabled={exportDisabled}>
                 {exporting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                {FORMAT_META[selectedFormat].label}
+                {uiText(FORMAT_META[selectedFormat].label)}
               </Button>
             </div>
           </div>
@@ -722,7 +721,7 @@ export default function DocumentsPage() {
                   )}
                   <div className="mt-1 flex items-center justify-end gap-1.5">
                     <div className={cn('rounded-md border px-2 py-1 text-[10px] font-semibold', FORMAT_META[selectedFormat].bg, FORMAT_META[selectedFormat].color)}>
-                      {FORMAT_META[selectedFormat].label}
+                      {uiText(FORMAT_META[selectedFormat].label)}
                     </div>
                   </div>
                 </div>
@@ -759,7 +758,7 @@ export default function DocumentsPage() {
                             col.align === 'right' || col.type === 'currency' || col.type === 'number' ? 'text-right' : 'text-left'
                           )}
                         >
-                          {col.label}
+                          {uiText(col.label)}
                         </th>
                       ))}
                     </tr>
@@ -805,7 +804,7 @@ export default function DocumentsPage() {
                     {previewRows.length === 0 && (
                       <tr>
                         <td colSpan={Math.max(1, visibleCols.length)} className="py-12 text-center text-xs text-muted-foreground">
-                          {dataLoading ? 'Loading report records…' : dataError ? 'Report data could not be loaded. Use Refresh Data to retry.' : !visibleCols.length ? 'Select at least one column to preview and export.' : 'No records match the current filters or search.'}
+                          {dataLoading ? uiText("Loading report records…") : dataError ? uiText("Report data could not be loaded. Use Refresh Data to retry.") : !visibleCols.length ? uiText("Select at least one column to preview and export.") : uiText("No records match the current filters or search.")}
                         </td>
                       </tr>
                     )}

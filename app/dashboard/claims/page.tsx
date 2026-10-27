@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import Link from "next/link"
@@ -38,6 +40,8 @@ const statusStyles: Record<string, string> = {
 }
 
 export default function ClaimsPage() {
+  const uiText = useUiTranslation()
+
   const { t } = useI18n()
   const { role } = usePermissions()
   const requestAuthorityReason = useAuthorityReason()
@@ -190,10 +194,10 @@ export default function ClaimsPage() {
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.claims.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage guarantee claims. Approval requires a unanimous signed claims committee protocol; payment is a separate controlled process.</p>
+          <h1 className="text-2xl font-bold text-foreground">{uiText(t.claims.title)}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{uiText("Manage guarantee claims. Approval requires a unanimous signed claims committee protocol; payment is a separate controlled process.")}</p>
         </div>
-        <Button onClick={() => setNewOpen(true)} className="gap-2"><Plus className="h-4 w-4" />New Claim</Button>
+        <Button onClick={() => setNewOpen(true)} className="gap-2"><Plus className="h-4 w-4" />{uiText("New Claim")}</Button>
       </div>
 
       {/* Summary */}
@@ -201,19 +205,19 @@ export default function ClaimsPage() {
         <Card>
           <CardContent className="flex items-center gap-4 pt-5">
             <div className="rounded-full bg-amber-500/10 p-3"><Clock className="h-5 w-5 text-amber-500" /></div>
-            <div><p className="text-sm text-muted-foreground">Pending Review</p><p className="text-2xl font-bold">{totalPending}</p></div>
+            <div><p className="text-sm text-muted-foreground">{uiText("Pending Review")}</p><p className="text-2xl font-bold">{totalPending}</p></div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4 pt-5">
             <div className="rounded-full bg-red-500/10 p-3"><AlertTriangle className="h-5 w-5 text-red-500" /></div>
-            <div><p className="text-sm text-muted-foreground">Total Claimed</p><p className="text-2xl font-bold">{formatCurrency(totalClaimed)}</p></div>
+            <div><p className="text-sm text-muted-foreground">{uiText("Total Claimed")}</p><p className="text-2xl font-bold">{formatCurrency(totalClaimed)}</p></div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4 pt-5">
             <div className="rounded-full bg-emerald-500/10 p-3"><DollarSign className="h-5 w-5 text-emerald-500" /></div>
-            <div><p className="text-sm text-muted-foreground">Total Approved</p><p className="text-2xl font-bold">{formatCurrency(totalApproved)}</p></div>
+            <div><p className="text-sm text-muted-foreground">{uiText("Total Approved")}</p><p className="text-2xl font-bold">{formatCurrency(totalApproved)}</p></div>
           </CardContent>
         </Card>
       </div>
@@ -224,20 +228,20 @@ export default function ClaimsPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search by claim number..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              <Input placeholder={uiText("Search by claim number...")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-44">
                 <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={uiText("Status")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="under_review">Under Review</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="all">{uiText("All Statuses")}</SelectItem>
+                <SelectItem value="pending">{uiText("Pending")}</SelectItem>
+                <SelectItem value="under_review">{uiText("Under Review")}</SelectItem>
+                <SelectItem value="approved">{uiText("Approved")}</SelectItem>
+                <SelectItem value="paid">{uiText("Paid")}</SelectItem>
+                <SelectItem value="rejected">{uiText("Rejected")}</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" onClick={fetchClaims}><RefreshCw className="h-4 w-4" /></Button>
@@ -252,23 +256,23 @@ export default function ClaimsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">Claim #</TableHead>
-                  <TableHead className="font-semibold">Loan</TableHead>
-                  <TableHead className="font-semibold">Borrower</TableHead>
-                  <TableHead className="font-semibold">Bank</TableHead>
-                  <TableHead className="font-semibold">Date</TableHead>
-                  <TableHead className="text-right font-semibold">Principal</TableHead>
-                  <TableHead className="text-right font-semibold">Interest</TableHead>
-                  <TableHead className="text-right font-semibold">Total</TableHead>
-                  <TableHead className="font-semibold">Status</TableHead>
-                  <TableHead className="text-right font-semibold">Actions</TableHead>
+                  <TableHead className="font-semibold">{uiText("Claim #")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Loan")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Borrower")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Bank")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Date")}</TableHead>
+                  <TableHead className="text-right font-semibold">{uiText("Principal")}</TableHead>
+                  <TableHead className="text-right font-semibold">{uiText("Interest")}</TableHead>
+                  <TableHead className="text-right font-semibold">{uiText("Total")}</TableHead>
+                  <TableHead className="font-semibold">{uiText("Status")}</TableHead>
+                  <TableHead className="text-right font-semibold">{uiText("Actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={10} className="py-12 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" /></TableCell></TableRow>
                 ) : claims.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="py-12 text-center text-muted-foreground">No claims found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="py-12 text-center text-muted-foreground">{uiText("No claims found")}</TableCell></TableRow>
                 ) : (
                   claims.map((claim) => (
                     <TableRow key={claim.id}>
@@ -282,7 +286,7 @@ export default function ClaimsPage() {
                       <TableCell className="text-right font-medium">{formatCurrency(claim.claim_amount)}</TableCell>
                       <TableCell>
                         <Badge className={statusStyles[claim.status]} variant="secondary">
-                          {claim.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                          {uiText(claim.status)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -290,16 +294,14 @@ export default function ClaimsPage() {
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setViewOpen(true) }}>
-                              <Eye className="mr-2 h-4 w-4" />View Details
-                            </DropdownMenuItem>
+                              <Eye className="mr-2 h-4 w-4" />{uiText("View Details")}</DropdownMenuItem>
                             {fundStaff && ["pending", "submitted", "under_review", "rejected"].includes(claim.status) && (
-                              <DropdownMenuItem asChild><Link href="/dashboard/committee#claims-committee">Review in claims committee</Link></DropdownMenuItem>
+                              <DropdownMenuItem asChild><Link href="/dashboard/committee#claims-committee">{uiText("Review in claims committee")}</Link></DropdownMenuItem>
                             )}
-                            {claim.status === 'approved' && ['super_admin', 'accountant', 'deputy_director', 'fkg_management'].includes(role?.code ?? '') && <DropdownMenuItem onSelect={() => { setSelectedClaim(claim); setPaymentOpen(true) }}>Authorize / record payment</DropdownMenuItem>}
+                            {claim.status === 'approved' && ['super_admin', 'accountant', 'deputy_director', 'fkg_management'].includes(role?.code ?? '') && <DropdownMenuItem onSelect={() => { setSelectedClaim(claim); setPaymentOpen(true) }}>{uiText("Authorize / record payment")}</DropdownMenuItem>}
                         {claim.status === 'paid' && ['super_admin', 'prsf_admin', 'accountant'].includes(role?.code ?? '') && (
                               <DropdownMenuItem onClick={() => { setSelectedClaim(claim); setRecoveryOpen(true) }}>
-                                <DollarSign className="mr-2 h-4 w-4" />Record Recovery
-                              </DropdownMenuItem>
+                                <DollarSign className="mr-2 h-4 w-4" />{uiText("Record Recovery")}</DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -317,14 +319,14 @@ export default function ClaimsPage() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Submit New Claim</DialogTitle>
-            <DialogDescription>Submit a guarantee claim for a defaulted or overdue loan</DialogDescription>
+            <DialogTitle>{uiText("Submit New Claim")}</DialogTitle>
+            <DialogDescription>{uiText("Submit a guarantee claim for a defaulted or overdue loan")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Loan Application<RequiredMark show={createReq.isRequired("loan_id")} /></Label>
+              <Label>{uiText("Loan Application")}<RequiredMark show={createReq.isRequired("loan_id")} /></Label>
               <Select value={newLoanId} onValueChange={setNewLoanId}>
-                <SelectTrigger><SelectValue placeholder="Select loan" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={uiText("Select loan")} /></SelectTrigger>
                 <SelectContent>
                   {loans.map((l) => {
                     const borrower = l.borrower
@@ -335,34 +337,33 @@ export default function ClaimsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Claim Date<RequiredMark show={createReq.isRequired("claim_date")} /></Label>
+              <Label>{uiText("Claim Date")}<RequiredMark show={createReq.isRequired("claim_date")} /></Label>
               <Input type="date" value={newClaimDate} onChange={(e) => setNewClaimDate(e.target.value)} />
             </div>
             <Separator />
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label>Principal Claimed<RequiredMark show={createReq.isRequired("principal_claimed")} /></Label>
+                <Label>{uiText("Principal Claimed")}<RequiredMark show={createReq.isRequired("principal_claimed")} /></Label>
                 <Input type="number" value={newPrincipal} onChange={(e) => setNewPrincipal(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Interest Claimed<RequiredMark show={createReq.isRequired("interest_claimed")} /></Label>
+                <Label>{uiText("Interest Claimed")}<RequiredMark show={createReq.isRequired("interest_claimed")} /></Label>
                 <Input type="number" value={newInterest} onChange={(e) => setNewInterest(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Penalties<RequiredMark show={createReq.isRequired("penalties_claimed")} /></Label>
+                <Label>{uiText("Penalties")}<RequiredMark show={createReq.isRequired("penalties_claimed")} /></Label>
                 <Input type="number" value={newPenalties} onChange={(e) => setNewPenalties(e.target.value)} placeholder="0" />
               </div>
             </div>
             {newPrincipal && (
-              <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">
-                Total claim: {formatCurrency((parseFloat(newPrincipal) || 0) + (parseFloat(newInterest) || 0) + (parseFloat(newPenalties) || 0))}
+              <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-700">{uiText("Total claim: ")}{formatCurrency((parseFloat(newPrincipal) || 0) + (parseFloat(newInterest) || 0) + (parseFloat(newPenalties) || 0))}
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>{uiText("Cancel")}</Button>
             <Button onClick={handleSubmitNewClaim} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit Claim"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : uiText("Submit Claim")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -373,7 +374,7 @@ export default function ClaimsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{selectedClaim?.claim_number}</DialogTitle>
-            <DialogDescription>Claim details</DialogDescription>
+            <DialogDescription>{uiText("Claim details")}</DialogDescription>
           </DialogHeader>
           {selectedClaim && (
             <div className="space-y-3 text-sm">
@@ -392,7 +393,7 @@ export default function ClaimsPage() {
                 ["Review Notes", selectedClaim.review_notes || "—"],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b pb-2 last:border-0">
-                  <span className="text-muted-foreground">{label}</span>
+                  <span className="text-muted-foreground">{uiText(label)}</span>
                   <span className="font-medium capitalize">{value || "—"}</span>
                 </div>
               ))}
@@ -401,11 +402,11 @@ export default function ClaimsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}><DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>Authorize claim payment · {selectedClaim?.claim_number}</DialogTitle><DialogDescription>Payment, policy snapshot, claim totals and audit record commit atomically. Evidence and financial limits are enforced by the database.</DialogDescription></DialogHeader>{selectedClaim && <ClaimPaymentForm key={selectedClaim.id} claim={selectedClaim} onRecorded={async () => { setPaymentOpen(false); showMessage('success', 'Payment recorded with an immutable policy snapshot and audit receipt.'); try { await fetchClaims() } catch { showMessage('error', 'Payment recorded, but the list could not refresh. Refresh the page; do not submit another payment.') } }} />}</DialogContent></Dialog>
+      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}><DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>{uiText("Authorize claim payment ·")} {selectedClaim?.claim_number}</DialogTitle><DialogDescription>{uiText("Payment, policy snapshot, claim totals and audit record commit atomically. Evidence and financial limits are enforced by the database.")}</DialogDescription></DialogHeader>{selectedClaim && <ClaimPaymentForm key={selectedClaim.id} claim={selectedClaim} onRecorded={async () => { setPaymentOpen(false); showMessage('success', 'Payment recorded with an immutable policy snapshot and audit receipt.'); try { await fetchClaims() } catch { showMessage('error', 'Payment recorded, but the list could not refresh. Refresh the page; do not submit another payment.') } }} />}</DialogContent></Dialog>
 
       <Dialog open={recoveryOpen} onOpenChange={setRecoveryOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader><DialogTitle>Record recovery · {selectedClaim?.claim_number}</DialogTitle><DialogDescription>Database-calculated allocation with an immutable policy and evidence snapshot.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{uiText("Record recovery ·")} {selectedClaim?.claim_number}</DialogTitle><DialogDescription>{uiText("Database-calculated allocation with an immutable policy and evidence snapshot.")}</DialogDescription></DialogHeader>
           {selectedClaim && <RecoveryForm key={selectedClaim.id} claim={selectedClaim} onRecorded={async (receipt) => {
             setRecoveryOpen(false)
             showMessage('success', `Recovery recorded · Fund ${receipt.prsf_share} ${receipt.currency}, bank ${receipt.bank_share} ${receipt.currency}, costs ${receipt.documented_costs} ${receipt.currency} · policy ${receipt.policy_revision}.`)

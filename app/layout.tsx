@@ -3,6 +3,7 @@ import { Inter, Source_Serif_4 } from 'next/font/google'
 
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
+import { I18nProvider } from '@/lib/i18n/context'
 
 const inter = Inter({
   // Tajik-specific letters require extended Cyrillic in addition to Russian.
@@ -52,6 +53,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-background" suppressHydrationWarning>
       <body className={`${inter.variable} ${sourceSerif.variable} font-sans antialiased`}>
+        <I18nProvider>
         {children}
         {/*
           Every toast() call in the app was being dropped because no Toaster was
@@ -59,6 +61,7 @@ export default function RootLayout({
           reported nothing at all to the user. Mounted once here at the root.
         */}
         <Toaster />
+        </I18nProvider>
       </body>
     </html>
   )

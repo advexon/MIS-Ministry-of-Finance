@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { createClient } from '@/lib/supabase/client'
@@ -41,6 +43,8 @@ function BankSkeleton() {
 }
 
 export default function BanksPage() {
+  const uiText = useUiTranslation()
+
   const { t, locale } = useI18n()
   const supabase = createClient()
 
@@ -72,10 +76,8 @@ export default function BanksPage() {
     <div className="p-6 lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.banks.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Partner financial institutions in the PRSF programme
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">{uiText(t.banks.title)}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{uiText("Partner financial institutions in the PRSF programme")}</p>
         </div>
         <BankDirectoryEditor onSaved={async () => { await mutate() }} />
       </div>
@@ -86,7 +88,7 @@ export default function BanksPage() {
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="rounded-full bg-primary/10 p-3"><Building2 className="h-5 w-5 text-primary" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">Partner Banks</p>
+              <p className="text-xs text-muted-foreground">{uiText("Partner Banks")}</p>
               <p className="text-2xl font-bold">{loading ? '...' : totalBanks}</p>
             </div>
           </CardContent>
@@ -95,7 +97,7 @@ export default function BanksPage() {
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="rounded-full bg-emerald-500/10 p-3"><TrendingUp className="h-5 w-5 text-emerald-500" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-xs text-muted-foreground">{uiText("Active")}</p>
               <p className="text-2xl font-bold">{loading ? '...' : activeBanks}</p>
             </div>
           </CardContent>
@@ -104,7 +106,7 @@ export default function BanksPage() {
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="rounded-full bg-blue-500/10 p-3"><MapPin className="h-5 w-5 text-blue-500" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">On Probation</p>
+              <p className="text-xs text-muted-foreground">{uiText("On Probation")}</p>
               <p className="text-2xl font-bold">{loading ? '...' : totalBanks - activeBanks}</p>
             </div>
           </CardContent>
@@ -113,7 +115,7 @@ export default function BanksPage() {
           <CardContent className="flex items-center gap-4 pt-6">
             <div className="rounded-full bg-amber-500/10 p-3"><Eye className="h-5 w-5 text-amber-500" /></div>
             <div>
-              <p className="text-xs text-muted-foreground">Under Review</p>
+              <p className="text-xs text-muted-foreground">{uiText("Under Review")}</p>
               <p className="text-2xl font-bold">0</p>
             </div>
           </CardContent>
@@ -124,7 +126,7 @@ export default function BanksPage() {
       <div className="mb-4 flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" aria-label={`${t.common.search}: ${t.nav.banks}`} placeholder="Search banks..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9" aria-label={`${t.common.search}: ${t.nav.banks}`} placeholder={uiText("Search banks...")} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -137,7 +139,7 @@ export default function BanksPage() {
                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                   <TableHead className="font-semibold">{t.banks.bankCode}</TableHead>
                   <TableHead className="font-semibold">{t.banks.bankName}</TableHead>
-                  <TableHead className="text-center font-semibold">{t.common.status}</TableHead>
+                  <TableHead className="text-center font-semibold">{uiText(t.common.status)}</TableHead>
                   <TableHead className="w-10"><span className="sr-only">{t.common.actions}</span></TableHead>
                 </TableRow>
               </TableHeader>
@@ -147,7 +149,7 @@ export default function BanksPage() {
                 ) : filtered.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
-                      {search ? 'No banks match your search' : 'No banks added yet'}
+                      {search ? uiText("No banks match your search") : uiText("No banks added yet")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -164,7 +166,7 @@ export default function BanksPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="secondary" className={bank.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}>
-                          {bank.is_active ? 'Active' : 'Inactive'}
+                          {bank.is_active ? uiText("Active") : uiText("Inactive")}
                         </Badge>
                       </TableCell>
                       <TableCell>

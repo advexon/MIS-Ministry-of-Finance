@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import React, { useState } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { createClient } from "@/lib/supabase/client"
@@ -78,6 +80,8 @@ function RoleAssignmentForm({
   onOpenChange,
   onSuccess,
 }: RoleAssignmentProps) {
+  const uiText = useUiTranslation()
+
   const { role: currentUserRole, user: currentUser } = usePermissions()
   const { locale } = useI18n()
   const [selectedRoleId, setSelectedRoleId] = useState<string>(user.role_id || "")
@@ -169,11 +173,8 @@ function RoleAssignmentForm({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            Assign Role
-          </DialogTitle>
-          <DialogDescription>
-            Change the role for {user.first_name} {user.last_name || user.email}
+            <Shield className="h-5 w-5 text-primary" />{uiText("Assign Role")}</DialogTitle>
+          <DialogDescription>{uiText("Change the role for ")}{user.first_name} {user.last_name || user.email}
           </DialogDescription>
         </DialogHeader>
 
@@ -186,10 +187,9 @@ function RoleAssignmentForm({
             {/* Current Role Display */}
             {previousRole && (
               <div className="rounded-lg border bg-muted/30 p-3">
-                <Label className="text-xs text-muted-foreground">Current Role</Label>
+                <Label className="text-xs text-muted-foreground">{uiText("Current Role")}</Label>
                 <div className="mt-1 flex items-center gap-2">
-                  <Badge variant="outline" className={tierColors[previousRole.tier]}>
-                    Tier {previousRole.tier}
+                  <Badge variant="outline" className={tierColors[previousRole.tier]}>{uiText("Tier ")}{previousRole.tier}
                   </Badge>
                   <span className="font-medium">{getLocalizedName(previousRole, locale)}</span>
                 </div>
@@ -198,10 +198,10 @@ function RoleAssignmentForm({
 
             {/* Role Selection */}
             <div className="space-y-2">
-              <Label htmlFor="role-select">New Role</Label>
+              <Label htmlFor="role-select">{uiText("New Role")}</Label>
               <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
                 <SelectTrigger id="role-select">
-                  <SelectValue placeholder="Select a role" />
+                  <SelectValue placeholder={uiText("Select a role")} />
                 </SelectTrigger>
                 <SelectContent>
                   {roles.map((role) => {
@@ -241,10 +241,8 @@ function RoleAssignmentForm({
             {isEscalationAttempt && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Privilege Escalation Blocked</AlertTitle>
-                <AlertDescription>
-                  You cannot assign a role with higher authority than your own.
-                  Your tier is {currentUserRole?.tier}, but the selected role is tier{" "}
+                <AlertTitle>{uiText("Privilege Escalation Blocked")}</AlertTitle>
+                <AlertDescription>{uiText("You cannot assign a role with higher authority than your own. Your tier is ")}{currentUserRole?.tier}{uiText(", but the selected role is tier")}{" "}
                   {selectedRole?.tier}.
                 </AlertDescription>
               </Alert>
@@ -254,11 +252,8 @@ function RoleAssignmentForm({
             {isUpgrade && canAssignSelected && (
               <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>Role Upgrade</AlertTitle>
-                <AlertDescription>
-                  This will grant the user additional permissions. The change will be
-                  logged in the audit trail.
-                </AlertDescription>
+                <AlertTitle>{uiText("Role Upgrade")}</AlertTitle>
+                <AlertDescription>{uiText("This will grant the user additional permissions. The change will be logged in the audit trail.")}</AlertDescription>
               </Alert>
             )}
 
@@ -266,11 +261,8 @@ function RoleAssignmentForm({
             {isDowngrade && (
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Role Downgrade</AlertTitle>
-                <AlertDescription>
-                  This will remove some permissions from the user. The change will be
-                  logged in the audit trail.
-                </AlertDescription>
+                <AlertTitle>{uiText("Role Downgrade")}</AlertTitle>
+                <AlertDescription>{uiText("This will remove some permissions from the user. The change will be logged in the audit trail.")}</AlertDescription>
               </Alert>
             )}
 
@@ -278,12 +270,10 @@ function RoleAssignmentForm({
             {showConfirmation && (
               <Alert className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                 <CheckCircle2 className="h-4 w-4" />
-                <AlertTitle>Confirm Role Change</AlertTitle>
-                <AlertDescription>
-                  Are you sure you want to change the role from{" "}
-                  <strong>{getLocalizedName(previousRole, locale) || "None"}</strong> to{" "}
-                  <strong>{getLocalizedName(selectedRole, locale)}</strong>? This action will be logged.
-                </AlertDescription>
+                <AlertTitle>{uiText("Confirm Role Change")}</AlertTitle>
+                <AlertDescription>{uiText("Are you sure you want to change the role from")}{" "}
+                  <strong>{getLocalizedName(previousRole, locale) || uiText("None")}</strong> {uiText("to")}{" "}
+                  <strong>{getLocalizedName(selectedRole, locale)}</strong>{uiText("? This action will be logged.")}</AlertDescription>
               </Alert>
             )}
 
@@ -291,7 +281,7 @@ function RoleAssignmentForm({
             {error && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{uiText(error)}</AlertDescription>
               </Alert>
             )}
 
@@ -299,11 +289,8 @@ function RoleAssignmentForm({
             {assignableRoles.length === 0 && (
               <Alert>
                 <Lock className="h-4 w-4" />
-                <AlertTitle>No Assignable Roles</AlertTitle>
-                <AlertDescription>
-                  You do not have permission to assign any roles. Contact a
-                  superadmin to change user roles.
-                </AlertDescription>
+                <AlertTitle>{uiText("No Assignable Roles")}</AlertTitle>
+                <AlertDescription>{uiText("You do not have permission to assign any roles. Contact a superadmin to change user roles.")}</AlertDescription>
               </Alert>
             )}
           </div>
@@ -316,9 +303,7 @@ function RoleAssignmentForm({
               setShowConfirmation(false)
               onOpenChange(false)
             }}
-          >
-            Cancel
-          </Button>
+          >{uiText("Cancel")}</Button>
           <Button
             onClick={handleSave}
             disabled={
@@ -336,7 +321,7 @@ function RoleAssignmentForm({
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {showConfirmation ? "Confirm Change" : "Assign Role"}
+            {showConfirmation ? uiText("Confirm Change") : uiText("Assign Role")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -353,6 +338,8 @@ interface RoleBadgeWithEditProps {
 }
 
 export function RoleBadgeWithEdit({ user, onRoleChange }: RoleBadgeWithEditProps) {
+  const uiText = useUiTranslation()
+
   const [dialogOpen, setDialogOpen] = useState(false)
   const { can } = usePermissions()
   const { locale } = useI18n()
@@ -369,7 +356,7 @@ export function RoleBadgeWithEdit({ user, onRoleChange }: RoleBadgeWithEditProps
         } ${canEditRoles ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
         title={canEditRoles ? "Click to change role" : "You cannot edit roles"}
       >
-        {getLocalizedName(user.role, locale) || "No Role"}
+        {getLocalizedName(user.role, locale) || uiText("No Role")}
         {canEditRoles && <Shield className="h-3 w-3" />}
       </button>
 

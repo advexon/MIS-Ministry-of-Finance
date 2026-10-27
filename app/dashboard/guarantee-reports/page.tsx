@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState, Suspense } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { useI18n } from '@/lib/i18n/context'
@@ -99,6 +101,8 @@ const STATUS_CONFIG: Record<string, { label: string; className: string; icon: Re
 }
 
 function GuaranteeReportsContent() {
+  const uiText = useUiTranslation()
+
   const { t } = useI18n()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -176,7 +180,7 @@ function GuaranteeReportsContent() {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground lg:text-2xl">
-            {t.guaranteeReports.title}
+            {uiText(t.guaranteeReports.title)}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {t.guaranteeReports.subtitle}
@@ -228,7 +232,7 @@ function GuaranteeReportsContent() {
                 {s.icon}
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
+                <p className="text-xs font-medium text-muted-foreground">{uiText(s.label)}</p>
                 <p className={cn('text-2xl font-bold', s.text)}>{s.value}</p>
               </div>
             </CardContent>
@@ -241,7 +245,7 @@ function GuaranteeReportsContent() {
         <div className="relative min-w-[200px] flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search bank or period..."
+            placeholder={uiText("Search bank or period...")}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="h-8 pl-9 text-xs"
@@ -250,10 +254,10 @@ function GuaranteeReportsContent() {
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="h-8 w-44 text-xs">
-            <SelectValue placeholder="All Statuses" />
+            <SelectValue placeholder={uiText("All Statuses")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">{uiText("All Statuses")}</SelectItem>
             <SelectItem value="draft">{t.guaranteeReports.statusDraft}</SelectItem>
             <SelectItem value="submitted">{t.guaranteeReports.statusSubmitted}</SelectItem>
             <SelectItem value="under_review">{t.guaranteeReports.statusUnderReview}</SelectItem>
@@ -265,10 +269,10 @@ function GuaranteeReportsContent() {
 
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="h-8 w-44 text-xs">
-            <SelectValue placeholder="All Types" />
+            <SelectValue placeholder={uiText("All Types")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="all">{uiText("All Types")}</SelectItem>
             <SelectItem value="blank_guarantee">{t.guaranteeReports.blankGuaranteeReport}</SelectItem>
             <SelectItem value="disbursements">{t.guaranteeReports.disbursementsReport}</SelectItem>
           </SelectContent>
@@ -276,7 +280,7 @@ function GuaranteeReportsContent() {
 
         {selected.length > 0 && (
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{selected.length} selected</span>
+            <span className="text-xs text-muted-foreground">{selected.length} {uiText("selected")}</span>
             <Button
               size="sm"
               variant="outline"
@@ -284,9 +288,7 @@ function GuaranteeReportsContent() {
               onClick={() => batchAction('approve')}
               disabled={batchLoading}
             >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Approve All
-            </Button>
+              <CheckCheck className="h-3.5 w-3.5" />{uiText("Approve All")}</Button>
             <Button
               size="sm"
               variant="outline"
@@ -294,9 +296,7 @@ function GuaranteeReportsContent() {
               onClick={() => batchAction('reject')}
               disabled={batchLoading}
             >
-              <X className="h-3.5 w-3.5" />
-              Reject All
-            </Button>
+              <X className="h-3.5 w-3.5" />{uiText("Reject All")}</Button>
           </div>
         )}
       </div>
@@ -313,14 +313,14 @@ function GuaranteeReportsContent() {
                     onCheckedChange={toggleAll}
                   />
                 </TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Bank</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Period</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Type</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Status</TableHead>
-                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Loans</TableHead>
-                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Outstanding</TableHead>
-                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Guarantee Amt</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Submitted</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Bank")}</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Period")}</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Type")}</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Status")}</TableHead>
+                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Loans")}</TableHead>
+                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Outstanding")}</TableHead>
+                <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Guarantee Amt")}</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Submitted")}</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -386,7 +386,7 @@ function GuaranteeReportsContent() {
                       <TableCell>
                         <Badge variant="outline" className={cn('gap-1 text-[11px]', cfg.className)}>
                           {cfg.icon}
-                          {cfg.label}
+                          {uiText(cfg.label)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium text-foreground">
@@ -413,14 +413,12 @@ function GuaranteeReportsContent() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/guarantee-reports/${report.id}`} className="flex items-center gap-2 text-xs">
-                                <Eye className="h-3.5 w-3.5" /> View
-                              </Link>
+                                <Eye className="h-3.5 w-3.5" />{uiText(" View")}</Link>
                             </DropdownMenuItem>
                             {report.status === 'draft' && (
                               <DropdownMenuItem asChild>
                                 <Link href={`/dashboard/guarantee-reports/${report.id}/edit`} className="flex items-center gap-2 text-xs">
-                                  <Pencil className="h-3.5 w-3.5" /> Edit
-                                </Link>
+                                  <Pencil className="h-3.5 w-3.5" />{uiText(" Edit")}</Link>
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
@@ -428,8 +426,7 @@ function GuaranteeReportsContent() {
                               className="flex items-center gap-2 text-xs text-destructive focus:text-destructive"
                               onClick={() => deleteReport(report.id)}
                             >
-                              <Trash2 className="h-3.5 w-3.5" /> Delete
-                            </DropdownMenuItem>
+                              <Trash2 className="h-3.5 w-3.5" />{uiText(" Delete")}</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -41,30 +43,32 @@ export function EmployeeFlagsEditor({ value, onChange, tagsText, onTagsChange, d
   onTagsChange: (value: string) => void
   disabled: boolean
 }) {
+  const uiText = useUiTranslation()
+
   return (
     <fieldset disabled={disabled} className="flex flex-col gap-4 rounded-lg border p-4">
-      <legend className="px-1 text-sm font-semibold">Employee responsibilities</legend>
-      <p className="text-sm text-muted-foreground">These flags supplement the employee&apos;s role. Only a different system administrator can change them.</p>
-      <Label htmlFor="employee-department">Department</Label>
+      <legend className="px-1 text-sm font-semibold">{uiText("Employee responsibilities")}</legend>
+      <p className="text-sm text-muted-foreground">{uiText("These flags supplement the employee's role. Only a different system administrator can change them.")}</p>
+      <Label htmlFor="employee-department">{uiText("Department")}</Label>
       <Input id="employee-department" maxLength={100} value={value.department ?? ""} onChange={(e) => onChange({ ...value, department: e.target.value || null })} />
-      <Label htmlFor="employee-level">Specialist level</Label>
+      <Label htmlFor="employee-level">{uiText("Specialist level")}</Label>
       <Select disabled={disabled} value={value.specialist_level ?? "none"} onValueChange={(level) => onChange({ ...value, specialist_level: level === "none" ? null : level as EmployeeFlags["specialist_level"] })}>
         <SelectTrigger id="employee-level"><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>
-          <SelectItem value="none">Not specified</SelectItem>
-          <SelectItem value="specialist">Specialist</SelectItem>
-          <SelectItem value="chief_specialist">Chief specialist</SelectItem>
+          <SelectItem value="none">{uiText("Not specified")}</SelectItem>
+          <SelectItem value="specialist">{uiText("Specialist")}</SelectItem>
+          <SelectItem value="chief_specialist">{uiText("Chief specialist")}</SelectItem>
         </SelectGroup></SelectContent>
       </Select>
       {toggles.map(([key, label]) => (
         <div key={key} className="flex items-center justify-between gap-4">
-          <Label htmlFor={`employee-${key}`}>{label}</Label>
+          <Label htmlFor={`employee-${key}`}>{uiText(label)}</Label>
           <Switch id={`employee-${key}`} disabled={disabled} checked={value[key]} onCheckedChange={(checked) => onChange({ ...value, [key]: checked })} />
         </div>
       ))}
-      <Label htmlFor="employee-products">Product tags</Label>
+      <Label htmlFor="employee-products">{uiText("Product tags")}</Label>
       <Input id="employee-products" value={tagsText} onChange={(e) => onTagsChange(e.target.value)} aria-describedby="employee-products-help" />
-      <p id="employee-products-help" className="text-sm text-muted-foreground">Separate tags with commas. Maximum 30 tags, 80 characters each.</p>
+      <p id="employee-products-help" className="text-sm text-muted-foreground">{uiText("Separate tags with commas. Maximum 30 tags, 80 characters each.")}</p>
     </fieldset>
   )
 }

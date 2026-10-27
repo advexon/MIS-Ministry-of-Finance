@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 /** Sitting composition and authorization are enforced in transactional RPCs, not UI controls. */
 import { useRef, useState } from 'react'
 import Link from 'next/link'
@@ -46,6 +48,8 @@ async function loadCommitteeRegister() {
 }
 
 export default function CommitteePage() {
+  const uiText = useUiTranslation()
+
   const { profile, role, user } = usePermissions()
   const requestAuthorityReason = useAuthorityReason()
   const { toast } = useToast()
@@ -78,18 +82,18 @@ export default function CommitteePage() {
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-2"><h1 className="flex items-center gap-2 text-xl font-semibold"><Gavel className="size-5" aria-hidden="true" />Committee sittings</h1><p className="max-w-3xl text-sm text-muted-foreground">System-selected operations members, unanimous decisions, all-member signatures and immutable protocols. Each reconsideration has a new sitting.</p></div>
-        {secretary && <Button onClick={() => setCreating(true)} disabled={!!error || !data?.awaiting.length}>Convene sitting</Button>}
+        <div className="flex flex-col gap-2"><h1 className="flex items-center gap-2 text-xl font-semibold"><Gavel className="size-5" aria-hidden="true" />{uiText("Committee sittings")}</h1><p className="max-w-3xl text-sm text-muted-foreground">{uiText("System-selected operations members, unanimous decisions, all-member signatures and immutable protocols. Each reconsideration has a new sitting.")}</p></div>
+        {secretary && <Button onClick={() => setCreating(true)} disabled={!!error || !data?.awaiting.length}>{uiText("Convene sitting")}</Button>}
       </header>
-      {error && <Alert variant="destructive"><AlertDescription>{error instanceof Error ? error.message : 'Could not load the committee register'}</AlertDescription></Alert>}
-      {!error && data && !data.awaiting.length && <p className="text-sm text-muted-foreground">No applications currently await a new sitting. Complete the preceding review steps first; applications already assigned to an open sitting are not offered twice.</p>}
-      {!error && data && eligibleMembers.length < 2 && <Alert><AlertDescription>At least two active Fund operations employees need the Loan committee member flag before a sitting can be convened. The configured committee size may require three. {['super_admin', 'prsf_admin'].includes(role?.code ?? '') && <Link className="underline" href="/dashboard/users">Configure employee flags</Link>}</AlertDescription></Alert>}
-      {isLoading ? <Skeleton className="h-40" /> : !data?.meetings.length ? <Card><CardHeader><CardTitle>No sittings yet</CardTitle><CardDescription>The secretary can convene a sitting after Credit Risk review.</CardDescription></CardHeader><CardContent>Membership is selected by the system, not manually seated.</CardContent></Card> : !error && data.meetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} allMembers={data.members} myId={user?.id ?? null} myRole={role?.code ?? null} secretaryAuthorized={secretary} onChanged={() => mutate()} />)}
+      {error && <Alert variant="destructive"><AlertDescription>{error instanceof Error ? error.message : uiText("Could not load the committee register")}</AlertDescription></Alert>}
+      {!error && data && !data.awaiting.length && <p className="text-sm text-muted-foreground">{uiText("No applications currently await a new sitting. Complete the preceding review steps first; applications already assigned to an open sitting are not offered twice.")}</p>}
+      {!error && data && eligibleMembers.length < 2 && <Alert><AlertDescription>{uiText("At least two active Fund operations employees need the Loan committee member flag before a sitting can be convened. The configured committee size may require three.")} {['super_admin', 'prsf_admin'].includes(role?.code ?? '') && <Link className="underline" href="/dashboard/users">{uiText("Configure employee flags")}</Link>}</AlertDescription></Alert>}
+      {isLoading ? <Skeleton className="h-40" /> : !data?.meetings.length ? <Card><CardHeader><CardTitle>{uiText("No sittings yet")}</CardTitle><CardDescription>{uiText("The secretary can convene a sitting after Credit Risk review.")}</CardDescription></CardHeader><CardContent>{uiText("Membership is selected by the system, not manually seated.")}</CardContent></Card> : !error && data.meetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} allMembers={data.members} myId={user?.id ?? null} myRole={role?.code ?? null} secretaryAuthorized={secretary} onChanged={() => mutate()} />)}
       <ClaimsCommitteeRegister members={data?.members ?? []} myId={user?.id ?? null} myRole={role?.code ?? null} secretary={secretary} />
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent><DialogHeader><DialogTitle>Convene an application sitting</DialogTitle><DialogDescription>The system selects 2–3 flagged operations employees without product restrictions, adds the Director above the configured threshold and chooses the senior chair. The voting deadline uses the configured number of working days (one by default).</DialogDescription></DialogHeader>
-          <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="meeting-number">Meeting number</Label><Input id="meeting-number" maxLength={100} value={form.meeting_no} onChange={(event) => setForm((current) => ({ ...current, meeting_no: event.target.value }))} /><Label htmlFor="meeting-case">Application</Label><Select value={form.loan_id} onValueChange={(loan_id) => setForm((current) => ({ ...current, loan_id }))}><SelectTrigger id="meeting-case"><SelectValue placeholder="Choose an application" /></SelectTrigger><SelectContent><SelectGroup>{data?.awaiting.map((loan) => <SelectItem key={loan.id} value={loan.id}>{loan.loan_number ?? loan.id.slice(0, 8)} · {loan.status === 'rejected' ? 'reconsideration' : loan.status.replaceAll('_', ' ')}</SelectItem>)}</SelectGroup></SelectContent></Select></fieldset>
-          <DialogFooter><Button variant="outline" onClick={() => setCreating(false)} disabled={busy}>Cancel</Button><Button onClick={() => void createMeeting()} disabled={busy || !form.meeting_no.trim() || !form.loan_id}>{busy && <Loader2 data-icon="inline-start" className="animate-spin" />}Convene and select members</Button></DialogFooter>
+        <DialogContent><DialogHeader><DialogTitle>{uiText("Convene an application sitting")}</DialogTitle><DialogDescription>{uiText("The system selects 2–3 flagged operations employees without product restrictions, adds the Director above the configured threshold and chooses the senior chair. The voting deadline uses the configured number of working days (one by default).")}</DialogDescription></DialogHeader>
+          <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="meeting-number">{uiText("Meeting number")}</Label><Input id="meeting-number" maxLength={100} value={form.meeting_no} onChange={(event) => setForm((current) => ({ ...current, meeting_no: event.target.value }))} /><Label htmlFor="meeting-case">{uiText("Application")}</Label><Select value={form.loan_id} onValueChange={(loan_id) => setForm((current) => ({ ...current, loan_id }))}><SelectTrigger id="meeting-case"><SelectValue placeholder={uiText("Choose an application")} /></SelectTrigger><SelectContent><SelectGroup>{data?.awaiting.map((loan) => <SelectItem key={loan.id} value={loan.id}>{loan.loan_number ?? loan.id.slice(0, 8)} · {loan.status === 'rejected' ? uiText("reconsideration") : loan.status.replaceAll('_', ' ')}</SelectItem>)}</SelectGroup></SelectContent></Select></fieldset>
+          <DialogFooter><Button variant="outline" onClick={() => setCreating(false)} disabled={busy}>{uiText("Cancel")}</Button><Button onClick={() => void createMeeting()} disabled={busy || !form.meeting_no.trim() || !form.loan_id}>{busy && <Loader2 data-icon="inline-start" className="animate-spin" />}{uiText("Convene and select members")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

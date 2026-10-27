@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 /**
  * Artefact forms for the ФКГ scheme steps that produce a document or opinion:
  * 5 (assessment note), 6 (risk review), 9 (verification), 11 (formal
@@ -415,6 +417,8 @@ interface Props {
 }
 
 export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: Props) {
+  const uiText = useUiTranslation()
+
   const router = useRouter()
   const { role } = usePermissions()
   const requestAuthorityReason = useAuthorityReason()
@@ -455,8 +459,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
     const priorActor = (data as Record<string, string | null> | null)?.[sod.actorColumn] ?? null
     if (priorActor && priorActor === uid) {
       setSodBlock(
-        `Segregation of duties (Guideline 7.2.1.1): you ${sod.describe}, so you cannot also ` +
-          `perform step ${config.step} for it. Another officer must complete this step.`,
+        uiText('Segregation of duties (Guideline 7.2.1.1): you {0}, so you cannot also perform step {1} for it. Another officer must complete this step.', uiText(sod.describe), config.step),
       )
     }
     setCheckedSod(true)
@@ -472,7 +475,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
     for (const f of config.fields) {
       if (!fieldRequired(f)) continue
       const v = values[f.name]
-      if (v == null || (typeof v === 'string' && v.trim() === '') || v === false) return `"${f.label}" is required.`
+      if (v == null || (typeof v === 'string' && v.trim() === '') || v === false) return uiText('"{0}" is required.', uiText(f.label))
     }
     return null
   }
@@ -495,7 +498,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       const row = { ...config.buildRow({ loan, userId, values }), ...(authorityReason ? { authority_reason: authorityReason } : {}) }
       const { error: insertError } = await supabase.from(config.table).insert(row)
       if (insertError) {
-        setError(`Could not save the record: ${insertError.message}`)
+        setError(uiText('Could not save the record: {0}', insertError.message))
         return
       }
 
@@ -518,7 +521,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
       const json = await res.json()
       if (!res.ok) {
         setError(
-          `${json.error ?? 'The transition was refused.'} The record was saved, so it can be retried.`,
+          uiText('{0} The record was saved, so it can be retried.', uiText(json.error ?? 'The transition was refused.')),
         )
         return
       }
@@ -543,14 +546,14 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
     >
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{config.title}</DialogTitle>
-          <DialogDescription>{config.description}</DialogDescription>
+          <DialogTitle>{uiText(config.title)}</DialogTitle>
+          <DialogDescription>{uiText(config.description)}</DialogDescription>
         </DialogHeader>
 
         {sodBlock ? (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{sodBlock}</span>
+            <span>{uiText(sodBlock)}</span>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -564,13 +567,13 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                       onCheckedChange={(v) => set(f.name, v === true)}
                     />
                     <Label htmlFor={f.name} className="text-sm font-normal">
-                      {f.label}
+                      {uiText(f.label)}
                     </Label>
                   </div>
                 ) : (
                   <>
                     <Label htmlFor={f.name}>
-                      {f.label}
+                      {uiText(f.label)}
                       <RequiredMark show={fieldRequired(f)} />
                     </Label>
                     {f.type === 'textarea' ? (
@@ -579,7 +582,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                         rows={f.rows ?? 3}
                         value={String(values[f.name] ?? '')}
                         onChange={(e) => set(f.name, e.target.value)}
-                        placeholder={f.placeholder}
+                        placeholder={f.placeholder ? uiText(f.placeholder) : undefined}
                       />
                     ) : f.type === 'select' ? (
                       <Select
@@ -587,12 +590,12 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                         onValueChange={(v) => set(f.name, v)}
                       >
                         <SelectTrigger id={f.name}>
-                          <SelectValue placeholder="Select…" />
+                          <SelectValue placeholder={uiText("Select…")} />
                         </SelectTrigger>
                         <SelectContent><SelectGroup>
                           {f.options?.map((o) => (
                             <SelectItem key={o.value} value={o.value}>
-                              {o.label}
+                              {uiText(o.label)}
                             </SelectItem>
                           ))}
                         </SelectGroup></SelectContent>
@@ -604,7 +607,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                         step={f.type === 'number' ? 'any' : undefined}
                         value={String(values[f.name] ?? '')}
                         onChange={(e) => set(f.name, e.target.value)}
-                        placeholder={f.placeholder}
+                        placeholder={f.placeholder ? uiText(f.placeholder) : undefined}
                       />
                     )}
                   </>
@@ -616,14 +619,12 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
 
         {error && (
           <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {error}
+            {uiText(error)}
           </p>
         )}
 
         <DialogFooter className="flex-wrap gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
-          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>{uiText("Cancel")}</Button>
           {!sodBlock &&
             config.transitions.map((t) => (
               <Button
@@ -633,7 +634,7 @@ export function StepArtifactForm({ loan, config, open, onOpenChange, onDone }: P
                 disabled={busy}
               >
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t.label}
+                {uiText(t.label)}
               </Button>
             ))}
         </DialogFooter>

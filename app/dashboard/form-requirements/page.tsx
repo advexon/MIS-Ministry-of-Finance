@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useMemo, useState } from "react"
 import useSWR, { mutate as globalMutate } from "swr"
 import { createClient } from "@/lib/supabase/client"
@@ -43,6 +45,8 @@ async function fetchAllOverrides(): Promise<AllOverrides> {
 }
 
 export default function FormRequirementsPage() {
+  const uiText = useUiTranslation()
+
   const { role } = usePermissions()
   const { toast } = useToast()
   const [query, setQuery] = useState("")
@@ -125,18 +129,14 @@ export default function FormRequirementsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">Required fields</h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground text-pretty">
-          Choose which fields are mandatory on each form. A field marked with an asterisk (
-          <span className="text-destructive">*</span>) must be filled in before the form can be submitted; fields
-          without one are optional. Changes apply immediately for all users.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-balance">{uiText("Required fields")}</h1>
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground text-pretty">{uiText("Choose which fields are mandatory on each form. A field marked with an asterisk (")}<span className="text-destructive">*</span>{uiText(") must be filled in before the form can be submitted; fields without one are optional. Changes apply immediately for all users.")}</p>
       </div>
 
       {!canEdit && (
         <Alert>
           <ShieldAlert className="size-4" />
-          <AlertDescription>Only administrators can change required fields. You are viewing them read-only.</AlertDescription>
+          <AlertDescription>{uiText("Only administrators can change required fields. You are viewing them read-only.")}</AlertDescription>
         </Alert>
       )}
 
@@ -145,9 +145,9 @@ export default function FormRequirementsPage() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search forms or fields"
+          placeholder={uiText("Search forms or fields")}
           className="pl-9"
-          aria-label="Search forms or fields"
+          aria-label={uiText("Search forms or fields")}
         />
       </div>
 
@@ -163,10 +163,9 @@ export default function FormRequirementsPage() {
               return (
                 <Card key={def.id}>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">{def.name}</CardTitle>
+                    <CardTitle className="text-base">{uiText(def.name)}</CardTitle>
                     <CardDescription>
-                      {requiredCount} of {def.fields.length} fields mandatory
-                    </CardDescription>
+                      {requiredCount} {uiText("of")} {def.fields.length}{uiText(" fields mandatory")}</CardDescription>
                   </CardHeader>
                   <CardContent className="p-0">
                     <ul className="divide-y">
@@ -179,19 +178,15 @@ export default function FormRequirementsPage() {
                           <li key={field.key} className="flex items-center justify-between gap-3 px-6 py-2.5">
                             <label htmlFor={switchId} className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
                               <span className="truncate">
-                                {field.label}
+                                {uiText(field.label)}
                                 {required && <span className="ml-0.5 text-destructive">*</span>}
                               </span>
                               {field.locked && (
                                 <Badge variant="secondary" className="gap-1 font-normal">
-                                  <Lock className="size-3" aria-hidden="true" />
-                                  Always required
-                                </Badge>
+                                  <Lock className="size-3" aria-hidden="true" />{uiText("Always required")}</Badge>
                               )}
                               {overridden && (
-                                <Badge variant="outline" className="font-normal">
-                                  Changed
-                                </Badge>
+                                <Badge variant="outline" className="font-normal">{uiText("Changed")}</Badge>
                               )}
                             </label>
                             <div className="flex shrink-0 items-center gap-1">
@@ -203,7 +198,7 @@ export default function FormRequirementsPage() {
                                   disabled={busy}
                                   onClick={() => update(def, field, null)}
                                   aria-label={`Reset ${field.label} to default`}
-                                  title="Reset to default"
+                                  title={uiText("Reset to default")}
                                 >
                                   <RotateCcw className="size-4" />
                                 </Button>
@@ -227,7 +222,7 @@ export default function FormRequirementsPage() {
         </section>
       ))}
 
-      {groups.length === 0 && <p className="text-sm text-muted-foreground">No forms or fields match your search.</p>}
+      {groups.length === 0 && <p className="text-sm text-muted-foreground">{uiText("No forms or fields match your search.")}</p>}
     </div>
   )
 }

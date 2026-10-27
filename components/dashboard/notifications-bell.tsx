@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { toast } from 'sonner'
@@ -30,6 +32,8 @@ interface Notification {
 }
 
 export function NotificationsBell() {
+  const uiText = useUiTranslation()
+
   const now = useCurrentTime()
   const [open, setOpen] = useState(false)
   const { user } = usePermissions()
@@ -129,14 +133,14 @@ export function NotificationsBell() {
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
-          <span className="sr-only">Notifications</span>
+          <span className="sr-only">{uiText("Notifications")}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 p-0" sideOffset={8}>
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
+            <h3 className="text-sm font-semibold text-foreground">{uiText("Notifications")}</h3>
             {unreadCount > 0 && (
               <span className="flex h-5 items-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                 {unreadCount}
@@ -150,9 +154,7 @@ export function NotificationsBell() {
               className="h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
               onClick={markAllAsRead}
             >
-              <CheckCheck className="h-3.5 w-3.5" />
-              Mark all read
-            </Button>
+              <CheckCheck className="h-3.5 w-3.5" />{uiText("Mark all read")}</Button>
           )}
         </div>
 
@@ -160,17 +162,17 @@ export function NotificationsBell() {
         <ScrollArea className="max-h-[360px]">
           {error ? (
             <div className="flex flex-col gap-3 p-4" role="alert">
-              <p className="text-sm text-destructive">Could not load notifications.</p>
-              <Button variant="outline" size="sm" onClick={() => { void mutate() }}>Try again</Button>
+              <p className="text-sm text-destructive">{uiText("Could not load notifications.")}</p>
+              <Button variant="outline" size="sm" onClick={() => { void mutate() }}>{uiText("Try again")}</Button>
             </div>
           ) : isLoading ? (
-            <p className="p-4 text-sm text-muted-foreground" role="status">Loading notifications…</p>
+            <p className="p-4 text-sm text-muted-foreground" role="status">{uiText("Loading notifications…")}</p>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-10">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
                 <Bell className="h-5 w-5 text-muted-foreground" />
               </div>
-              <p className="text-xs text-muted-foreground">No notifications yet</p>
+              <p className="text-xs text-muted-foreground">{uiText("No notifications yet")}</p>
             </div>
           ) : (
             <div className="py-1">
@@ -203,7 +205,7 @@ export function NotificationsBell() {
                         'truncate text-xs leading-snug',
                         !n.is_read ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'
                       )}>
-                        {n.title}
+                        {uiText(n.title)}
                       </p>
                       <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
                         {n.message}
@@ -221,7 +223,7 @@ export function NotificationsBell() {
                       size="icon"
                       className="h-6 w-6 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                       onClick={() => markAsRead(n.id)}
-                      aria-label={`Mark ${n.title} as read`}
+                      aria-label={uiText('Mark {0} as read', uiText(n.title))}
                     >
                       <X className="h-3 w-3" />
                     </Button>

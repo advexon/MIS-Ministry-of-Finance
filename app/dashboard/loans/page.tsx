@@ -1,5 +1,7 @@
 "use client"
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState, useMemo, Suspense } from "react"
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import { useI18n } from "@/lib/i18n/context"
@@ -65,6 +67,8 @@ const statusLabels: Record<string, string> = {
 const PAGE_SIZE = 15
 
 function LoansContent() {
+  const uiText = useUiTranslation()
+
   const { t, locale } = useI18n()
   const supabase = useMemo(() => createClient(), [])
   const { isColumnVisible, getDisplayName } = useColumnConfig()
@@ -150,8 +154,8 @@ function LoansContent() {
     <div className="p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t.loans.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage and track all loan guarantee applications</p>
+          <h1 className="text-2xl font-bold text-foreground">{uiText(t.loans.title)}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{uiText("Manage and track all loan guarantee applications")}</p>
         </div>
         {canCreateLoan && (
           <Button asChild className="gap-2">
@@ -160,12 +164,12 @@ function LoansContent() {
         )}
       </div>
 
-      {loadError && <Alert variant="destructive" className="mb-4"><AlertDescription>Applications could not be loaded. This is not an empty register. Use Refresh applications to retry.</AlertDescription></Alert>}
+      {loadError && <Alert variant="destructive" className="mb-4"><AlertDescription>{uiText("Applications could not be loaded. This is not an empty register. Use Refresh applications to retry.")}</AlertDescription></Alert>}
       {/* Stats */}
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Matching applications</p><p className="text-2xl font-bold">{total}</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Active / Disbursed</p><p className="text-2xl font-bold text-emerald-600">{activeLoans}</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Pending Review</p><p className="text-2xl font-bold text-amber-600">{pendingLoans}</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">{uiText("Matching applications")}</p><p className="text-2xl font-bold">{total}</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">{uiText("Active / Disbursed")}</p><p className="text-2xl font-bold text-emerald-600">{activeLoans}</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">{uiText("Pending Review")}</p><p className="text-2xl font-bold text-amber-600">{pendingLoans}</p></CardContent></Card>
       </div>
 
       {/* Filters */}
@@ -174,28 +178,28 @@ function LoansContent() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input aria-label="Search applications by number, borrower or TIN" maxLength={200} placeholder="Search application, borrower or TIN…" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0) }} className="pl-9" />
+              <Input aria-label={uiText("Search applications by number, borrower or TIN")} maxLength={200} placeholder={uiText("Search application, borrower or TIN…")} value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0) }} className="pl-9" />
             </div>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0) }}>
               <SelectTrigger className="w-full sm:w-44">
                 <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={uiText("Status")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                <SelectItem value="all">{uiText("All Statuses")}</SelectItem>
+                {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{uiText(label)}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={bankFilter} onValueChange={(v) => { setBankFilter(v); setPage(0) }}>
               <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="All Banks" />
+                <SelectValue placeholder={uiText("All Banks")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Banks</SelectItem>
+                <SelectItem value="all">{uiText("All Banks")}</SelectItem>
                 {banks.map((b) => <SelectItem key={b.id} value={b.id}>{getName(b)}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" aria-label="Refresh applications" disabled={loading} onClick={() => void fetchLoans().catch(() => {})}><RefreshCw className="h-4 w-4" /></Button>
+            <Button variant="outline" size="icon" aria-label={uiText("Refresh applications")} disabled={loading} onClick={() => void fetchLoans().catch(() => {})}><RefreshCw className="h-4 w-4" /></Button>
           </div>
         </CardContent>
       </Card>
@@ -207,7 +211,7 @@ function LoansContent() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">Application #</TableHead>
+                  <TableHead className="font-semibold">{uiText("Application #")}</TableHead>
                   {isColumnVisible("borrower_name", "table") && (
                     <TableHead className="font-semibold">{getDisplayName("borrower_name", locale)}</TableHead>
                   )}
@@ -226,7 +230,7 @@ function LoansContent() {
                   {isColumnVisible("status", "table") && (
                     <TableHead className="font-semibold">{getDisplayName("status", locale)}</TableHead>
                   )}
-                  <TableHead className="text-right font-semibold">Actions</TableHead>
+                  <TableHead className="text-right font-semibold">{uiText("Actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -236,14 +240,14 @@ function LoansContent() {
                       <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                     </TableCell>
                   </TableRow>
-                ) : loadError ? <TableRow><TableCell colSpan={99} className="py-12 text-center">The register is temporarily unavailable. Refresh to retry.</TableCell></TableRow> : loans.length === 0 ? (
+                ) : loadError ? <TableRow><TableCell colSpan={99} className="py-12 text-center">{uiText("The register is temporarily unavailable. Refresh to retry.")}</TableCell></TableRow> : loans.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={99} className="py-12 text-center">
                       <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                      <p className="text-muted-foreground">No loan applications found</p>
+                      <p className="text-muted-foreground">{uiText("No loan applications found")}</p>
                       {canCreateLoan && (
                         <Button asChild variant="outline" size="sm" className="mt-3">
-                          <Link href="/dashboard/loans/new">Create First Application</Link>
+                          <Link href="/dashboard/loans/new">{uiText("Create First Application")}</Link>
                         </Button>
                       )}
                     </TableCell>
@@ -260,7 +264,7 @@ function LoansContent() {
                         <TableCell>
                           <div>
                             <p className="font-medium text-sm">{getBorrowerName(loan)}</p>
-                            <p className="text-xs text-muted-foreground">TIN: {loan.borrower?.tin_number || "—"}</p>
+                            <p className="text-xs text-muted-foreground">{uiText("TIN:")} {loan.borrower?.tin_number || "—"}</p>
                           </div>
                         </TableCell>
                       )}
@@ -285,7 +289,7 @@ function LoansContent() {
                       {isColumnVisible("status", "table") && (
                         <TableCell>
                           <Badge className={statusStyles[loan.status] || "bg-gray-100 text-gray-800"} variant="secondary">
-                            {statusLabels[loan.status] ?? loan.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                            {uiText(statusLabels[loan.status] ?? loan.status)}
                           </Badge>
                         </TableCell>
                       )}
@@ -297,20 +301,17 @@ function LoansContent() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/loans/${loan.id}`} className="flex items-center">
-                                <Eye className="mr-2 h-4 w-4" />View Details
-                              </Link>
+                                <Eye className="mr-2 h-4 w-4" />{uiText("View Details")}</Link>
                             </DropdownMenuItem>
                             {/* There is no /edit route in the app — loan changes are
                                 made through the workflow actions on the detail page —
                                 so this pointed at a non-existent page. */}
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/loans/${loan.id}`} className="flex items-center">
-                                <Edit className="mr-2 h-4 w-4" />Manage
-                              </Link>
+                                <Edit className="mr-2 h-4 w-4" />{uiText("Manage")}</Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => exportLoan(loan)}>
-                              <Download className="mr-2 h-4 w-4" />Export
-                            </DropdownMenuItem>
+                              <Download className="mr-2 h-4 w-4" />{uiText("Export")}</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -325,10 +326,10 @@ function LoansContent() {
 
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-        <p>Showing {Math.min(page * PAGE_SIZE + 1, total)}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total} applications</p>
+        <p>{uiText("Showing")} {Math.min(page * PAGE_SIZE + 1, total)}–{Math.min((page + 1) * PAGE_SIZE, total)} {uiText("of")} {total} {uiText("applications")}</p>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>{uiText("Previous")}</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)}>{uiText("Next")}</Button>
         </div>
       </div>
     </div>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useId, useRef, useState } from 'react'
 import { useI18n } from '@/lib/i18n/context'
 import { usePermissions } from '@/lib/contexts/permission-context'
@@ -24,6 +26,8 @@ interface Props {
 const initialFields = { code: '', name_en: '', name_ru: '', name_tj: '', city: '', district: '', is_active: true }
 
 export function BankDirectoryEditor({ record, bankId, onSaved }: Props) {
+  const uiText = useUiTranslation()
+
   const { locale } = useI18n()
   const copy = BANK_DIRECTORY_COPY[locale]
   const { profile, role } = usePermissions()
@@ -82,7 +86,7 @@ export function BankDirectoryEditor({ record, bankId, onSaved }: Props) {
     finally { inFlight.current = false; setSaving(false) }
   }
   return <Dialog open={open} onOpenChange={changeOpen}>
-    <DialogTrigger asChild><Button variant={record ? 'outline' : 'default'}>{title}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button variant={record ? 'outline' : 'default'}>{uiText(title)}</Button></DialogTrigger>
     <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl" onEscapeKeyDown={event => { if (saving) event.preventDefault() }} onPointerDownOutside={event => { if (saving) event.preventDefault() }}>
       <DialogHeader><DialogTitle>{deleting ? copy.remove : title}</DialogTitle><DialogDescription>{deleting ? copy.deleteDescription : copy.description}</DialogDescription></DialogHeader>
       <FieldGroup>
@@ -95,7 +99,7 @@ export function BankDirectoryEditor({ record, bankId, onSaved }: Props) {
         </>}
         <Field data-disabled={saving}><FieldLabel htmlFor={`${prefix}-reason`}>{copy.reason} *</FieldLabel><Textarea id={`${prefix}-reason`} maxLength={2000} value={reason} disabled={saving} onChange={event => { setReason(event.target.value); setConfirmed(false) }} /></Field>
         <Field data-disabled={saving}><div className="flex items-start gap-3"><Checkbox id={`${prefix}-confirm`} checked={confirmed} disabled={saving} onCheckedChange={value => setConfirmed(value === true)} /><FieldLabel htmlFor={`${prefix}-confirm`} className="leading-6">{copy.confirm}</FieldLabel></div></Field>
-        {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
+        {error && <Alert variant="destructive" role="alert"><AlertDescription>{uiText(error)}</AlertDescription></Alert>}
       </FieldGroup>
       <DialogFooter className="flex-wrap gap-2">
         {record && <Button variant="outline" disabled={saving} onClick={() => { setDeleting(value => !value); setConfirmed(false); setError('') }}>{deleting ? copy.back : copy.remove}</Button>}

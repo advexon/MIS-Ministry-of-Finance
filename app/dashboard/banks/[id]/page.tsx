@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useParams, useRouter } from 'next/navigation'
 import type { LoanApplication, Claim, Fee } from '@/lib/types/database'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
@@ -44,6 +46,8 @@ const bankTextFields = [
 ] as const satisfies readonly { label: string; field: keyof BankDetail }[]
 
 export default function BankDetailPage() {
+  const uiText = useUiTranslation()
+
   const { id } = useParams<{ id: string }>()
   const { locale, t } = useI18n()
   const supabase = createClient()
@@ -101,7 +105,7 @@ export default function BankDetailPage() {
             <p className="text-sm text-muted-foreground">{getBankName(bank)}</p>
           </div>
           <Badge className={bank.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}>
-            {bank.is_active ? 'Active' : 'Inactive'}
+            {bank.is_active ? uiText("Active") : uiText("Inactive")}
           </Badge>
         </div>
         <div className="flex gap-2">
@@ -114,26 +118,26 @@ export default function BankDetailPage() {
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <Card className="shadow-sm">
           <CardContent className="pt-5">
-            <p className="text-xs text-muted-foreground">Total Loans</p>
+            <p className="text-xs text-muted-foreground">{uiText("Total Loans")}</p>
             <p className="mt-1 text-2xl font-bold">{loans.length}</p>
-            <p className="text-xs text-muted-foreground">{activeLoans} active</p>
+            <p className="text-xs text-muted-foreground">{activeLoans} {uiText("active")}</p>
           </CardContent>
         </Card>
         <Card className="shadow-sm">
           <CardContent className="pt-5">
-            <p className="text-xs text-muted-foreground">Total Approved</p>
+            <p className="text-xs text-muted-foreground">{uiText("Total Approved")}</p>
             <p className="mt-1 text-xl font-bold">{fmt(totalDisbursed)}</p>
           </CardContent>
         </Card>
         <Card className="shadow-sm">
           <CardContent className="pt-5">
-            <p className="text-xs text-muted-foreground">Outstanding</p>
+            <p className="text-xs text-muted-foreground">{uiText("Outstanding")}</p>
             <p className="mt-1 text-xl font-bold">{fmt(totalOutstanding)}</p>
           </CardContent>
         </Card>
         <Card className="shadow-sm">
           <CardContent className="pt-5">
-            <p className="text-xs text-muted-foreground">Claims Filed</p>
+            <p className="text-xs text-muted-foreground">{uiText("Claims Filed")}</p>
             <p className="mt-1 text-2xl font-bold">{claims.length}</p>
           </CardContent>
         </Card>
@@ -141,22 +145,22 @@ export default function BankDetailPage() {
 
       <Tabs defaultValue="info">
         <TabsList className="mb-4 h-auto flex-wrap justify-start">
-          <TabsTrigger value="info" className="gap-2"><Building2 className="h-4 w-4" />Info</TabsTrigger>
+          <TabsTrigger value="info" className="gap-2"><Building2 className="h-4 w-4" />{uiText("Info")}</TabsTrigger>
           <TabsTrigger value="branches">{copy.branches}</TabsTrigger>
-          <TabsTrigger value="loans" className="gap-2"><FileText className="h-4 w-4" />Loans ({loans.length})</TabsTrigger>
-          <TabsTrigger value="claims" className="gap-2"><AlertTriangle className="h-4 w-4" />Claims ({claims.length})</TabsTrigger>
-          <TabsTrigger value="fees" className="gap-2"><DollarSign className="h-4 w-4" />Fees ({fees.length})</TabsTrigger>
+          <TabsTrigger value="loans" className="gap-2"><FileText className="h-4 w-4" />{uiText("Loans (")}{loans.length})</TabsTrigger>
+          <TabsTrigger value="claims" className="gap-2"><AlertTriangle className="h-4 w-4" />{uiText("Claims (")}{claims.length})</TabsTrigger>
+          <TabsTrigger value="fees" className="gap-2"><DollarSign className="h-4 w-4" />{uiText("Fees (")}{fees.length})</TabsTrigger>
         </TabsList>
 
         {/* Info Tab */}
         <TabsContent value="info">
           <Card className="shadow-sm">
-            <CardHeader><CardTitle className="text-sm">Bank Information</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm">{uiText("Bank Information")}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 {bankTextFields.map(({ label, field }) => (
                   <div key={field} className="space-y-2">
-                    <Label htmlFor={`bank-${field}`}>{label}</Label>
+                    <Label htmlFor={`bank-${field}`}>{uiText(label)}</Label>
                     <Input
                       id={`bank-${field}`}
                       value={bank[field] || ''}
@@ -168,8 +172,8 @@ export default function BankDetailPage() {
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <p className="text-sm font-medium">Active Status</p>
-                  <p className="text-xs text-muted-foreground">Enable or disable this bank in the system</p>
+                  <p className="text-sm font-medium">{uiText("Active Status")}</p>
+                  <p className="text-xs text-muted-foreground">{uiText("Enable or disable this bank in the system")}</p>
                 </div>
                 <Badge variant={bank.is_active ? 'default' : 'secondary'}>{bank.is_active ? copy.active : copy.inactive}</Badge>
               </div>
@@ -186,16 +190,16 @@ export default function BankDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Application #</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="text-right font-semibold">Approved Amt</TableHead>
-                    <TableHead className="text-right font-semibold">Outstanding</TableHead>
-                    <TableHead className="font-semibold">Disbursed</TableHead>
+                    <TableHead className="font-semibold">{uiText("Application #")}</TableHead>
+                    <TableHead className="font-semibold">{uiText("Status")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Approved Amt")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Outstanding")}</TableHead>
+                    <TableHead className="font-semibold">{uiText("Disbursed")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loans.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">No loans found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">{uiText("No loans found")}</TableCell></TableRow>
                   ) : loans.map(loan => (
                     <TableRow key={loan.id} className="cursor-pointer hover:bg-muted/30">
                       <TableCell className="font-mono text-sm font-semibold">
@@ -224,19 +228,19 @@ export default function BankDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Claim #</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="text-right font-semibold">Claim Amount</TableHead>
-                    <TableHead className="font-semibold">Filed</TableHead>
+                    <TableHead className="font-semibold">{uiText("Claim #")}</TableHead>
+                    <TableHead className="font-semibold">{uiText("Status")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Claim Amount")}</TableHead>
+                    <TableHead className="font-semibold">{uiText("Filed")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {claims.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">No claims filed</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">{uiText("No claims filed")}</TableCell></TableRow>
                   ) : claims.map(claim => (
                     <TableRow key={claim.id}>
                       <TableCell className="font-mono text-sm font-semibold text-primary">{claim.claim_number}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-xs capitalize">{claim.status}</Badge></TableCell>
+                      <TableCell><Badge variant="secondary" className="text-xs capitalize">{uiText(claim.status)}</Badge></TableCell>
                       <TableCell className="text-right font-medium">{fmt(claim.claim_amount)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{claim.created_at ? new Date(claim.created_at).toLocaleDateString() : '—'}</TableCell>
                     </TableRow>
@@ -254,19 +258,19 @@ export default function BankDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold">Fee Type</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="text-right font-semibold">Amount</TableHead>
-                    <TableHead className="font-semibold">Due Date</TableHead>
+                    <TableHead className="font-semibold">{uiText("Fee Type")}</TableHead>
+                    <TableHead className="font-semibold">{uiText("Status")}</TableHead>
+                    <TableHead className="text-right font-semibold">{uiText("Amount")}</TableHead>
+                    <TableHead className="font-semibold">{uiText("Due Date")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {fees.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">No fees found</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="py-10 text-center text-muted-foreground">{uiText("No fees found")}</TableCell></TableRow>
                   ) : fees.map(fee => (
                     <TableRow key={fee.id}>
                       <TableCell className="text-sm capitalize">{fee.fee_type?.replace('_', ' ')}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-xs capitalize">{fee.status}</Badge></TableCell>
+                      <TableCell><Badge variant="secondary" className="text-xs capitalize">{uiText(fee.status)}</Badge></TableCell>
                       <TableCell className="text-right font-medium">{fmt(fee.amount)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{fee.due_date ? new Date(fee.due_date).toLocaleDateString() : '—'}</TableCell>
                     </TableRow>

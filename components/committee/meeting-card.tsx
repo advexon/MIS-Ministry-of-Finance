@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 /** Committee writes are serialized and authorized by cgf_committee_action. */
 import { useRef, useState } from 'react'
 import Link from 'next/link'
@@ -32,6 +34,8 @@ interface Props {
 }
 
 export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthorized, onChanged, onAction, claimContext }: Props) {
+  const uiText = useUiTranslation()
+
   const { toast } = useToast()
   const requestAuthorityReason = useAuthorityReason()
   const inFlight = useRef(false)
@@ -129,31 +133,31 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>{meeting.meeting_no ?? 'Committee sitting'}</CardTitle>
-            <CardDescription>All {meeting.seats.length} assigned members must agree and sign. Chair selected by seniority.</CardDescription>
+            <CardTitle>{meeting.meeting_no ?? uiText("Committee sitting")}</CardTitle>
+            <CardDescription>{uiText("All")} {meeting.seats.length} {uiText("assigned members must agree and sign. Chair selected by seniority.")}</CardDescription>
           </div>
-          <Badge variant={finalized ? 'secondary' : 'outline'}>{meeting.status}</Badge>
+          <Badge variant={finalized ? 'secondary' : 'outline'}>{uiText(meeting.status)}</Badge>
         </div>
-        {meeting.due_at && <p className="text-sm text-muted-foreground">Voting deadline: {new Date(meeting.due_at).toLocaleString()}{meeting.escalated_at ? ' · Director notified' : ''}</p>}
+        {meeting.due_at && <p className="text-sm text-muted-foreground">{uiText("Voting deadline:")} {new Date(meeting.due_at).toLocaleString()}{meeting.escalated_at ? uiText("· Director notified") : ''}</p>}
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <p className="text-sm text-muted-foreground">Attendance {readiness.attended}/{meeting.seats.length} · Signatures {readiness.signed}/{meeting.seats.length}{meeting.scheduled_at ? ` · Convened ${new Date(meeting.scheduled_at).toLocaleString()}` : ''}</p>
-        {!finalized && (!meeting.items.length || !meeting.seats.length) && <Alert><AlertDescription>This legacy sitting has no agenda or assigned membership and cannot produce a decision. Cancel it and convene a new system-selected sitting for an eligible application; historical records will be preserved.</AlertDescription></Alert>}
-        {!finalized && !signing && !readiness.readyApplications && <Alert><AlertDescription>Voting and protocol preparation are paused. Complete verification and return the application to committee review first. Prior votes are cleared when verification is requested.</AlertDescription></Alert>}
-        {!finalized && !signing && readiness.readyApplications && !readiness.canPrepare && <p className="text-sm text-muted-foreground">Before preparing a protocol, record every member as present and collect unanimous For or Against votes on every item. Abstentions do not approve or reject an application.</p>}
-        {claimContext && <p className="text-sm text-muted-foreground">Claim {claimContext.claimNumber} · Proposed approval {claimContext.recommendedAmount.toLocaleString()} TJS · Original loan {claimContext.originalAmount.toLocaleString()} TJS · Director threshold {claimContext.directorThreshold.toLocaleString()} TJS. Approval does not record a payment.</p>}
-        <section aria-label="Assigned committee members" className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">{uiText("Attendance")} {readiness.attended}/{meeting.seats.length} {uiText("· Signatures")} {readiness.signed}/{meeting.seats.length}{meeting.scheduled_at ? uiText("· Convened {0}", new Date(meeting.scheduled_at).toLocaleString()) : ''}</p>
+        {!finalized && (!meeting.items.length || !meeting.seats.length) && <Alert><AlertDescription>{uiText("This legacy sitting has no agenda or assigned membership and cannot produce a decision. Cancel it and convene a new system-selected sitting for an eligible application; historical records will be preserved.")}</AlertDescription></Alert>}
+        {!finalized && !signing && !readiness.readyApplications && <Alert><AlertDescription>{uiText("Voting and protocol preparation are paused. Complete verification and return the application to committee review first. Prior votes are cleared when verification is requested.")}</AlertDescription></Alert>}
+        {!finalized && !signing && readiness.readyApplications && !readiness.canPrepare && <p className="text-sm text-muted-foreground">{uiText("Before preparing a protocol, record every member as present and collect unanimous For or Against votes on every item. Abstentions do not approve or reject an application.")}</p>}
+        {claimContext && <p className="text-sm text-muted-foreground">{uiText("Claim")} {claimContext.claimNumber} {uiText("· Proposed approval")} {claimContext.recommendedAmount.toLocaleString()} {uiText("TJS · Original loan")} {claimContext.originalAmount.toLocaleString()} {uiText("TJS · Director threshold")} {claimContext.directorThreshold.toLocaleString()} {uiText("TJS. Approval does not record a payment.")}</p>}
+        <section aria-label={uiText("Assigned committee members")} className="flex flex-col gap-3">
           {meeting.seats.map((seat) => (
             <div key={seat.id} className="flex flex-wrap items-center gap-3">
               <Checkbox id={`attendance-${seat.id}`} checked={seat.attended === true} disabled={!secretary || finalized || signing || busy} onCheckedChange={(value) => void act('attendance', { member_id: seat.member_id, attended: value === true })} />
-              <Label htmlFor={`attendance-${seat.id}`}>{memberName(allMembers.find((member) => member.id === seat.member_id))}{seat.member_id === myId ? ' (you)' : ''}</Label>
-              {myRole === 'super_admin' && !mySeat && meeting.status === 'scheduled' && meeting.items.every((item) => !item.votes.length) && <Button size="sm" variant="outline" disabled={busy} onClick={() => void assumeSeat(seat.member_id)}>Take this seat as myself</Button>}
-              {seat.is_chair && <Badge variant="outline">Chair</Badge>}
-              {seat.signed_at && <Badge variant="secondary">Signed {new Date(seat.signed_at).toLocaleString()}</Badge>}
+              <Label htmlFor={`attendance-${seat.id}`}>{memberName(allMembers.find((member) => member.id === seat.member_id))}{seat.member_id === myId ? uiText("(you)") : ''}</Label>
+              {myRole === 'super_admin' && !mySeat && meeting.status === 'scheduled' && meeting.items.every((item) => !item.votes.length) && <Button size="sm" variant="outline" disabled={busy} onClick={() => void assumeSeat(seat.member_id)}>{uiText("Take this seat as myself")}</Button>}
+              {seat.is_chair && <Badge variant="outline">{uiText("Chair")}</Badge>}
+              {seat.signed_at && <Badge variant="secondary">{uiText("Signed")} {new Date(seat.signed_at).toLocaleString()}</Badge>}
             </div>
           ))}
         </section>
-        <section aria-label="Agenda" className="flex flex-col gap-4">
+        <section aria-label={uiText("Agenda")} className="flex flex-col gap-4">
           {meeting.items.map((item) => {
             const tally = tallyVotes(item.votes)
             const myVote = item.votes.find((vote) => vote.member_id === myId)?.vote
@@ -162,49 +166,49 @@ export function MeetingCard({ meeting, allMembers, myId, myRole, secretaryAuthor
               <article key={item.id} className="flex flex-col gap-3 rounded-md border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <Link className="font-medium underline underline-offset-4" href={`/dashboard/loans/${item.loan_id}`}>{item.loan?.loan_number ?? item.loan_id.slice(0, 8)}</Link>
-                  <Badge variant="outline">{item.outcome ?? (unanimous ? 'Unanimous' : 'Awaiting unanimous decision')}</Badge>
+                  <Badge variant="outline">{item.outcome ?? (unanimous ? uiText("Unanimous") : uiText("Awaiting unanimous decision"))}</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">For {tally.for} · Against {tally.against} · Abstain {tally.abstain} · {tally.total}/{meeting.seats.length} votes</p>
+                <p className="text-sm text-muted-foreground">{uiText("For")} {tally.for} {uiText("· Against")} {tally.against} {uiText("· Abstain")} {tally.abstain} · {tally.total}/{meeting.seats.length} {uiText("votes")}</p>
                 {!readOnly && mySeat?.attended && readiness.readyApplications && !finalized && !signing && !item.decided_at && (
                   <div className="flex flex-wrap gap-2">
-                    {(['for', 'against', 'abstain'] as const).map((vote) => <Button key={vote} size="sm" variant={myVote === vote ? 'default' : 'outline'} disabled={busy} onClick={() => void act('vote', { item_id: item.id, vote })}>{vote === 'for' ? 'For' : vote === 'against' ? 'Against' : 'Abstain'}</Button>)}
+                    {(['for', 'against', 'abstain'] as const).map((vote) => <Button key={vote} size="sm" variant={myVote === vote ? 'default' : 'outline'} disabled={busy} onClick={() => void act('vote', { item_id: item.id, vote })}>{vote === 'for' ? uiText("For") : vote === 'against' ? uiText("Against") : uiText("Abstain")}</Button>)}
                   </div>
                 )}
-                {secretary && !finalized && !signing && item.loan?.status === 'kkg_review' && <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy} onClick={() => void requestVerification(item.loan_id)}>Request verification</Button>{!claimContext && <Button variant="outline" size="sm" disabled={busy} onClick={() => setClarificationLoan(item.loan_id)}>Request bank clarification</Button>}</div>}
+                {secretary && !finalized && !signing && item.loan?.status === 'kkg_review' && <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy} onClick={() => void requestVerification(item.loan_id)}>{uiText("Request verification")}</Button>{!claimContext && <Button variant="outline" size="sm" disabled={busy} onClick={() => setClarificationLoan(item.loan_id)}>{uiText("Request bank clarification")}</Button>}</div>}
               </article>
             )
           })}
         </section>
-        {meeting.protocol_no && <p className="text-sm">Protocol {meeting.protocol_no} · {meeting.protocol_date}<br />{meeting.protocol_notes}</p>}
+        {meeting.protocol_no && <p className="text-sm">{uiText("Protocol")} {meeting.protocol_no} · {meeting.protocol_date}<br />{meeting.protocol_notes}</p>}
         {meeting.protocol_snapshot && (
           <details className="rounded-md border p-3">
-            <summary className="cursor-pointer text-sm font-medium">Review frozen protocol and recorded votes</summary>
+            <summary className="cursor-pointer text-sm font-medium">{uiText("Review frozen protocol and recorded votes")}</summary>
             <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words text-sm">{JSON.stringify(meeting.protocol_snapshot, null, 2)}</pre>
           </details>
         )}
         {signing && mySeat && !mySeat.signed_at && !readOnly && (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3"><Checkbox id={`sign-${meeting.id}`} checked={acknowledged} onCheckedChange={(value) => setAcknowledged(value === true)} /><Label htmlFor={`sign-${meeting.id}`}>I have reviewed and agree to sign this frozen protocol.</Label></div>
-            <Button className="self-start" disabled={busy || !acknowledged} onClick={() => void act('sign')}>Sign protocol</Button>
+            <div className="flex items-center gap-3"><Checkbox id={`sign-${meeting.id}`} checked={acknowledged} onCheckedChange={(value) => setAcknowledged(value === true)} /><Label htmlFor={`sign-${meeting.id}`}>{uiText("I have reviewed and agree to sign this frozen protocol.")}</Label></div>
+            <Button className="self-start" disabled={busy || !acknowledged} onClick={() => void act('sign')}>{uiText("Sign protocol")}</Button>
           </div>
         )}
-        {finalized && <p className="text-sm text-muted-foreground">This sitting is immutable. Reconsideration requires a new sitting.</p>}
+        {finalized && <p className="text-sm text-muted-foreground">{uiText("This sitting is immutable. Reconsideration requires a new sitting.")}</p>}
       </CardContent>
       <CardFooter className="flex flex-wrap gap-3">
-        {secretary && !finalized && !signing && <><Button disabled={busy || !readiness.canPrepare} onClick={() => setProtocolOpen(true)}>Prepare protocol for all-member signatures</Button><Button variant="outline" disabled={busy} onClick={() => setCancelOpen(true)}>Cancel sitting</Button></>}
-        {secretary && signing && <Button disabled={busy || !allSigned} onClick={() => void act('issue')}>Issue signed protocol</Button>}
-        {busy && <Loader2 className="size-4 animate-spin" aria-label="Saving committee action" />}
+        {secretary && !finalized && !signing && <><Button disabled={busy || !readiness.canPrepare} onClick={() => setProtocolOpen(true)}>{uiText("Prepare protocol for all-member signatures")}</Button><Button variant="outline" disabled={busy} onClick={() => setCancelOpen(true)}>{uiText("Cancel sitting")}</Button></>}
+        {secretary && signing && <Button disabled={busy || !allSigned} onClick={() => void act('issue')}>{uiText("Issue signed protocol")}</Button>}
+        {busy && <Loader2 className="size-4 animate-spin" aria-label={uiText("Saving committee action")} />}
       </CardFooter>
       <Dialog open={cancelOpen} onOpenChange={(open) => { if (!busy) setCancelOpen(open) }}>
-        <DialogContent><DialogHeader><DialogTitle>Cancel this sitting?</DialogTitle><DialogDescription>Existing votes remain in the immutable record. No decision will be issued. The application or claim can be considered again only in a new sitting.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setCancelOpen(false)}>Keep sitting</Button><Button variant="destructive" disabled={busy} onClick={() => void act('cancel')}>Confirm cancellation</Button></DialogFooter></DialogContent>
+        <DialogContent><DialogHeader><DialogTitle>{uiText("Cancel this sitting?")}</DialogTitle><DialogDescription>{uiText("Existing votes remain in the immutable record. No decision will be issued. The application or claim can be considered again only in a new sitting.")}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setCancelOpen(false)}>{uiText("Keep sitting")}</Button><Button variant="destructive" disabled={busy} onClick={() => void act('cancel')}>{uiText("Confirm cancellation")}</Button></DialogFooter></DialogContent>
       </Dialog>
       <Dialog open={clarificationLoan !== null} onOpenChange={(open) => { if (!open) setClarificationLoan(null) }}>
-        <DialogContent><DialogHeader><DialogTitle>Request additional information from the bank</DialogTitle><DialogDescription>The current sitting is closed without a decision. Existing votes remain recorded. After the bank responds, the analyst reviews the file and a new sitting is convened.</DialogDescription></DialogHeader><fieldset disabled={busy} className="flex flex-col gap-3"><Label htmlFor={`clarification-${meeting.id}`}>Documents or clarification required</Label><Textarea id={`clarification-${meeting.id}`} maxLength={4000} rows={4} value={clarificationReason} onChange={(event) => setClarificationReason(event.target.value)} /></fieldset><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setClarificationLoan(null)}>Cancel</Button><Button disabled={busy || clarificationReason.trim().length < 3} onClick={() => void requestClarification()}>Notify bank and return file</Button></DialogFooter></DialogContent>
+        <DialogContent><DialogHeader><DialogTitle>{uiText("Request additional information from the bank")}</DialogTitle><DialogDescription>{uiText("The current sitting is closed without a decision. Existing votes remain recorded. After the bank responds, the analyst reviews the file and a new sitting is convened.")}</DialogDescription></DialogHeader><fieldset disabled={busy} className="flex flex-col gap-3"><Label htmlFor={`clarification-${meeting.id}`}>{uiText("Documents or clarification required")}</Label><Textarea id={`clarification-${meeting.id}`} maxLength={4000} rows={4} value={clarificationReason} onChange={(event) => setClarificationReason(event.target.value)} /></fieldset><DialogFooter><Button variant="outline" disabled={busy} onClick={() => setClarificationLoan(null)}>{uiText("Cancel")}</Button><Button disabled={busy || clarificationReason.trim().length < 3} onClick={() => void requestClarification()}>{uiText("Notify bank and return file")}</Button></DialogFooter></DialogContent>
       </Dialog>
       <Dialog open={protocolOpen} onOpenChange={setProtocolOpen}>
-        <DialogContent><DialogHeader><DialogTitle>Prepare committee protocol</DialogTitle><DialogDescription>Every assigned member must have voted unanimously. Preparing freezes the text and votes; all members must then sign before issuance.</DialogDescription></DialogHeader>
-          <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor={`protocol-no-${meeting.id}`}>Protocol number</Label><Input id={`protocol-no-${meeting.id}`} maxLength={100} value={protocol.no} onChange={(event) => setProtocol((current) => ({ ...current, no: event.target.value }))} /><Label htmlFor={`protocol-notes-${meeting.id}`}>Protocol notes</Label><Textarea id={`protocol-notes-${meeting.id}`} maxLength={4000} value={protocol.notes} onChange={(event) => setProtocol((current) => ({ ...current, notes: event.target.value }))} /></fieldset>
-          <DialogFooter><Button variant="outline" onClick={() => setProtocolOpen(false)} disabled={busy}>Cancel</Button><Button disabled={busy || !readiness.canPrepare || !protocol.no.trim()} onClick={() => void act('prepare', { protocol_no: protocol.no, notes: protocol.notes })}>Freeze protocol for signatures</Button></DialogFooter>
+        <DialogContent><DialogHeader><DialogTitle>{uiText("Prepare committee protocol")}</DialogTitle><DialogDescription>{uiText("Every assigned member must have voted unanimously. Preparing freezes the text and votes; all members must then sign before issuance.")}</DialogDescription></DialogHeader>
+          <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor={`protocol-no-${meeting.id}`}>{uiText("Protocol number")}</Label><Input id={`protocol-no-${meeting.id}`} maxLength={100} value={protocol.no} onChange={(event) => setProtocol((current) => ({ ...current, no: event.target.value }))} /><Label htmlFor={`protocol-notes-${meeting.id}`}>{uiText("Protocol notes")}</Label><Textarea id={`protocol-notes-${meeting.id}`} maxLength={4000} value={protocol.notes} onChange={(event) => setProtocol((current) => ({ ...current, notes: event.target.value }))} /></fieldset>
+          <DialogFooter><Button variant="outline" onClick={() => setProtocolOpen(false)} disabled={busy}>{uiText("Cancel")}</Button><Button disabled={busy || !readiness.canPrepare || !protocol.no.trim()} onClick={() => void act('prepare', { protocol_no: protocol.no, notes: protocol.notes })}>{uiText("Freeze protocol for signatures")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>

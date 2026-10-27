@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
@@ -24,6 +26,8 @@ async function loadSignatureState([, loanId]: [string, string]) {
 }
 
 export function SignatureReviewPanel({ loan, onDone }: { loan: LoanApplication; onDone: () => void | Promise<void> }) {
+  const uiText = useUiTranslation()
+
   const { role } = usePermissions()
   const router = useRouter()
   const requestAuthorityReason = useAuthorityReason()
@@ -55,10 +59,10 @@ export function SignatureReviewPanel({ loan, onDone }: { loan: LoanApplication; 
     finally { setBusy(false) }
   }
 
-  return <Card><CardHeader><CardTitle>Deputy review and guarantee signature</CardTitle><CardDescription>The deputy confirms the exact terms, signed committee approval and compliance note. The Director or an authorized temporary delegate then signs. Normally these must be different people. A verified Super Administrator may perform both with an explicit audited authority reason.</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
-    {(error || loadError) && <Alert variant="destructive"><AlertDescription>{error ?? 'Could not verify the signature state'}</AlertDescription></Alert>}
-    <p className="text-sm">Deputy confirmation: {data ? data.current ? 'current and recorded' : 'required or terms changed' : 'checking'}</p>
-    {['super_admin', 'deputy_director'].includes(role?.code ?? '') && <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="deputy-review-notes">Review and confirmation notes</Label><Textarea id="deputy-review-notes" maxLength={10000} value={notes} onChange={(event) => setNotes(event.target.value)} /><Button className="self-start" disabled={busy || notes.trim().length < 3} onClick={() => void act(true)}>Confirm reviewed file</Button></fieldset>}
-    {data?.authorized && loan.status === 'approved' && <Button className="self-start" disabled={busy || !data.current} onClick={() => void act(false)}>Sign and issue guarantee</Button>}
+  return <Card><CardHeader><CardTitle>{uiText("Deputy review and guarantee signature")}</CardTitle><CardDescription>{uiText("The deputy confirms the exact terms, signed committee approval and compliance note. The Director or an authorized temporary delegate then signs. Normally these must be different people. A verified Super Administrator may perform both with an explicit audited authority reason.")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+    {(error || loadError) && <Alert variant="destructive"><AlertDescription>{error ?? uiText("Could not verify the signature state")}</AlertDescription></Alert>}
+    <p className="text-sm">{uiText("Deputy confirmation:")} {data ? data.current ? uiText("current and recorded") : uiText("required or terms changed") : uiText("checking")}</p>
+    {['super_admin', 'deputy_director'].includes(role?.code ?? '') && <fieldset className="flex flex-col gap-3" disabled={busy}><Label htmlFor="deputy-review-notes">{uiText("Review and confirmation notes")}</Label><Textarea id="deputy-review-notes" maxLength={10000} value={notes} onChange={(event) => setNotes(event.target.value)} /><Button className="self-start" disabled={busy || notes.trim().length < 3} onClick={() => void act(true)}>{uiText("Confirm reviewed file")}</Button></fieldset>}
+    {data?.authorized && loan.status === 'approved' && <Button className="self-start" disabled={busy || !data.current} onClick={() => void act(false)}>{uiText("Sign and issue guarantee")}</Button>}
   </CardContent></Card>
 }

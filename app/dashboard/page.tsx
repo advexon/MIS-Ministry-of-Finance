@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useMemo } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { useI18n } from '@/lib/i18n/context'
@@ -84,6 +86,8 @@ function StatCardSkeleton() {
 }
 
 export default function DashboardPage() {
+  const uiText = useUiTranslation()
+
   const { t } = useI18n()
   // Memoize so the client instance is stable across renders and won't
   // re-trigger useCallback/useEffect dependencies unnecessarily.
@@ -293,11 +297,10 @@ export default function DashboardPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground lg:text-2xl">
-            {t.dashboard.title}
+            {uiText(t.dashboard.title)}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t.dashboard.welcome}, here is your portfolio overview.
-          </p>
+            {t.dashboard.welcome}{uiText(", here is your portfolio overview.")}</p>
         </div>
         <Button
           variant="outline"
@@ -306,9 +309,7 @@ export default function DashboardPage() {
           disabled={loading}
           className="gap-2"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />{uiText("Refresh")}</Button>
       </div>
 
       {/* Stats Grid */}
@@ -331,8 +332,7 @@ export default function DashboardPage() {
                   {(stats?.totalLoans ?? 0).toLocaleString()}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {stats?.activeLoans ?? 0} currently active
-                </p>
+                  {stats?.activeLoans ?? 0}{uiText(" currently active")}</p>
               </CardContent>
             </Card>
 
@@ -351,7 +351,7 @@ export default function DashboardPage() {
                 </p>
                 <div className="mt-1 flex items-center gap-1 text-xs font-medium text-accent">
                   <ArrowUpRight className="h-3 w-3" />
-                  <span>Total loan disbursements</span>
+                  <span>{uiText("Total loan disbursements")}</span>
                 </div>
               </CardContent>
             </Card>
@@ -369,7 +369,7 @@ export default function DashboardPage() {
                 <p className="mt-3 text-2xl font-bold tracking-tight text-foreground">
                   {formatCurrency(stats?.totalGuaranteed ?? 0)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">Active guarantee exposure</p>
+                <p className="mt-1 text-xs text-muted-foreground">{uiText("Active guarantee exposure")}</p>
               </CardContent>
             </Card>
 
@@ -389,12 +389,12 @@ export default function DashboardPage() {
                 {(stats?.delinquencyRate ?? 0) > 5 ? (
                   <div className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
                     <ArrowUpRight className="h-3 w-3" />
-                    <span>Above target threshold</span>
+                    <span>{uiText("Above target threshold")}</span>
                   </div>
                 ) : (
                   <div className="mt-1 flex items-center gap-1 text-xs font-medium text-accent">
                     <ArrowDownRight className="h-3 w-3" />
-                    <span>Within target threshold</span>
+                    <span>{uiText("Within target threshold")}</span>
                   </div>
                 )}
               </CardContent>
@@ -408,7 +408,7 @@ export default function DashboardPage() {
         <Card className="border-accent/20 shadow-sm">
           <CardContent className="flex items-center justify-between p-4">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Guarantee Reports</p>
+              <p className="text-xs font-medium text-muted-foreground">{uiText("Guarantee Reports")}</p>
               <div className="mt-1 text-2xl font-bold text-foreground">
                 {loading ? <Skeleton className="h-7 w-8" /> : '—'}
               </div>
@@ -458,9 +458,9 @@ export default function DashboardPage() {
         <Card className="border-info/20 shadow-sm">
           <CardContent className="flex items-center justify-between p-4">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Avg. Processing Time</p>
+              <p className="text-xs font-medium text-muted-foreground">{uiText("Avg. Processing Time")}</p>
               <div className="mt-1 text-2xl font-bold text-foreground">
-                {loading ? <Skeleton className="h-7 w-12" /> : `${stats?.avgProcessingDays ?? 0} days`}
+                {loading ? <Skeleton className="h-7 w-12" /> : uiText("{0} days", stats?.avgProcessingDays ?? 0)}
               </div>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/10">
@@ -476,7 +476,7 @@ export default function DashboardPage() {
         <Card className="shadow-sm lg:col-span-1">
           <CardHeader className="pb-4">
             <CardTitle className="text-sm font-semibold">{t.dashboard.portfolioByStatus}</CardTitle>
-            <CardDescription className="text-xs">Distribution of loan portfolio</CardDescription>
+            <CardDescription className="text-xs">{uiText("Distribution of loan portfolio")}</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -498,7 +498,7 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className={`h-2 w-2 rounded-full ${item.color}`} />
-                          <span className="text-xs font-medium text-foreground">{item.status}</span>
+                          <span className="text-xs font-medium text-foreground">{uiText(item.status)}</span>
                           <span className="text-[10px] text-muted-foreground">({item.count})</span>
                         </div>
                         <span className="text-xs font-semibold text-foreground">
@@ -529,10 +529,10 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-4">
             <div>
               <CardTitle className="text-sm font-semibold">{t.dashboard.recentActivity}</CardTitle>
-              <CardDescription className="text-xs">Latest loan application updates</CardDescription>
+              <CardDescription className="text-xs">{uiText("Latest loan application updates")}</CardDescription>
             </div>
             <Button asChild variant="outline" size="sm" className="h-7 bg-transparent text-xs">
-              <Link href="/dashboard/loans">View All</Link>
+              <Link href="/dashboard/loans">{uiText("View All")}</Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -545,7 +545,7 @@ export default function DashboardPage() {
             ) : recentActivity.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8 text-center">
                 <FileText className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No recent activity</p>
+                <p className="text-sm text-muted-foreground">{uiText("No recent activity")}</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -595,13 +595,11 @@ export default function DashboardPage() {
         <CardHeader className="flex flex-row items-center justify-between pb-4">
           <div>
             <CardTitle className="text-sm font-semibold">{t.dashboard.portfolioByBank}</CardTitle>
-            <CardDescription className="text-xs">Top performing partner banks</CardDescription>
+            <CardDescription className="text-xs">{uiText("Top performing partner banks")}</CardDescription>
           </div>
           <Button asChild variant="outline" size="sm" className="h-7 gap-1.5 bg-transparent text-xs">
             <Link href="/dashboard/banks">
-              <Building2 className="h-3 w-3" />
-              All Banks
-            </Link>
+              <Building2 className="h-3 w-3" />{uiText("All Banks")}</Link>
           </Button>
         </CardHeader>
         <CardContent>
@@ -612,27 +610,17 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : topBanks.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No bank data available</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{uiText("No bank data available")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Bank
-                    </th>
-                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Total Loans
-                    </th>
-                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Disbursed
-                    </th>
-                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Active
-                    </th>
-                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Share
-                    </th>
+                    <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Bank")}</th>
+                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Total Loans")}</th>
+                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Disbursed")}</th>
+                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Active")}</th>
+                    <th className="pb-3 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{uiText("Share")}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useRef, useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { buildGuaranteeReportRows } from '@/lib/utils/guarantee-report-input'
@@ -86,6 +88,8 @@ const emptyPayment = (): PaymentRow => ({
 })
 
 export default function NewGuaranteeReportPage() {
+  const uiText = useUiTranslation()
+
   const router = useRouter()
   const { t } = useI18n()
   const supabase = createClient()
@@ -254,22 +258,18 @@ export default function NewGuaranteeReportPage() {
         </Button>
         <div className="flex-1">
           <h1 className="text-xl font-bold tracking-tight text-foreground">{t.guaranteeReports.newReport}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Fill in the report details and loan data</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{uiText("Fill in the report details and loan data")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={downloadTemplate}>
-            <Download className="h-3.5 w-3.5" />
-            Template
-          </Button>
+            <Download className="h-3.5 w-3.5" />{uiText("Template")}</Button>
           <input id="xl-upload" type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" />
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={() => document.getElementById('xl-upload')?.click()} disabled={uploading}>
             <Upload className="h-3.5 w-3.5" />
-            {uploading ? 'Importing...' : 'Import Excel'}
+            {uploading ? uiText("Importing...") : uiText("Import Excel")}
           </Button>
           <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={() => handleSave(false)} disabled={saving}>
-            <Save className="h-3.5 w-3.5" />
-            Save Draft
-          </Button>
+            <Save className="h-3.5 w-3.5" />{uiText("Save Draft")}</Button>
           <Button size="sm" className="gap-2" onClick={() => handleSave(true)} disabled={saving}>
             <Send className="h-3.5 w-3.5" />
             {t.guaranteeReports.submitReport}
@@ -280,14 +280,14 @@ export default function NewGuaranteeReportPage() {
       {/* Report Meta */}
       <Card className="mb-6 shadow-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold">Report Details</CardTitle>
+          <CardTitle className="text-sm font-semibold">{uiText("Report Details")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-medium">{t.guaranteeReports.bank}<RequiredMark show={reportReq.isRequired('bank_id')} /></Label>
               <Select value={bankId} onValueChange={setBankId}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select bank..." /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder={uiText("Select bank...")} /></SelectTrigger>
                 <SelectContent>
                   {banks.map(b => <SelectItem key={b.id} value={b.id}>{b.name_en}</SelectItem>)}
                 </SelectContent>
@@ -341,17 +341,17 @@ export default function NewGuaranteeReportPage() {
                   <TableBody>
                     {loans.map(loan => (
                       <TableRow key={loan._key} className="hover:bg-secondary/30">
-                        <TableCell className="p-1"><Input value={loan.loan_request_number} onChange={e => setLoanField(loan._key, 'loan_request_number', e.target.value)} className="h-7 w-28 text-xs" placeholder="LA-2026-001" /></TableCell>
-                        <TableCell className="p-1"><Input value={loan.customer_name} onChange={e => setLoanField(loan._key, 'customer_name', e.target.value)} className="h-7 w-32 text-xs" placeholder="Full name" /></TableCell>
-                        <TableCell className="p-1"><Input value={loan.tin_number} onChange={e => setLoanField(loan._key, 'tin_number', e.target.value)} className="h-7 w-24 text-xs" placeholder="TIN" /></TableCell>
-                        <TableCell className="p-1"><Input value={loan.sector} onChange={e => setLoanField(loan._key, 'sector', e.target.value)} className="h-7 w-24 text-xs" placeholder="Agriculture" /></TableCell>
+                        <TableCell className="p-1"><Input value={loan.loan_request_number} onChange={e => setLoanField(loan._key, 'loan_request_number', e.target.value)} className="h-7 w-28 text-xs" placeholder={uiText("LA-2026-001")} /></TableCell>
+                        <TableCell className="p-1"><Input value={loan.customer_name} onChange={e => setLoanField(loan._key, 'customer_name', e.target.value)} className="h-7 w-32 text-xs" placeholder={uiText("Full name")} /></TableCell>
+                        <TableCell className="p-1"><Input value={loan.tin_number} onChange={e => setLoanField(loan._key, 'tin_number', e.target.value)} className="h-7 w-24 text-xs" placeholder={uiText("TIN")} /></TableCell>
+                        <TableCell className="p-1"><Input value={loan.sector} onChange={e => setLoanField(loan._key, 'sector', e.target.value)} className="h-7 w-24 text-xs" placeholder={uiText("Agriculture")} /></TableCell>
                         <TableCell className="p-1">
                           <Select value={loan.currency} onValueChange={v => setLoanField(loan._key, 'currency', v)}>
                             <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="TJS">TJS</SelectItem>
-                              <SelectItem value="USD">USD</SelectItem>
-                              <SelectItem value="EUR">EUR</SelectItem>
+                              <SelectItem value="TJS">{uiText("TJS")}</SelectItem>
+                              <SelectItem value="USD">{uiText("USD")}</SelectItem>
+                              <SelectItem value="EUR">{uiText("EUR")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -366,10 +366,10 @@ export default function NewGuaranteeReportPage() {
                           <Select value={loan.loan_status} onValueChange={v => setLoanField(loan._key, 'loan_status', v)}>
                             <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="overdue">Overdue</SelectItem>
-                              <SelectItem value="closed">Closed</SelectItem>
-                              <SelectItem value="written_off">Written Off</SelectItem>
+                              <SelectItem value="active">{uiText("Active")}</SelectItem>
+                              <SelectItem value="overdue">{uiText("Overdue")}</SelectItem>
+                              <SelectItem value="closed">{uiText("Closed")}</SelectItem>
+                              <SelectItem value="written_off">{uiText("Written Off")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>
@@ -408,7 +408,7 @@ export default function NewGuaranteeReportPage() {
                   <TableBody>
                     {payments.map(pay => (
                       <TableRow key={pay._key} className="hover:bg-secondary/30">
-                        <TableCell className="p-1"><Input value={pay.loan_number} onChange={e => setPaymentField(pay._key, 'loan_number', e.target.value)} className="h-7 w-28 text-xs" placeholder="LA-2026-001" /></TableCell>
+                        <TableCell className="p-1"><Input value={pay.loan_number} onChange={e => setPaymentField(pay._key, 'loan_number', e.target.value)} className="h-7 w-28 text-xs" placeholder={uiText("LA-2026-001")} /></TableCell>
                         <TableCell className="p-1"><Input type="number" value={pay.installment_number} onChange={e => setPaymentField(pay._key, 'installment_number', e.target.value)} className="h-7 w-16 text-xs" placeholder="1" /></TableCell>
                         <TableCell className="p-1"><Input type="date" value={pay.payment_date} onChange={e => setPaymentField(pay._key, 'payment_date', e.target.value)} className="h-7 w-32 text-xs" /></TableCell>
                         <TableCell className="p-1"><Input type="number" value={pay.principal_amount} onChange={e => setPaymentField(pay._key, 'principal_amount', e.target.value)} className="h-7 w-24 text-xs" placeholder="0" /></TableCell>
@@ -438,14 +438,13 @@ export default function NewGuaranteeReportPage() {
       {/* Summary bar */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-secondary/30 px-4 py-3">
         <div className="flex flex-wrap items-center gap-6 text-xs">
-          <span className="text-muted-foreground">Loans: <span className="font-semibold text-foreground">{loans.filter(l => l.customer_name).length}</span></span>
-          <span className="text-muted-foreground">Outstanding: <span className="font-semibold text-foreground">{fmt(totalOutstanding)}</span></span>
-          <span className="text-muted-foreground">Guarantee: <span className="font-semibold text-foreground">{fmt(totalGuarantee)}</span></span>
+          <span className="text-muted-foreground">{uiText("Loans:")} <span className="font-semibold text-foreground">{loans.filter(l => l.customer_name).length}</span></span>
+          <span className="text-muted-foreground">{uiText("Outstanding:")} <span className="font-semibold text-foreground">{fmt(totalOutstanding)}</span></span>
+          <span className="text-muted-foreground">{uiText("Guarantee:")} <span className="font-semibold text-foreground">{fmt(totalGuarantee)}</span></span>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" className="gap-2 bg-transparent text-xs" onClick={() => handleSave(false)} disabled={saving}>
-            <Save className="h-3.5 w-3.5" />Save Draft
-          </Button>
+            <Save className="h-3.5 w-3.5" />{uiText("Save Draft")}</Button>
           <Button size="sm" className="gap-2 text-xs" onClick={() => handleSave(true)} disabled={saving}>
             <Send className="h-3.5 w-3.5" />{t.guaranteeReports.submitReport}
           </Button>

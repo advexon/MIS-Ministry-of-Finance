@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
+import { useI18n } from '@/lib/i18n/context'
 import Link from 'next/link'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,7 +33,9 @@ const translations = {
 }
 
 export default function ForgotPasswordPage() {
-  const [language, setLanguage] = useState<keyof typeof translations>('en')
+  const uiText = useUiTranslation()
+
+  const { locale: language, setLocale: setLanguage } = useI18n()
   const t = translations[language]
 
   return (
@@ -41,20 +45,20 @@ export default function ForgotPasswordPage() {
           <div className="flex items-center justify-between">
             <ShieldCheck className="size-6 text-primary" aria-hidden="true" />
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              {t.label}
+              {uiText(t.label)}
               <select
                 value={language}
                 onChange={(event) => setLanguage(event.target.value as keyof typeof translations)}
                 className="rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
               >
-                <option value="en">English</option>
+                <option value="en">{uiText("English")}</option>
                 <option value="ru">Русский</option>
                 <option value="tj">Тоҷикӣ</option>
               </select>
             </label>
           </div>
-          <CardTitle className="text-balance">{t.title}</CardTitle>
-          <CardDescription>{t.description}</CardDescription>
+          <CardTitle className="text-balance">{uiText(t.title)}</CardTitle>
+          <CardDescription>{uiText(t.description)}</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{t.message}</p>

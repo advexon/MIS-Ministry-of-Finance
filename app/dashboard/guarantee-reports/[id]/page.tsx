@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import { usePageQuery } from '@/lib/hooks/use-page-query'
 import { useParams } from 'next/navigation'
@@ -95,6 +97,8 @@ const STATUS_CONFIG: Record<string, { label: string; className: string; icon: Re
 }
 
 export default function GuaranteeReportDetailPage() {
+  const uiText = useUiTranslation()
+
   const params = useParams()
   const { t } = useI18n()
   const { toast } = useToast()
@@ -223,9 +227,9 @@ export default function GuaranteeReportDetailPage() {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3">
         <ShieldCheck className="h-12 w-12 text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">Report not found</p>
+        <p className="text-sm font-semibold text-foreground">{uiText("Report not found")}</p>
         <Button asChild size="sm" variant="outline">
-          <Link href="/dashboard/guarantee-reports">Back to Reports</Link>
+          <Link href="/dashboard/guarantee-reports">{uiText("Back to Reports")}</Link>
         </Button>
       </div>
     )
@@ -241,9 +245,7 @@ export default function GuaranteeReportDetailPage() {
       <div className="mb-6">
         <Button asChild variant="ghost" size="sm" className="mb-4 gap-2 text-muted-foreground hover:text-foreground">
           <Link href="/dashboard/guarantee-reports">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Reports
-          </Link>
+            <ArrowLeft className="h-4 w-4" />{uiText("Back to Reports")}</Link>
         </Button>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -254,7 +256,7 @@ export default function GuaranteeReportDetailPage() {
               </h1>
               <Badge variant="outline" className={cn('gap-1 text-xs', cfg.className)}>
                 {cfg.icon}
-                {cfg.label}
+                {uiText(cfg.label)}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -273,15 +275,11 @@ export default function GuaranteeReportDetailPage() {
             {report.status === 'draft' && (
               <Button asChild size="sm" variant="outline" className="gap-2 bg-transparent">
                 <Link href={`/dashboard/guarantee-reports/${id}/edit`}>
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit
-                </Link>
+                  <Pencil className="h-3.5 w-3.5" />{uiText("Edit")}</Link>
               </Button>
             )}
             <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={exportExcel}>
-              <Download className="h-3.5 w-3.5" />
-              Export Excel
-            </Button>
+              <Download className="h-3.5 w-3.5" />{uiText("Export Excel")}</Button>
           </div>
         </div>
       </div>
@@ -294,7 +292,7 @@ export default function GuaranteeReportDetailPage() {
               <Building2 className="h-5 w-5 text-primary" />
             </div>
             <div className="overflow-hidden">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bank</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{uiText("Bank")}</p>
               <p className="truncate text-sm font-semibold text-foreground">{report.banks?.name_en || '—'}</p>
             </div>
           </CardContent>
@@ -305,7 +303,7 @@ export default function GuaranteeReportDetailPage() {
               <FileText className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total Loans</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{uiText("Total Loans")}</p>
               <p className="text-sm font-semibold text-foreground">{report.total_loans}</p>
             </div>
           </CardContent>
@@ -316,7 +314,7 @@ export default function GuaranteeReportDetailPage() {
               <Calendar className="h-5 w-5 text-info" />
             </div>
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Outstanding</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{uiText("Outstanding")}</p>
               <p className="text-sm font-semibold text-foreground">{fmt(report.total_outstanding_principal)}</p>
             </div>
           </CardContent>
@@ -327,7 +325,7 @@ export default function GuaranteeReportDetailPage() {
               <ShieldCheck className="h-5 w-5 text-warning" />
             </div>
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Guarantee Amt</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{uiText("Guarantee Amt")}</p>
               <p className="text-sm font-semibold text-foreground">{fmt(report.total_guarantee_amount)}</p>
             </div>
           </CardContent>
@@ -344,7 +342,7 @@ export default function GuaranteeReportDetailPage() {
             { label: 'Report Period', value: new Date(report.report_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) },
           ].map(item => (
             <div key={item.label}>
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{uiText(item.label)}</p>
               <p className="mt-0.5 text-sm font-semibold text-foreground">{item.value}</p>
             </div>
           ))}
@@ -367,8 +365,8 @@ export default function GuaranteeReportDetailPage() {
       {canReview && (
         <Card className="mb-6 border-warning/20 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Review Actions</CardTitle>
-            <CardDescription className="text-xs">Approve, request revision, or reject this report</CardDescription>
+            <CardTitle className="text-sm font-semibold">{uiText("Review Actions")}</CardTitle>
+            <CardDescription className="text-xs">{uiText("Approve, request revision, or reject this report")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-1.5">
@@ -376,7 +374,7 @@ export default function GuaranteeReportDetailPage() {
               <Textarea
                 value={reviewNotes}
                 onChange={e => setReviewNotes(e.target.value)}
-                placeholder="Add review notes..."
+                placeholder={uiText("Add review notes...")}
                 className="min-h-[80px] text-sm"
               />
             </div>
@@ -443,7 +441,7 @@ export default function GuaranteeReportDetailPage() {
                   <TableBody>
                     {loans.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13} className="py-10 text-center text-xs text-muted-foreground">No loans in this report</TableCell>
+                        <TableCell colSpan={13} className="py-10 text-center text-xs text-muted-foreground">{uiText("No loans in this report")}</TableCell>
                       </TableRow>
                     ) : loans.map(loan => (
                       <TableRow key={loan.id} className="hover:bg-secondary/30">
@@ -479,23 +477,19 @@ export default function GuaranteeReportDetailPage() {
               {/* Loans totals footer */}
               {loans.length > 0 && (
                 <div className="flex flex-wrap items-center gap-6 border-t px-4 py-3 text-xs">
-                  <span className="text-muted-foreground">
-                    Total Loans: <span className="font-semibold text-foreground">{loans.length}</span>
+                  <span className="text-muted-foreground">{uiText("Total Loans: ")}<span className="font-semibold text-foreground">{loans.length}</span>
                   </span>
-                  <span className="text-muted-foreground">
-                    Total Outstanding:{' '}
+                  <span className="text-muted-foreground">{uiText("Total Outstanding:")}{' '}
                     <span className="font-semibold text-foreground">
                       {fmt(loans.reduce((s, l) => s + l.outstanding_principal, 0))}
                     </span>
                   </span>
-                  <span className="text-muted-foreground">
-                    Total Guarantee:{' '}
+                  <span className="text-muted-foreground">{uiText("Total Guarantee:")}{' '}
                     <span className="font-semibold text-warning">
                       {fmt(loans.reduce((s, l) => s + l.guarantee_amount, 0))}
                     </span>
                   </span>
-                  <span className="text-muted-foreground">
-                    Overdue Loans:{' '}
+                  <span className="text-muted-foreground">{uiText("Overdue Loans:")}{' '}
                     <span className="font-semibold text-destructive">
                       {loans.filter(l => l.days_overdue > 0).length}
                     </span>
@@ -521,7 +515,7 @@ export default function GuaranteeReportDetailPage() {
                   <TableBody>
                     {payments.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="py-10 text-center text-xs text-muted-foreground">No payment schedule in this report</TableCell>
+                        <TableCell colSpan={7} className="py-10 text-center text-xs text-muted-foreground">{uiText("No payment schedule in this report")}</TableCell>
                       </TableRow>
                     ) : payments.map(pay => (
                       <TableRow key={pay.id} className="hover:bg-secondary/30">

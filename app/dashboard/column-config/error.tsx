@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useEffect } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,6 +14,8 @@ export default function ColumnConfigError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const uiText = useUiTranslation()
+
   useEffect(() => {
     console.error('[Column Config Error]', error)
   }, [error])
@@ -25,19 +29,15 @@ export default function ColumnConfigError({
               <AlertTriangle className="h-6 w-6 text-destructive" />
             </div>
           </div>
-          <CardTitle className="text-destructive">Column Settings Error</CardTitle>
-          <CardDescription>
-            There was a problem loading the column configuration page.
-          </CardDescription>
+          <CardTitle className="text-destructive">{uiText("Column Settings Error")}</CardTitle>
+          <CardDescription>{uiText("There was a problem loading the column configuration page.")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded bg-muted p-3 text-xs font-mono overflow-auto max-h-32">
             <p className="text-muted-foreground">{error.message}</p>
           </div>
           <Button onClick={reset} className="w-full" variant="outline">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Try again
-          </Button>
+            <RefreshCw className="mr-2 h-4 w-4" />{uiText("Try again")}</Button>
         </CardContent>
       </Card>
     </div>

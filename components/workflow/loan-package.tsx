@@ -1,5 +1,7 @@
 'use client'
 
+import { useUiTranslation } from '@/lib/i18n/ui-text'
+
 import { useState } from 'react'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
@@ -12,6 +14,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
 export function LoanPackage({ loan, onChanged }: { loan: LoanApplication; onChanged: () => void }) {
+  const uiText = useUiTranslation()
+
   const { user, role, profile } = usePermissions()
   const [response, setResponse] = useState('')
   const [busy, setBusy] = useState(false)
@@ -66,13 +70,13 @@ export function LoanPackage({ loan, onChanged }: { loan: LoanApplication; onChan
   }
 
   const request = data?.history.find((entry) => entry.new_status === 'docs_incomplete')
-  return <Card><CardHeader><CardTitle>Application package and bank response</CardTitle><CardDescription>{data?.assignee ? `Assigned analyst: ${[data.assignee.first_name, data.assignee.last_name].filter(Boolean).join(' ')}` : 'The operations analyst is assigned automatically after bank submission.'}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
-    {(error || loadError) && <p role="alert" className="text-sm text-destructive">{error ?? 'Could not load application evidence.'}</p>}
-    {loan.status === 'docs_incomplete' && request?.notes && <section aria-label="Requested clarification" className="flex flex-col gap-1"><h3 className="text-sm font-medium">Requested by MIS</h3><p className="whitespace-pre-wrap text-sm">{request.notes}</p></section>}
-    {loan.notes && <p className="whitespace-pre-wrap text-sm">Bank notes: {loan.notes}</p>}
-    <ul className="flex flex-col gap-2">{data?.files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3"><span className="break-all text-sm">{file.file_name}</span><Button size="sm" variant="outline" onClick={() => void openFile(file.file_path)}>Open document</Button></li>)}</ul>
-    {data?.files.length === 0 && <p className="text-sm text-muted-foreground">No documents attached yet.</p>}
-    {canRespond && <fieldset disabled={busy} className="flex flex-col gap-3"><Label htmlFor={`package-upload-${loan.id}`}>Attach documents (PDF, JPG, PNG; up to 10 MB each)</Label><Input id={`package-upload-${loan.id}`} type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, event.currentTarget) }} /><Label htmlFor={`bank-response-${loan.id}`}>Bank explanation or clarification</Label><Textarea id={`bank-response-${loan.id}`} rows={3} maxLength={4000} value={response} onChange={(event) => setResponse(event.target.value)} /><Button className="self-start" variant="outline" disabled={busy || !response.trim()} onClick={() => void saveResponse()}>Save bank response</Button><p className="text-sm text-muted-foreground">Save the response and attachments, then use the workflow action to submit the package.</p></fieldset>}
-    <details><summary className="cursor-pointer text-sm font-medium">Recent workflow history</summary><ol className="flex flex-col gap-3 py-3">{data?.history.map((entry) => <li key={entry.id} className="text-sm"><span className="font-medium">{entry.new_status?.replaceAll('_', ' ')}</span><p className="whitespace-pre-wrap text-muted-foreground">{entry.notes}</p><time className="text-muted-foreground" dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time></li>)}</ol></details>
+  return <Card><CardHeader><CardTitle>{uiText("Application package and bank response")}</CardTitle><CardDescription>{data?.assignee ? uiText("Assigned analyst: {0}", [data.assignee.first_name, data.assignee.last_name].filter(Boolean).join(' ')) : uiText("The operations analyst is assigned automatically after bank submission.")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+    {(error || loadError) && <p role="alert" className="text-sm text-destructive">{error ?? uiText("Could not load application evidence.")}</p>}
+    {loan.status === 'docs_incomplete' && request?.notes && <section aria-label={uiText("Requested clarification")} className="flex flex-col gap-1"><h3 className="text-sm font-medium">{uiText("Requested by MIS")}</h3><p className="whitespace-pre-wrap text-sm">{request.notes}</p></section>}
+    {loan.notes && <p className="whitespace-pre-wrap text-sm">{uiText("Bank notes:")} {loan.notes}</p>}
+    <ul className="flex flex-col gap-2">{data?.files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3"><span className="break-all text-sm">{file.file_name}</span><Button size="sm" variant="outline" onClick={() => void openFile(file.file_path)}>{uiText("Open document")}</Button></li>)}</ul>
+    {data?.files.length === 0 && <p className="text-sm text-muted-foreground">{uiText("No documents attached yet.")}</p>}
+    {canRespond && <fieldset disabled={busy} className="flex flex-col gap-3"><Label htmlFor={`package-upload-${loan.id}`}>{uiText("Attach documents (PDF, JPG, PNG; up to 10 MB each)")}</Label><Input id={`package-upload-${loan.id}`} type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void upload(file, event.currentTarget) }} /><Label htmlFor={`bank-response-${loan.id}`}>{uiText("Bank explanation or clarification")}</Label><Textarea id={`bank-response-${loan.id}`} rows={3} maxLength={4000} value={response} onChange={(event) => setResponse(event.target.value)} /><Button className="self-start" variant="outline" disabled={busy || !response.trim()} onClick={() => void saveResponse()}>{uiText("Save bank response")}</Button><p className="text-sm text-muted-foreground">{uiText("Save the response and attachments, then use the workflow action to submit the package.")}</p></fieldset>}
+    <details><summary className="cursor-pointer text-sm font-medium">{uiText("Recent workflow history")}</summary><ol className="flex flex-col gap-3 py-3">{data?.history.map((entry) => <li key={entry.id} className="text-sm"><span className="font-medium">{entry.new_status?.replaceAll('_', ' ')}</span><p className="whitespace-pre-wrap text-muted-foreground">{entry.notes}</p><time className="text-muted-foreground" dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time></li>)}</ol></details>
   </CardContent></Card>
 }
