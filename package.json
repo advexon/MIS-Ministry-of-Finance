@@ -6,7 +6,8 @@
   "author": "Siyovush Mirzoev",
   "scripts": {
     "verify": "pnpm typecheck && pnpm lint --max-warnings=0 && pnpm verify:local",
-    "verify:local": "pnpm verify:committee && pnpm verify:loan-application && pnpm verify:bank-directory && pnpm verify:role-administration && pnpm verify:admin-authority && pnpm verify:scheme && pnpm verify:notifications && pnpm verify:claim-payments && pnpm verify:recovery && pnpm verify:fees && pnpm verify:financial-policy && pnpm verify:security && pnpm verify:excel && pnpm verify:documents && pnpm verify:pdf && pnpm verify:ui-lifecycles && pnpm verify:portfolio-report && pnpm verify:employee-flags && pnpm verify:role-prohibitions && pnpm verify:manual && pnpm verify:i18n",
+    "verify:products": "node scripts/verify-product-administration.mjs && node scripts/verify-product-ui.mjs",
+    "verify:local": "pnpm verify:products && pnpm verify:committee && pnpm verify:loan-application && pnpm verify:bank-directory && pnpm verify:role-administration && pnpm verify:admin-authority && pnpm verify:scheme && pnpm verify:notifications && pnpm verify:claim-payments && pnpm verify:recovery && pnpm verify:fees && pnpm verify:financial-policy && pnpm verify:security && pnpm verify:excel && pnpm verify:documents && pnpm verify:pdf && pnpm verify:ui-lifecycles && pnpm verify:portfolio-report && pnpm verify:employee-flags && pnpm verify:role-prohibitions && pnpm verify:manual && pnpm verify:i18n",
     "verify:employee-flags": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-employee-flags.ts",
     "verify:role-prohibitions": "node --experimental-strip-types --no-warnings --import ./scripts/alias-loader-register.mjs scripts/verify-role-prohibitions.ts",
     "dev": "next dev",

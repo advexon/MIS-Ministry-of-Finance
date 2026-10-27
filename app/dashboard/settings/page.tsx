@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CgfWorkflowControls } from '@/components/admin/cgf-workflow-controls'
 import { FinancialPolicyControls } from '@/components/admin/financial-policy-controls'
 import { OperationalSettingsControls } from '@/components/admin/operational-settings-controls'
+import { ProductControls } from '@/components/admin/product-controls'
+import { PRODUCT_COPY } from '@/lib/admin/product-administration'
 
 const MODULES = [
   ['Users and employee flags', 'users'], ['Roles and permissions', 'roles'],
@@ -25,7 +27,7 @@ const MODULES = [
 export default function SettingsPage() {
   const uiText = useUiTranslation()
 
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { role } = usePermissions()
   const admin = ['super_admin', 'prsf_admin'].includes(role?.code ?? '')
 
@@ -33,8 +35,9 @@ export default function SettingsPage() {
     <header className="flex flex-col gap-2"><h1 className="text-balance text-2xl font-bold">{uiText(t.settings.title)}</h1><p className="text-pretty text-sm text-muted-foreground">{uiText("Administration, enforced operational rules and immutable financial policy revisions.")}</p></header>
     {role?.code === 'super_admin' && <Alert><AlertTitle>{uiText("Full audited authority")}</AlertTitle><AlertDescription>{uiText("You can perform supported business actions as yourself. Exceptional authority requires a reason. Valid workflow transitions, evidence, individual votes, signed records and financial limits remain protected.")}</AlertDescription></Alert>}
     <Tabs defaultValue="administration" className="flex flex-col gap-6">
-      <TabsList className="h-auto flex-wrap justify-start"><TabsTrigger value="administration">{uiText("Administration")}</TabsTrigger><TabsTrigger value="operational">{uiText("Operational rules")}</TabsTrigger><TabsTrigger value="workflow">{uiText("Sectors and delegations")}</TabsTrigger><TabsTrigger value="financial">{uiText("Financial policy")}</TabsTrigger><TabsTrigger value="security">{uiText("Security and infrastructure")}</TabsTrigger></TabsList>
+      <TabsList className="h-auto flex-wrap justify-start"><TabsTrigger value="administration">{uiText("Administration")}</TabsTrigger><TabsTrigger value="products">{PRODUCT_COPY[locale].title}</TabsTrigger><TabsTrigger value="operational">{uiText("Operational rules")}</TabsTrigger><TabsTrigger value="workflow">{uiText("Sectors and delegations")}</TabsTrigger><TabsTrigger value="financial">{uiText("Financial policy")}</TabsTrigger><TabsTrigger value="security">{uiText("Security and infrastructure")}</TabsTrigger></TabsList>
       <TabsContent value="administration"><Card><CardHeader><CardTitle>{uiText("Business administration")}</CardTitle><CardDescription>{uiText("Manage the existing MIS modules without changing code. Lifecycle restrictions still apply to finalized records.")}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">{admin ? MODULES.map(([label, path]) => <Button key={path} variant="outline" asChild><Link href={`/dashboard/${path}`}>{uiText(label)}</Link></Button>) : <p className="text-sm text-muted-foreground">{uiText("Administrator access is required to manage these modules.")}</p>}</CardContent></Card></TabsContent>
+      <TabsContent value="products"><ProductControls /></TabsContent>
       <TabsContent value="operational"><OperationalSettingsControls /></TabsContent>
       <TabsContent value="workflow"><CgfWorkflowControls /></TabsContent>
       <TabsContent value="financial"><FinancialPolicyControls /></TabsContent>
