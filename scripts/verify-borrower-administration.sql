@@ -1,0 +1,61 @@
+begin;
+set local statement_timeout='45s';
+set local lock_timeout='5s';
+do $test$
+declare
+ administrator uuid; fixture uuid:=gen_random_uuid(); reason text:='Borrower rollback acceptance '||fixture::text;
+ fields jsonb; receipt jsonb; revision bigint:=0; identity_row record; allowed boolean; tested integer:=0;
+ referenced uuid; referenced_revision bigint; original_phone text;
+begin
+ select p.id into administrator from public.profiles p join public.roles r on r.id=p.role_id where p.is_active and r.is_active and p.bank_id is null and r.code='super_admin' and r.tier=1 limit 1;
+ if administrator is null then raise exception 'Existing active Super Administrator required'; end if;
+ insert into public.borrowers(id,name,legal_type,tin_number,phone,created_by) values(fixture,'Borrower rollback fixture','llc',null,'original',administrator);
+ select to_jsonb(b)-array['id','created_by','created_at','updated_at','administration_revision'] into fields from public.borrowers b where id=fixture;
+ fields:=fields||jsonb_build_object('phone','changed');
+ perform set_config('request.jwt.claim.sub',administrator::text,true);perform set_config('request.jwt.claim.role','authenticated',true);
+ set local role authenticated;
+ receipt:=public.cgf_save_borrower(fixture,fields,0,reason,false);
+ if receipt->>'id'<>fixture::text or receipt#>>'{record,phone}'<>'changed' or (receipt#>>'{record,administration_revision}')::bigint<>1 then raise exception 'Update receipt mismatch'; end if;
+ if not exists(select 1 from public.borrowers where id=fixture and phone='changed' and administration_revision=1) then raise exception 'Authenticated read-back failed'; end if;
+ revision:=1;
+ begin perform public.cgf_save_borrower(fixture,fields,0,reason,false);raise exception 'Stale revision accepted';exception when serialization_failure then null;end;
+ begin perform public.cgf_save_borrower(fixture,fields,revision,'ab',false);raise exception 'Missing reason accepted';exception when check_violation then null;end;
+ begin perform public.cgf_save_borrower(fixture,fields||'{"workforce_count":0.5}',revision,reason,false);raise exception 'Fractional workforce accepted';exception when check_violation then null;end;
+ begin update public.borrowers set phone='forbidden' where id=fixture;raise exception 'Direct write accepted';exception when insufficient_privilege then null;end;
+ reset role;
+ if not exists(select 1 from public.audit_trail where table_name='borrowers' and record_id=fixture and action='UPDATE_BORROWER' and changed_by=administrator and old_data='{"phone":"original"}'::jsonb and new_data->'changes'='{"phone":"changed"}'::jsonb and new_data->>'reason'=reason) then raise exception 'Minimal attributed audit mismatch';end if;
+ for identity_row in select p.id,p.bank_id,r.code,r.tier from public.profiles p join public.roles r on r.id=p.role_id where p.is_active and r.is_active loop
+  allowed:=identity_row.bank_id is null and ((identity_row.code='super_admin' and identity_row.tier=1)or(identity_row.code='prsf_admin' and identity_row.tier=2));
+  perform set_config('request.jwt.claim.sub',identity_row.id::text,true);set local role authenticated;
+  begin receipt:=public.cgf_save_borrower(fixture,fields,revision,reason,false);if not allowed then raise exception 'Prohibited borrower authority: %',identity_row.code;end if;revision:=revision+1;
+  exception when insufficient_privilege then if allowed then raise exception 'Administrator denied';end if;end;
+  reset role;tested:=tested+1;
+ end loop;
+ perform set_config('request.jwt.claim.sub',administrator::text,true);
+ select b.id,b.administration_revision,b.phone into referenced,referenced_revision,original_phone from public.borrowers b where exists(select 1 from public.loan_applications a where a.borrower_id=b.id) limit 1;
+ if referenced is not null then
+  set local role authenticated;
+  begin perform public.cgf_save_borrower(referenced,'{}',referenced_revision,reason,true);raise exception 'Referenced borrower deleted';exception when foreign_key_violation then null;end;
+  reset role;
+  if not exists(select 1 from public.borrowers where id=referenced and administration_revision=referenced_revision and phone is not distinct from original_phone) then raise exception 'Referenced borrower changed';end if;
+ end if;
+ execute 'alter table public.audit_trail add constraint cgf_borrower_acceptance_audit check ((new_data->>''reason'') is distinct from '||quote_literal(reason||' audit-failure')||') not valid';
+ set local role authenticated;
+ begin perform public.cgf_save_borrower(fixture,fields||'{"phone":"must roll back"}',revision,reason||' audit-failure',false);raise exception 'Update audit failure accepted';exception when check_violation then null;end;
+ begin perform public.cgf_save_borrower(fixture,'{}',revision,reason||' audit-failure',true);raise exception 'Delete audit failure accepted';exception when check_violation then null;end;
+ reset role;
+ if not exists(select 1 from public.borrowers where id=fixture and administration_revision=revision and phone='changed') then raise exception 'Audit failure did not roll back';end if;
+ alter table public.audit_trail drop constraint cgf_borrower_acceptance_audit;
+ set local role authenticated;
+ receipt:=public.cgf_save_borrower(fixture,'{}',revision,reason,true);
+ if receipt->>'deleted'<>'true' or receipt->'record'<>'null'::jsonb then raise exception 'Delete receipt mismatch';end if;
+ perform set_config('request.jwt.claim.sub','',true);
+ begin perform public.cgf_save_borrower(fixture,'{}',0,reason,true);raise exception 'Missing identity accepted';exception when insufficient_privilege then null;end;
+ reset role;set local role anon;
+ begin perform public.cgf_save_borrower(fixture,'{}',0,reason,true);raise exception 'Anonymous execution accepted';exception when insufficient_privilege then null;end;
+ reset role;
+ if exists(select 1 from public.borrowers where id=fixture) or not exists(select 1 from public.audit_trail where table_name='borrowers' and record_id=fixture and action='DELETE_BORROWER' and old_data->>'id'=fixture::text and new_data->>'reason'=reason) then raise exception 'Delete or retained audit failed';end if;
+ if has_table_privilege('authenticated','public.borrowers','UPDATE') or has_table_privilege('anon','public.borrowers','SELECT') then raise exception 'Unsafe grants';end if;
+ raise notice 'Borrower live rollback suite passed across % existing active identities; referenced delete checked: %',tested,referenced is not null;
+end $test$;
+rollback;

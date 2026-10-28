@@ -8,16 +8,16 @@ import { createClient } from "@/lib/supabase/client"
 import { usePermissions } from "@/lib/contexts/permission-context"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Skeleton } from "@/components/ui/skeleton"
+import { RequirementFormCard } from "@/components/admin/requirement-form-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Lock, RotateCcw, Search, ShieldAlert } from "lucide-react"
+import { CheckCircle2, Loader2, Lock, Search, ShieldAlert } from "lucide-react"
 import {
   FORM_DEFS,
   FORM_ENTITY_PREFIX,
-  resolveRequired,
   type FormDef,
   type FormFieldDef,
   type RequirementOverrides,
@@ -50,22 +50,27 @@ export default function FormRequirementsPage() {
   const { role } = usePermissions()
   const { toast } = useToast()
   const [query, setQuery] = useState("")
+  const [activeGroup, setActiveGroup] = useState("all")
   const [savingKey, setSavingKey] = useState<string | null>(null)
-  const { data: overrides, mutate, isLoading } = useSWR("form-requirements:all", fetchAllOverrides)
+  const { data: overrides, mutate, isLoading, error } = useSWR("form-requirements:all", fetchAllOverrides)
+  const categories = useMemo(() => {
+    const map = new Map<string, FormDef[]>()
+    for (const def of ALL_FORM_DEFS) map.set(def.group, [...(map.get(def.group) ?? []), def])
+    return [...map.entries()]
+  }, [])
 
   // Matches the RLS write policy on column_configurations (roles.tier <= 2).
   const canEdit = typeof role?.tier === "number" && role.tier <= 2
 
   const forms = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return ALL_FORM_DEFS
-    return ALL_FORM_DEFS.map((def) => ({
+    return ALL_FORM_DEFS.filter(def => activeGroup === "all" || def.group === activeGroup).map((def) => ({
       ...def,
-      fields: def.name.toLowerCase().includes(q)
+      fields: !q || uiText(def.name).toLowerCase().includes(q) || uiText(def.group).toLowerCase().includes(q)
         ? def.fields
-        : def.fields.filter((fl) => fl.label.toLowerCase().includes(q)),
+        : def.fields.filter((fl) => uiText(fl.label).toLowerCase().includes(q)),
     })).filter((def) => def.fields.length > 0)
-  }, [query])
+  }, [query, activeGroup, uiText])
 
   const groups = useMemo(() => {
     const map = new Map<string, FormDef[]>()
@@ -127,11 +132,19 @@ export default function FormRequirementsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">{uiText("Required fields")}</h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground text-pretty">{uiText("Choose which fields are mandatory on each form. A field marked with an asterisk (")}<span className="text-destructive">*</span>{uiText(") must be filled in before the form can be submitted; fields without one are optional. Changes apply immediately for all users.")}</p>
-      </div>
+    <div className="flex flex-col gap-6 p-4 font-sans sm:p-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex max-w-2xl flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-balance">{uiText("Required fields")}</h1>
+          <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
+            {uiText("Set submission requirements for each form. Mandatory fields must be completed; optional fields can be left blank.")}
+          </p>
+        </div>
+        <div role="status" className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+          {savingKey ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="size-4" aria-hidden="true" />}
+          {savingKey ? uiText("Saving changes…") : uiText("Changes save automatically")}
+        </div>
+      </header>
 
       {!canEdit && (
         <Alert>
@@ -140,89 +153,78 @@ export default function FormRequirementsPage() {
         </Alert>
       )}
 
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={uiText("Search forms or fields")}
-          className="pl-9"
-          aria-label={uiText("Search forms or fields")}
-        />
-      </div>
-
-      {groups.map(([group, defs]) => (
-        <section key={group} className="flex flex-col gap-3" aria-labelledby={`group-${group}`}>
-          <h2 id={`group-${group}`} className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            {group}
-          </h2>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {defs.map((def) => {
-              const formOverrides = overrides?.[def.id] ?? {}
-              const requiredCount = def.fields.filter((fl) => resolveRequired(fl, formOverrides)).length
-              return (
-                <Card key={def.id}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">{uiText(def.name)}</CardTitle>
-                    <CardDescription>
-                      {requiredCount} {uiText("of")} {def.fields.length}{uiText(" fields mandatory")}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <ul className="divide-y">
-                      {def.fields.map((field) => {
-                        const required = resolveRequired(field, formOverrides)
-                        const overridden = field.key in formOverrides && !field.locked
-                        const busy = savingKey === `${def.id}.${field.key}`
-                        const switchId = `req-${def.id}-${field.key}`
-                        return (
-                          <li key={field.key} className="flex items-center justify-between gap-3 px-6 py-2.5">
-                            <label htmlFor={switchId} className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-                              <span className="truncate">
-                                {uiText(field.label)}
-                                {required && <span className="ml-0.5 text-destructive">*</span>}
-                              </span>
-                              {field.locked && (
-                                <Badge variant="secondary" className="gap-1 font-normal">
-                                  <Lock className="size-3" aria-hidden="true" />{uiText("Always required")}</Badge>
-                              )}
-                              {overridden && (
-                                <Badge variant="outline" className="font-normal">{uiText("Changed")}</Badge>
-                              )}
-                            </label>
-                            <div className="flex shrink-0 items-center gap-1">
-                              {overridden && canEdit && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-8"
-                                  disabled={busy}
-                                  onClick={() => update(def, field, null)}
-                                  aria-label={`Reset ${field.label} to default`}
-                                  title={uiText("Reset to default")}
-                                >
-                                  <RotateCcw className="size-4" />
-                                </Button>
-                              )}
-                              <Switch
-                                id={switchId}
-                                checked={required}
-                                disabled={!canEdit || field.locked || busy || isLoading}
-                                onCheckedChange={(checked) => update(def, field, checked)}
-                              />
-                            </div>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )
-            })}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <nav aria-label={uiText("Form categories")} className="flex shrink-0 flex-col gap-3 lg:sticky lg:top-6 lg:w-56">
+          <h2 className="text-sm font-medium text-muted-foreground">{uiText("Form categories")}</h2>
+          <div className="flex flex-wrap gap-1 lg:flex-col">
+            {[{ id: "all", label: "All forms", count: ALL_FORM_DEFS.length }, ...categories.map(([group, defs]) => ({ id: group, label: group, count: defs.length }))].map(category => (
+              <Button key={category.id} variant={activeGroup === category.id ? "secondary" : "ghost"}
+                className="h-auto justify-between gap-3 py-2.5" aria-pressed={activeGroup === category.id}
+                onClick={() => setActiveGroup(category.id)}>
+                <span className="text-left whitespace-normal">{uiText(category.label)}</span>
+                <span className="text-sm tabular-nums text-muted-foreground">{category.count}</span>
+              </Button>
+            ))}
           </div>
-        </section>
-      ))}
+          <p className="hidden text-sm leading-relaxed text-muted-foreground lg:block">
+            {uiText("Locked fields are required by the system and cannot be made optional.")}
+          </p>
+        </nav>
 
-      {groups.length === 0 && <p className="text-sm text-muted-foreground">{uiText("No forms or fields match your search.")}</p>}
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
+          <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 text-card-foreground sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-1">
+              <h2 className="font-semibold">{uiText(activeGroup === "all" ? "All forms" : activeGroup)}</h2>
+              <p className="text-sm text-muted-foreground">{uiText("Forms shown: {0}", forms.length)}</p>
+            </div>
+            <Field className="sm:w-72">
+              <FieldLabel htmlFor="requirement-search" className="sr-only">{uiText("Search forms or fields")}</FieldLabel>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input id="requirement-search" value={query} onChange={e => setQuery(e.target.value)} placeholder={uiText("Search forms or fields")} className="pl-9" />
+              </div>
+            </Field>
+          </div>
+
+          {error ? (
+            <Alert variant="destructive">
+              <ShieldAlert className="size-4" />
+              <AlertDescription className="flex flex-col items-start gap-3">
+                {uiText("Could not load required field settings. Please try again.")}
+                <Button variant="outline" size="sm" onClick={() => mutate()}>{uiText("Try again")}</Button>
+              </AlertDescription>
+            </Alert>
+          ) : isLoading ? (
+            <div className="flex flex-col gap-3" role="status" aria-label={uiText("Loading settings")}>
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-64 w-full" />
+            </div>
+          ) : groups.length === 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle><h3 className="text-base">{uiText("No forms or fields match your search.")}</h3></CardTitle>
+                <CardDescription>{uiText("Try a different search or select another category.")}</CardDescription>
+              </CardHeader>
+              <CardContent><Button variant="outline" onClick={() => { setQuery(""); setActiveGroup("all") }}>{uiText("Clear filters")}</Button></CardContent>
+            </Card>
+          ) : groups.map(([group, defs]) => (
+            <section key={group} className="flex flex-col gap-3" aria-label={uiText(group)}>
+              {activeGroup === "all" && <h2 className="text-sm font-medium text-muted-foreground">{uiText(group)}</h2>}
+              <div className="grid items-start gap-4 xl:grid-cols-2">
+                {defs.map(def => (
+                  <RequirementFormCard key={def.id} form={ALL_FORM_DEFS.find(form => form.id === def.id)!}
+                    visibleFields={def.fields} overrides={overrides?.[def.id] ?? {}} canEdit={canEdit}
+                    savingKey={savingKey} onUpdate={update} />
+                ))}
+              </div>
+            </section>
+          ))}
+          <p className="flex items-start gap-2 text-sm leading-relaxed text-muted-foreground">
+            <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            {uiText("Changes apply immediately for all users. Locked fields always remain mandatory.")}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
