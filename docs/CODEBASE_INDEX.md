@@ -4,6 +4,12 @@ Reference map of the application. See the root README for repository organizatio
 
 Developed by Siyovush Mirzoev.
 
+## Required-fields presentation — 28 October 2026
+
+`app/dashboard/form-requirements/page.tsx` now provides category navigation, localized form/field search, load-error retry and loading/empty states. `components/admin/requirement-form-card.tsx` renders responsive field controls with explicit mandatory/optional, locked and customized states and accessible reset labels. Filtered cards retain full-form requirement totals. Existing immediate-save persistence, requirement definitions and permission checks are retained; controls serialize interactive saves. New interface copy is translated into Russian and Tajik. No schema or business-validation rule changed.
+
+Signed-in Super Administrator browser checks at 1488×692 light and 390×844 passed category navigation, search, empty-state recovery, accurate filtered totals and disabled locked controls. No requirement settings were changed during acceptance. TypeScript and zero-warning lint passed. The full `pnpm verify` run exited 1 during local regressions without an actionable diagnostic in the captured output; the full suite and standalone i18n check are not confirmed passing. Save/reset persistence was not re-tested against live data in this styling-only change.
+
 ## Borrower-directory administration — 28 October 2026
 
 Applied `067_cgf_borrower_administration.sql`. The borrower register now opens `BorrowerEditor`, rather than redirecting Edit to a new application. Canonical active Fund Super Administrator / PRSF Administrator can edit all 19 directory fields with validation, exact expected revisions, explicit confirmation and a 3–2000-character reason. Linked borrower names, legal types, TINs and registration numbers are immutable; unused borrowers alone can be deleted. Provenance is immutable and each update increments the revision. The RPC serializes administration and shares intake's TIN advisory-lock boundary before row locking, preventing identity correction/deletion from racing an intake link. Existing foreign keys remain authoritative. Direct client writes and anonymous reads are revoked; atomic SECURITY DEFINER loan intake still creates borrowers. No standalone borrower creation or invented blacklist/deactivation model was added.
