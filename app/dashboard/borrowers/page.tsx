@@ -2,7 +2,11 @@
 
 import { useUiTranslation } from '@/lib/i18n/ui-text'
 
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { BorrowerEditor } from '@/components/borrowers/borrower-editor'
+import { BORROWER_COPY, borrowerSearchFilter, canAdministerBorrowers, type BorrowerDirectoryRecord } from '@/lib/admin/borrower-administration'
+import { BANK_DIRECTORY_COPY } from '@/lib/admin/bank-directory'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { usePageQuery } from "@/lib/hooks/use-page-query"
 import Link from "next/link"
 import { useI18n } from "@/lib/i18n/context"
@@ -25,6 +29,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -48,48 +53,67 @@ const PAGE_SIZE = 20
 export default function BorrowersPage() {
   const uiText = useUiTranslation()
 
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
+  const copy = BORROWER_COPY[locale]
+  const common = BANK_DIRECTORY_COPY[locale]
   const supabase = createClient()
-
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState("")
   const [historyBorrower, setHistoryBorrower] = useState<Borrower | null>(null)
-  const { profile, role } = usePermissions()
+  const [editingBorrower, setEditingBorrower] = useState<BorrowerDirectoryRecord | null>(null)
+  const [refreshBlocked, setRefreshBlocked] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const inFlight = useRef<Promise<{ borrowers: BorrowerDirectoryRecord[]; total: number }> | null>(null)
+  const { profile, role, can } = usePermissions()
   const canViewHistory = canViewBorrowerCreditHistory(profile, role)
-
-  const { data: result, isLoading, isValidating, mutate } = usePageQuery<{ borrowers: Borrower[]; total: number }>(["borrowers", page, search], async () => {
-    let query = supabase
-      .from("borrowers")
-      .select("*, sector:sectors(name_en)", { count: "exact" })
-      .order("created_at", { ascending: false })
+  const allowed = canAdministerBorrowers(profile, role)
+  const loadBorrowers = async () => {
+    let query = supabase.from("borrowers")
+      .select(allowed ? "*, sector:sectors(name_en), applications:loan_applications(count)" : "*, sector:sectors(name_en)", { count: "exact" })
+      .order("created_at", { ascending: false }).order("id")
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-
-    if (search.trim()) {
-      query = query.or(
-        `tin_number.ilike.%${search}%,name.ilike.%${search}%`
-      )
-    }
-
-    const { data, count, error } = await query
-    if (error) throw error
-    return { borrowers: data ?? [], total: count ?? 0 }
-  })
+    if (search.trim()) query = query.or(borrowerSearchFilter(search))
+    const { data, count, error: queryError } = await query
+    if (queryError) throw queryError
+    if (!Array.isArray(data) || count === null) throw new Error('Borrower read was not confirmed')
+    return { borrowers: data as unknown as BorrowerDirectoryRecord[], total: count }
+  }
+  const { data: result, error, isLoading, isValidating, mutate } = usePageQuery(["borrowers", page, search, allowed], loadBorrowers)
+  const loadSummary = async () => {
+    const [all, entities] = await Promise.all([
+      supabase.from('borrowers').select('id', { count: 'exact', head: true }),
+      supabase.from('borrowers').select('id', { count: 'exact', head: true }).in('legal_type', ['llc', 'jsc']),
+    ])
+    if (all.error || entities.error) throw all.error || entities.error
+    if (all.count === null || entities.count === null) throw new Error('Borrower summary was not confirmed')
+    return { totalCount: all.count, entityCount: entities.count }
+  }
+  const { data: summary, error: summaryError, mutate: mutateSummary } = usePageQuery(["borrower-summary"], loadSummary)
+  const refresh = (): Promise<{ borrowers: BorrowerDirectoryRecord[]; total: number }> => {
+    if (inFlight.current) return inFlight.current
+    setRefreshing(true)
+    const request = (async () => {
+      try {
+        const [rows] = await Promise.all([
+          mutate(loadBorrowers(), { revalidate: false, throwOnError: true }),
+          mutateSummary(loadSummary(), { revalidate: false, throwOnError: true }),
+        ])
+        if (!rows || !Array.isArray(rows.borrowers)) throw new Error('Borrower refresh was not confirmed')
+        setRefreshBlocked(false)
+        return rows
+      } catch (failure) { setRefreshBlocked(true); throw failure }
+      finally { inFlight.current = null; setRefreshing(false) }
+    })()
+    inFlight.current = request
+    return request
+  }
   const borrowers = result?.borrowers ?? []
   const total = result?.total ?? 0
-  const loading = isLoading || isValidating
-  const fetchBorrowers = () => mutate()
-
-  const { data: summary } = usePageQuery(["borrower-summary"], async () => {
-    const { data, count, error } = await supabase.from("borrowers").select("id, legal_type", { count: "exact" })
-    if (error) throw error
-    return {
-      totalCount: count ?? 0,
-      activeCount: count ?? 0,
-      // Legal entities are stored as llc / jsc, not "legal_entity".
-      entityCount: (data ?? []).filter((borrower) => ["llc", "jsc", "legal_entity"].includes(borrower.legal_type ?? "")).length,
-    }
-  })
-  const { totalCount = 0, activeCount = 0, entityCount = 0 } = summary ?? {}
+  const loading = isLoading && !result
+  const unavailable = Boolean(error || summaryError || refreshBlocked || !result)
+  const pending = refreshing || isValidating
+  const totalCount = summary?.totalCount
+  const entityCount = summary?.entityCount
 
   // Borrowers are stored using the database vocabulary (llc / sole_proprietor / ...),
   // so map those to labels as well as the legacy form values.
@@ -101,8 +125,8 @@ export default function BorrowersPage() {
       sole_proprietor: t.borrowers.individualEntrepreneur,
       individual_entrepreneur: t.borrowers.individualEntrepreneur,
       individual: t.borrowers.individual,
-      cooperative: "Cooperative",
-      other: "Other",
+      cooperative: copy.cooperative,
+      other: copy.other,
     }
     return map[type] || type
   }
@@ -119,21 +143,19 @@ export default function BorrowersPage() {
           <p className="mt-1 text-sm text-muted-foreground">{uiText("Manage borrower profiles and their loan history")}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchBorrowers} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          <Button variant="outline" size="icon" aria-label={common.refresh} onClick={() => void refresh().catch(() => {})} disabled={loading || pending}>
+            <RefreshCw className={`h-4 w-4 ${pending ? "animate-spin" : ""}`} />
           </Button>
-          {/* Borrower rows are created by TIN upsert inside the loan application
-              flow — there is no standalone borrower insert anywhere in the app —
-              so this routes to that form instead of being inert on click. */}
-          <Button asChild className="gap-2">
+          {can('loans', 'create') && <Button asChild className="gap-2">
             <Link href="/dashboard/loans/new">
               <Plus className="h-4 w-4" />
               {t.borrowers.newBorrower}
             </Link>
-          </Button>
+          </Button>}
         </div>
       </div>
 
+      {(error || summaryError || refreshBlocked) && <Alert variant="destructive" className="mb-6"><AlertDescription>{copy.unavailable}</AlertDescription></Alert>}
       {/* Summary Cards */}
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card>
@@ -143,29 +165,29 @@ export default function BorrowersPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">{uiText("Total Borrowers")}</p>
-              <p className="text-2xl font-bold">{totalCount}</p>
+              <p className="text-2xl font-bold">{totalCount ?? '—'}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="rounded-full bg-emerald-500/10 p-3">
-              <UserCheck className="h-5 w-5 text-emerald-500" />
+            <div className="rounded-full bg-primary/10 p-3">
+              <UserCheck className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">{uiText("Not Blacklisted")}</p>
-              <p className="text-2xl font-bold">{activeCount}</p>
+              <p className="text-sm text-muted-foreground">{copy.matching}</p>
+              <p className="text-2xl font-bold">{result ? total : '—'}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="flex items-center gap-4 pt-6">
-            <div className="rounded-full bg-blue-500/10 p-3">
-              <Building2 className="h-5 w-5 text-blue-500" />
+            <div className="rounded-full bg-primary/10 p-3">
+              <Building2 className="h-5 w-5 text-primary" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">{uiText("Legal Entities")}</p>
-              <p className="text-2xl font-bold">{entityCount}</p>
+              <p className="text-2xl font-bold">{entityCount ?? '—'}</p>
             </div>
           </CardContent>
         </Card>
@@ -220,7 +242,7 @@ export default function BorrowersPage() {
                   <TableRow>
                     <TableCell colSpan={7} className="py-12 text-center">
                       <Users className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                      <p className="text-muted-foreground">{uiText("No borrowers found")}</p>
+                      <p className="text-muted-foreground">{unavailable ? copy.unavailable : uiText("No borrowers found")}</p>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -242,37 +264,33 @@ export default function BorrowersPage() {
                       </TableCell>
                         <TableCell className="text-sm">{b.address_city || "—"}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">{uiText("Active")}</Badge>
+                        <Badge variant="secondary">{copy.registered}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" aria-label={`${t.common.actions}: ${b.name}`}>
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuGroup>
                             {canViewHistory && (
                               <DropdownMenuItem onSelect={() => setHistoryBorrower(b)}>
                                 {t.borrowers.loanHistory}
                               </DropdownMenuItem>
                             )}
-                            {/* No /dashboard/borrowers/[id] route exists, and borrower
-                                fields are only writable through the loan application
-                                form, so both items lead to that borrower's loans
-                                rather than being inert. */}
                             <DropdownMenuItem asChild className="text-xs">
                               <Link href={`/dashboard/loans?search=${encodeURIComponent(b.tin_number || b.name || "")}`} className="flex items-center">
                                 <Eye className="mr-2 h-4 w-4" />
                                 {t.common.view}
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem asChild className="text-xs">
-                              <Link href="/dashboard/loans/new" className="flex items-center">
-                                <Edit className="mr-2 h-4 w-4" />
-                                {t.common.edit}
-                              </Link>
-                            </DropdownMenuItem>
+                            {allowed && <DropdownMenuItem disabled={unavailable || pending} onSelect={() => setEditingBorrower(b)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              {copy.edit}
+                            </DropdownMenuItem>}
+                            </DropdownMenuGroup>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -292,6 +310,8 @@ export default function BorrowersPage() {
           onClose={() => setHistoryBorrower(null)}
         />
       )}
+
+      {editingBorrower && <BorrowerEditor key={editingBorrower.id} record={borrowers.find(item => item.id === editingBorrower.id) ?? editingBorrower} available={!unavailable} refreshing={pending} refresh={refresh} onClose={() => setEditingBorrower(null)} />}
 
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
